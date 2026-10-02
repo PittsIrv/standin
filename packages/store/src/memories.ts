@@ -224,10 +224,13 @@ export function approve(s: Store, id: string, edits: { statement?: string; tier?
     const tier = edits.tier ?? m.tier;
     if (tier !== m.tier) notes.push(`tier ${m.tier} → ${tier}`);
 
-    const liveTargets = [m.supersedesId, m.conflictsWithId]
-      .filter((t): t is string => t !== null)
-      .map((t) => getMemory(s, t))
-      .filter((t) => t.status === "approved");
+    const targets = [m.supersedesId, m.conflictsWithId].filter((t): t is string => t !== null).map((t) => getMemory(s, t));
+    const liveTargets = targets.filter((t) => t.status === "approved");
+    // A still-proposed target lost to this memory; reject it so the pair can't both end up approved.
+    for (const t of targets.filter((t) => t.status === "proposed")) {
+      s.db.prepare("UPDATE memories SET status = 'rejected', decided_at = ? WHERE id = ?").run(now, t.id);
+      writeEvent(s, t.id, "proposed", "rejected", "person", `replaced by ${m.id}`);
+    }
     const validFrom = m.validFrom ?? (liveTargets.length > 0 ? now : null);
 
     s.db

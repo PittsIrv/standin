@@ -100,6 +100,17 @@ describe("lifecycle", () => {
     expect(store.getMemory(old.id).status).toBe("retracted");
   });
 
+  it("approving a replacement for a still-proposed memory rejects that memory, so both can't end up approved", () => {
+    const { store } = tempStore();
+    const old = seedMemory(store, "I prefer Python.");
+    const c = seedMemory(store, "I prefer Rust now.", { conflictsWithId: old.id });
+    store.approve(c.id);
+    const resolved = store.getMemory(old.id);
+    expect(resolved.status).toBe("rejected");
+    expect(store.memoryEvents(old.id).at(-1)).toMatchObject({ toStatus: "rejected", actor: "person", note: `replaced by ${c.id}` });
+    expect(() => store.approve(old.id)).toThrow(InvalidTransitionError);
+  });
+
   it("expire only applies to approved memories", () => {
     const { store } = tempStore();
     const m = seedMemory(store, "X");
