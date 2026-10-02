@@ -203,7 +203,7 @@ export function listMemories(s: Store, filter: { status?: MemoryStatus; kind?: M
   const rows = s.db
     .prepare(
       `SELECT * FROM memories WHERE (? IS NULL OR status = ?) AND (? IS NULL OR kind = ?)
-       ORDER BY recorded_at, id`,
+       ORDER BY recorded_at, rowid`,
     )
     .all(filter.status ?? null, filter.status ?? null, filter.kind ?? null, filter.kind ?? null) as Row[];
   return rows.map(rowToMemory);

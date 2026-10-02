@@ -115,18 +115,26 @@ export class Store {
 
   // ---- entities -----------------------------------------------------------
 
-  /** Finds an entity of the same kind by normalized name or alias, creating it if absent. */
-  resolveEntity(input: { name: string; kind: EntityKind; aliases?: string[] }): Entity {
+  /** Finds an entity of the same kind by normalized name or alias, without creating one. */
+  findEntity(input: { name: string; kind: EntityKind; aliases?: string[] }): Entity | null {
     const keys = new Set([input.name, ...(input.aliases ?? [])].map(normalizeName).filter(Boolean));
     const candidates = (this.db.prepare("SELECT * FROM entities WHERE kind = ?").all(input.kind) as Row[]).map(rowToEntity);
-    for (const e of candidates) {
-      if ([e.name, ...e.aliases].some((n) => keys.has(normalizeName(n)))) return e;
-    }
+    return candidates.find((e) => [e.name, ...e.aliases].some((n) => keys.has(normalizeName(n)))) ?? null;
+  }
+
+  /** Finds an entity of the same kind by normalized name or alias, creating it if absent. */
+  resolveEntity(input: { name: string; kind: EntityKind; aliases?: string[] }): Entity {
+    const existing = this.findEntity(input);
+    if (existing) return existing;
     const id = newId("ent");
     this.db
       .prepare("INSERT INTO entities (id, kind, name, aliases) VALUES (?, ?, ?, ?)")
       .run(id, input.kind, input.name.trim(), JSON.stringify(input.aliases ?? []));
     return { id, kind: input.kind, name: input.name.trim(), aliases: input.aliases ?? [] };
+  }
+
+  listEntities(): Entity[] {
+    return (this.db.prepare("SELECT * FROM entities ORDER BY kind, name").all() as Row[]).map(rowToEntity);
   }
 
   getEntity(id: string): Entity {

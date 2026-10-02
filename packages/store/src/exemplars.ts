@@ -55,7 +55,7 @@ export const rejectExemplar = (s: Store, id: string) => decide(s, id, "rejected"
 
 export function listExemplars(s: Store, filter: { status?: ExemplarStatus } = {}): Exemplar[] {
   const rows = s.db
-    .prepare("SELECT * FROM exemplars WHERE (? IS NULL OR status = ?) ORDER BY recorded_at, id")
+    .prepare("SELECT * FROM exemplars WHERE (? IS NULL OR status = ?) ORDER BY recorded_at, rowid")
     .all(filter.status ?? null, filter.status ?? null) as Row[];
   return rows.map(rowToExemplar);
 }
