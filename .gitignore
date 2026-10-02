@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+.superpowers/
+# Instance data must never be committed.
+.standin/
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+.env
+.env.*
