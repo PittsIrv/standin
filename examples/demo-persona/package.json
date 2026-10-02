@@ -1,0 +1,12 @@
+{
+  "name": "@standin/demo-persona",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": {
+    "@standin/llm": "workspace:*",
+    "@standin/schema": "workspace:*"
+  }
+}

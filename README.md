@@ -19,6 +19,21 @@ ingest (read-only) → L0 observations → compaction → L1 memories → airloc
 - **Default-deny airlock.** Raw data stays local. Only approved memories are published.
 - **Bitemporal.** Every memory records when it was true and when it was recorded, so you can ask what the standin knew as of any date.
 
+## Try it (offline, fictional demo persona)
+
+```bash
+pnpm install
+export STANDIN_HOME=$(mktemp -d)/standin   # keep the demo away from ~/.standin
+pnpm standin init --demo                   # creates the instance and loads 10 observations
+pnpm standin compact --demo-llm            # observations → proposed memories (scripted model, no network)
+pnpm standin queue                         # review queue: contradictions first, then by salience
+pnpm standin approve <id> [--tier 1-4]     # or: reject <id>
+pnpm standin memories --as-of 2026-09-01   # what was true then, according to what we know now
+pnpm standin consolidate                   # expire stale memories, decay confidence, purge raw text
+```
+
+On your own data, `standin compact` calls Claude (default `claude-opus-5-5`) through the official SDK. Credentials resolve the SDK's default way (`ANTHROPIC_API_KEY` or `ant auth login`).
+
 ## Your data stays out of this repo
 
 Instance data lives in `$STANDIN_HOME` (default `~/.standin`). A pre-commit hook and CI guard (`pnpm guard`) refuse to commit SQLite stores or observation dumps.

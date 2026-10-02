@@ -21,6 +21,36 @@ importers:
         specifier: ^5.0.3
         version: 5.0.3(@types/node@24.19.1)(vite@7.3.6(@types/node@24.19.1)(tsx@4.23.15))
 
+  apps/cli:
+    dependencies:
+      '@standin/compaction':
+        specifier: workspace:*
+        version: link:../../packages/compaction
+      '@standin/demo-persona':
+        specifier: workspace:*
+        version: link:../../examples/demo-persona
+      '@standin/llm':
+        specifier: workspace:*
+        version: link:../../packages/llm
+      '@standin/schema':
+        specifier: workspace:*
+        version: link:../../packages/schema
+      '@standin/store':
+        specifier: workspace:*
+        version: link:../../packages/store
+      tsx:
+        specifier: ^4
+        version: 4.23.15
+
+  examples/demo-persona:
+    dependencies:
+      '@standin/llm':
+        specifier: workspace:*
+        version: link:../../packages/llm
+      '@standin/schema':
+        specifier: workspace:*
+        version: link:../../packages/schema
+
   packages/compaction:
     dependencies:
       '@standin/llm':

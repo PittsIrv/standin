@@ -1,0 +1,17 @@
+{
+  "name": "@standin/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "bin": { "standin": "./bin/standin.mjs" },
+  "exports": { ".": "./src/main.ts" },
+  "dependencies": {
+    "@standin/compaction": "workspace:*",
+    "@standin/demo-persona": "workspace:*",
+    "@standin/llm": "workspace:*",
+    "@standin/schema": "workspace:*",
+    "@standin/store": "workspace:*",
+    "tsx": "^4"
+  }
+}
