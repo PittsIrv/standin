@@ -1,4 +1,4 @@
-import { mkdtempSync, statSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openStore } from "@standin/store";
@@ -132,6 +132,48 @@ describe("standin CLI, end to end on the demo persona", () => {
     expect(ambiguous.code).toBe(1);
     expect(ambiguous.err).toContain("mem_abcdef000001");
     expect(ambiguous.err).toContain("mem_abcdef000002");
+  });
+
+  it("writes a private interview sheet and imports answers idempotently", async () => {
+    const { home, run } = harness();
+    expect((await run("interview", "template")).code).toBe(1);
+    expect((await run("init", "--name", "Test Person")).code).toBe(0);
+
+    const tpl = await run("interview", "template");
+    expect(tpl.code).toBe(0);
+    const sheetPath = join(home, "interviews", `core-v1-${new Date().toISOString().slice(0, 10)}.md`);
+    expect(tpl.out).toContain(sheetPath);
+    expect(statSync(sheetPath).mode & 0o777).toBe(0o600);
+    expect((await run("interview", "template")).err).toContain("already exists");
+
+    const filled = readFileSync(sheetPath, "utf8")
+      .replace(/(### now\.work\n(?:>.*\n)+)/, "$1\nI'm building standin.\n")
+      .replace(/(### competence\.gaps\n(?:>.*\n)+)/, "$1\n编译器优化我不太懂。\n");
+    writeFileSync(sheetPath, filled);
+
+    const dry = await run("interview", "import", sheetPath, "--dry-run");
+    expect(dry.out).toContain("would add 2");
+    const first = await run("interview", "import", sheetPath, "--occurred", "2026-10-02", "--json");
+    expect(first.code).toBe(0);
+    const report = JSON.parse(first.out) as { answers: { questionId: string; lang: string; status: string }[]; blank: string[] };
+    expect(report.answers).toMatchObject([
+      { questionId: "now.work", lang: "en", status: "added" },
+      { questionId: "competence.gaps", lang: "zh", status: "added" },
+    ]);
+    expect(report.blank.length).toBeGreaterThan(20);
+
+    const again = await run("interview", "import", sheetPath);
+    expect(again.out).toContain("added 0, unchanged 2");
+
+    const store = openStore({ path: join(home, "standin.db") });
+    const pending = store.uncompactedObservations(10);
+    store.close();
+    expect(pending.map((o) => [o.sourceKind, o.authorRole, o.occurredAt])).toEqual([
+      ["interview", "self", "2026-10-02T00:00:00.000Z"],
+      ["interview", "self", "2026-10-02T00:00:00.000Z"],
+    ]);
+    expect((await run("interview", "import", sheetPath, "--occurred", "soon")).code).toBe(1);
+    expect((await run("interview", "frob")).code).toBe(1);
   });
 
   it("prints usage for unknown commands", async () => {

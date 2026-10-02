@@ -9,6 +9,7 @@
   "dependencies": {
     "@standin/compaction": "workspace:*",
     "@standin/demo-persona": "workspace:*",
+    "@standin/interview": "workspace:*",
     "@standin/llm": "workspace:*",
     "@standin/schema": "workspace:*",
     "@standin/store": "workspace:*",
