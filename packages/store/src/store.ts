@@ -14,7 +14,9 @@ import { rowToEntity, rowToObservation, type Row } from "./rows.ts";
 import { contentHash, normalizeName, normalizeText } from "./text.ts";
 import * as mem from "./memories.ts";
 import * as exm from "./exemplars.ts";
+import { consolidate, type ConsolidationReport } from "./consolidate.ts";
 import type {
+  Config,
   Exemplar,
   ExemplarStatus,
   Lang,
@@ -194,5 +196,11 @@ export class Store {
   }
   listExemplars(filter?: { status?: ExemplarStatus }): Exemplar[] {
     return exm.listExemplars(this, filter);
+  }
+
+  // ---- consolidation ------------------------------------------------------
+
+  consolidate(config: Config): ConsolidationReport {
+    return consolidate(this, config);
   }
 }
