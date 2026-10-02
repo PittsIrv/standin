@@ -1,0 +1,2 @@
+#!/bin/sh
+exec node scripts/guard-instance-data.mjs
