@@ -31,3 +31,28 @@ export function obs(overrides: Partial<ObservationInput> = {}): ObservationInput
     ...overrides,
   };
 }
+
+import type { NewMemory } from "../src/index.ts";
+
+export function fact(statement: string, overrides: Partial<NewMemory> = {}): NewMemory {
+  return {
+    kind: "fact",
+    statement,
+    lang: "en",
+    tier: 1,
+    isCurrentState: false,
+    attrs: {},
+    ...overrides,
+  } as NewMemory;
+}
+
+/** Inserts an observation and a proposed memory sourced from it. */
+export function seedMemory(store: Store, statement: string, overrides: Partial<NewMemory> = {}, entityIds: string[] = []) {
+  const o = store.addObservation(obs({ text: `obs: ${statement}` }));
+  return store.insertMemory(fact(statement, overrides), {
+    sourceObservationIds: [o.id],
+    entityIds,
+    actor: "compaction",
+    salience: 1,
+  });
+}

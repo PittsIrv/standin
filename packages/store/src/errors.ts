@@ -1,5 +1,3 @@
-import type { MemoryStatus } from "@standin/schema";
-
 export class NotFoundError extends Error {
   constructor(what: string, id: string) {
     super(`${what} not found: ${id}`);
@@ -18,8 +16,8 @@ export class AmbiguousIdError extends Error {
 }
 
 export class InvalidTransitionError extends Error {
-  constructor(id: string, from: MemoryStatus, to: MemoryStatus) {
-    super(`memory ${id} cannot go from ${from} to ${to}`);
+  constructor(id: string, from: string, to: string) {
+    super(`${id} cannot go from ${from} to ${to}`);
     this.name = "InvalidTransitionError";
   }
 }

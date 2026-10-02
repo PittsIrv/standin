@@ -12,20 +12,36 @@ import { openDatabase, systemClock, transaction, type Clock } from "./db.ts";
 import { NotFoundError } from "./errors.ts";
 import { rowToEntity, rowToObservation, type Row } from "./rows.ts";
 import { contentHash, normalizeName, normalizeText } from "./text.ts";
+import * as mem from "./memories.ts";
+import * as exm from "./exemplars.ts";
+import type {
+  Exemplar,
+  ExemplarStatus,
+  Lang,
+  Memory,
+  MemoryEvent,
+  MemoryKind,
+  MemoryStatus,
+  Register,
+  Tier,
+} from "@standin/schema";
 
 export interface StoreOptions {
   path: string;
   clock?: Clock;
+  /** Half-life used to decay current-state memories between consolidations. */
+  currentStateHalfLifeDays?: number;
 }
 
 export function openStore(opts: StoreOptions): Store {
-  return new Store(openDatabase(opts.path), opts.clock ?? systemClock);
+  return new Store(openDatabase(opts.path), opts.clock ?? systemClock, opts.currentStateHalfLifeDays ?? 90);
 }
 
 export class Store {
   constructor(
     readonly db: DatabaseSync,
     readonly clock: Clock,
+    readonly halfLifeDays = 90,
   ) {}
 
   close(): void {
@@ -55,7 +71,18 @@ export class Store {
         `INSERT INTO observations (id, source_kind, source_ref, author_role, lang, text, content_hash, occurred_at, ingested_at, meta)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(id, o.sourceKind, o.sourceRef, o.authorRole, o.lang, o.text, hash, o.occurredAt, this.nowIso(), JSON.stringify(o.meta));
+      .run(
+        id,
+        o.sourceKind,
+        o.sourceRef,
+        o.authorRole,
+        o.lang,
+        o.text,
+        hash,
+        new Date(o.occurredAt).toISOString(),
+        this.nowIso(),
+        JSON.stringify(o.meta),
+      );
     return this.getObservation(id);
   }
 
@@ -104,5 +131,68 @@ export class Store {
     const row = this.db.prepare("SELECT * FROM entities WHERE id = ?").get(id) as Row | undefined;
     if (!row) throw new NotFoundError("entity", id);
     return rowToEntity(row);
+  }
+
+  // ---- memories -----------------------------------------------------------
+
+  insertMemory(input: mem.NewMemory, ctx: mem.InsertContext): Memory {
+    return mem.insertMemory(this, input, ctx);
+  }
+  addCorroboration(memoryId: string, observationId: string): Memory {
+    return mem.addCorroboration(this, memoryId, observationId);
+  }
+  recomputeConfidence(id: string, halfLifeDays?: number): Memory {
+    return mem.recomputeConfidence(this, id, halfLifeDays);
+  }
+  getMemory(idOrPrefix: string): Memory {
+    return mem.getMemory(this, idOrPrefix);
+  }
+  listMemories(filter?: { status?: MemoryStatus; kind?: MemoryKind }): Memory[] {
+    return mem.listMemories(this, filter);
+  }
+  memorySources(id: string): Observation[] {
+    return mem.memorySources(this, id);
+  }
+  memoryEntities(id: string): Entity[] {
+    return mem.memoryEntities(this, id);
+  }
+  memoryEvents(id: string): MemoryEvent[] {
+    return mem.memoryEvents(this, id);
+  }
+  approve(id: string, edits?: { statement?: string; tier?: Tier }): Memory {
+    return mem.approve(this, id, edits);
+  }
+  reject(id: string, note?: string): Memory {
+    return mem.reject(this, id, note ?? null);
+  }
+  retract(id: string, note?: string): Memory {
+    return mem.retract(this, id, note ?? null);
+  }
+  expire(id: string, note?: string): Memory {
+    return mem.expire(this, id, note ?? null);
+  }
+  findNeighbors(
+    query: { statement: string; entityIds: string[] },
+    opts?: { limit?: number; minSimilarity?: number },
+  ): mem.Neighbor[] {
+    return mem.findNeighbors(this, query, opts);
+  }
+  memoriesAsOf(q: { validAt: Date; recordedAt?: Date }): Memory[] {
+    return mem.memoriesAsOf(this, q);
+  }
+
+  // ---- exemplars ----------------------------------------------------------
+
+  insertExemplar(input: { observationId: string; text: string; lang: Lang; register: Register }): Exemplar | null {
+    return exm.insertExemplar(this, input);
+  }
+  approveExemplar(id: string): Exemplar {
+    return exm.approveExemplar(this, id);
+  }
+  rejectExemplar(id: string): Exemplar {
+    return exm.rejectExemplar(this, id);
+  }
+  listExemplars(filter?: { status?: ExemplarStatus }): Exemplar[] {
+    return exm.listExemplars(this, filter);
   }
 }

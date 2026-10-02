@@ -38,6 +38,8 @@ const MIGRATIONS: string[] = [
     salience REAL NOT NULL,
     valid_from TEXT,
     valid_until TEXT,
+    -- validUntil as approved; later supersession/expiry only changes valid_until.
+    original_valid_until TEXT,
     is_current_state INTEGER NOT NULL,
     affirmed INTEGER NOT NULL,
     supersedes_id TEXT REFERENCES memories (id),
