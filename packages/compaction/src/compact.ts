@@ -21,7 +21,10 @@ export interface CompactionReport {
 
 export interface CompactOptions {
   store: Store;
+  /** Extraction model. */
   llm: LLM;
+  /** Reconciliation model; defaults to `llm`. */
+  reconcileLLM?: LLM;
   config: Config;
   limit?: number;
   retryFailed?: boolean;
@@ -34,7 +37,7 @@ interface Planned {
   target: Memory | null;
 }
 
-const emptyReport = (): CompactionReport => ({
+export const emptyReport = (): CompactionReport => ({
   processed: 0,
   skippedExposed: 0,
   failed: [],
@@ -54,29 +57,55 @@ const emptyReport = (): CompactionReport => ({
 export async function compact(opts: CompactOptions): Promise<CompactionReport> {
   const { store, llm, config } = opts;
   const report = emptyReport();
-  const batch = store.uncompactedObservations(opts.limit ?? config.compaction.batchSize, { retryFailed: opts.retryFailed });
+  const pending = takePending(store, config, report, opts);
 
-  for (const o of batch) {
+  for (const o of pending) {
+    await finishObservation(store, opts.reconcileLLM ?? llm, config, o, report, () =>
+      llm.generateObject({ ...extractionRequest(o, config), schema: ExtractionSchema }),
+    );
+  }
+  return report;
+}
+
+export function extractionRequest(o: Observation, config: Config) {
+  return { ...buildExtractionPrompt(o, config.persona.name), purpose: "extract" };
+}
+
+/** The next uncompacted observations; `exposed` ones are marked skipped on the way, since they never become knowledge. */
+export function takePending(
+  store: Store,
+  config: Config,
+  report: CompactionReport,
+  opts: { limit?: number; retryFailed?: boolean },
+): Observation[] {
+  const out: Observation[] = [];
+  for (const o of store.uncompactedObservations(opts.limit ?? config.compaction.batchSize, { retryFailed: opts.retryFailed })) {
     if (o.authorRole === "exposed") {
       store.markCompacted(o.id, "skipped_exposed");
       report.skippedExposed++;
-      continue;
-    }
-    try {
-      const extraction = await llm.generateObject({
-        ...buildExtractionPrompt(o, config.persona.name),
-        schema: ExtractionSchema,
-        purpose: "extract",
-      });
-      const plans = await planCandidates(store, llm, config, extraction, report);
-      store.transaction(() => apply(store, config, o, plans, extraction, report));
-      report.processed++;
-    } catch (err) {
-      store.markCompacted(o.id, "failed");
-      report.failed.push({ observationId: o.id, error: err instanceof Error ? err.message : String(err) });
-    }
+    } else out.push(o);
   }
-  return report;
+  return out;
+}
+
+/** Reconciles one observation's extraction and applies it in one transaction; any failure marks the observation failed. */
+export async function finishObservation(
+  store: Store,
+  reconcileLLM: LLM,
+  config: Config,
+  o: Observation,
+  report: CompactionReport,
+  extract: () => Promise<Extraction>,
+): Promise<void> {
+  try {
+    const extraction = await extract();
+    const plans = await planCandidates(store, reconcileLLM, config, extraction, report);
+    store.transaction(() => apply(store, config, o, plans, extraction, report));
+    report.processed++;
+  } catch (err) {
+    store.markCompacted(o.id, "failed");
+    report.failed.push({ observationId: o.id, error: err instanceof Error ? err.message : String(err) });
+  }
 }
 
 function toAttrs(c: ExtractedMemory): MemoryAttrs | null {

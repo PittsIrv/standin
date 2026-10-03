@@ -1,4 +1,5 @@
 import { parseArgs } from "node:util";
+import { LLMError } from "@standin/llm";
 import { AmbiguousIdError, InvalidTransitionError, NotFoundError, type Clock } from "@standin/store";
 import { commands, type CommandContext } from "./commands/index.ts";
 import { CliError } from "./errors.ts";
@@ -10,6 +11,8 @@ export interface CliIO {
   env: Record<string, string | undefined>;
   readStdin?: () => Promise<string>;
   clock?: Clock;
+  /** Used while polling a batch; tests pass a no-op. */
+  sleep?: (ms: number) => Promise<void>;
 }
 
 export const USAGE = `Usage: standin <command> [options]
@@ -24,6 +27,9 @@ Commands:
                                                  turn each answered question into an observation
   compact [--limit N] [--retry-failed] [--demo-llm]
                                                  turn observations into proposed memories
+  compact --batch [--wait]                       same, through the batch API at about half the price:
+                                                 submits, then collects on a later run (--wait polls)
+  compact --abandon-batch                        give up on the open batch; its observations go back to pending
   queue                                          show this week's review queue
   approve <id> [--tier T] [--statement S]        approve a proposed memory (or exm_ exemplar)
   reject <id>                                    reject a proposed memory (or exm_ exemplar)
@@ -52,7 +58,8 @@ export async function runCli(argv: string[], io: CliIO): Promise<number> {
       err instanceof NotFoundError ||
       err instanceof AmbiguousIdError ||
       err instanceof InvalidTransitionError ||
-      err instanceof CliError
+      err instanceof CliError ||
+      err instanceof LLMError
     ) {
       io.stderr(`error: ${err.message}`);
       return 1;

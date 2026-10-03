@@ -97,6 +97,23 @@ const MIGRATIONS: string[] = [
     created_at TEXT NOT NULL
   );
   `,
+  `
+  -- Observations sent to a provider's batch API and not yet collected.
+  CREATE TABLE compaction_batches (
+    id TEXT PRIMARY KEY,
+    provider_batch_id TEXT NOT NULL,
+    model TEXT NOT NULL,
+    submitted_at TEXT NOT NULL,
+    closed_at TEXT,
+    outcome TEXT
+  );
+  CREATE TABLE compaction_batch_items (
+    batch_id TEXT NOT NULL REFERENCES compaction_batches(id),
+    observation_id TEXT NOT NULL REFERENCES observations(id),
+    position INTEGER NOT NULL,
+    PRIMARY KEY (batch_id, observation_id)
+  );
+  `,
 ];
 
 export function migrate(db: DatabaseSync): void {

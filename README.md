@@ -46,6 +46,32 @@ pnpm standin interview import <that file>       # one observation per answer; re
 pnpm standin compact && pnpm standin queue
 ```
 
+## Choosing models
+
+Each stage picks its own model in `$STANDIN_HOME/config.json`. A bare string is an Anthropic model id:
+
+```jsonc
+"compaction": {
+  "model": "claude-opus-5-5",            // extraction: long reads, quality-critical
+  "reconcileModel": "claude-haiku-4-5-20251001"  // short classification; defaults to `model`
+}
+```
+
+Any OpenAI-compatible server works too (Ollama, vLLM, LM Studio, llama.cpp, hosted open models). With a local server, your raw data never leaves your machine:
+
+```jsonc
+"model": {
+  "provider": "openai-compatible",
+  "baseURL": "http://localhost:11434/v1",  // Ollama
+  "model": "qwen3:8b",
+  "apiKeyEnv": "MY_PROVIDER_KEY"           // optional: the env var name, never the key itself
+}
+```
+
+Every reply is validated against the schema locally, and an invalid reply gets one repair attempt. Failures mark the observation failed (`standin compact --retry-failed`), so the cost of a weaker model is retries, not bad data.
+
+**Batch mode** (Anthropic): `standin compact --batch` sends extraction through the Message Batches API at about half the price, and a later `standin compact --batch` collects the results (or add `--wait`). Reconciliation stays live and in order, so results match live compaction.
+
 ## Your data stays out of this repo
 
 Instance data lives in `$STANDIN_HOME` (default `~/.standin`). A pre-commit hook and CI guard (`pnpm guard`) refuse to commit SQLite stores or observation dumps.

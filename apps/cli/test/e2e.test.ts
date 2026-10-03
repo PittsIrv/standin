@@ -16,6 +16,7 @@ function harness() {
       stdout: (s) => out.push(s),
       stderr: (s) => err.push(s),
       env: { STANDIN_HOME: home },
+      sleep: async () => {},
     });
     return { code, out: out.join("\n"), err: err.join("\n") };
   };
@@ -174,6 +175,53 @@ describe("standin CLI, end to end on the demo persona", () => {
     ]);
     expect((await run("interview", "import", sheetPath, "--occurred", "soon")).code).toBe(1);
     expect((await run("interview", "frob")).code).toBe(1);
+  });
+
+  it("compacts through a batch with the same result as live compaction", async () => {
+    const { run } = harness();
+    expect((await run("init", "--demo")).code).toBe(0);
+    const submitted = await run("compact", "--batch", "--demo-llm");
+    expect(submitted.out).toContain("9 observations (skipped exposed: 1)");
+    expect((await run("compact", "--demo-llm")).err).toContain("is open");
+    const collected = await run("compact", "--batch", "--demo-llm", "--json");
+    expect(JSON.parse(collected.out)).toMatchObject({
+      kind: "collected",
+      report: { processed: 9, created: 13, corroborated: 1, updates: 1, contradictions: 1, exemplars: 3, failed: [] },
+    });
+    expect((await run("compact", "--batch", "--demo-llm")).out).toContain("Nothing to compact");
+    expect((await run("compact", "--abandon-batch")).out).toContain("No open batch");
+  });
+
+  it("--wait polls a batch to completion, and --abandon-batch releases it", async () => {
+    const { run } = harness();
+    expect((await run("init", "--demo")).code).toBe(0);
+    const waited = await run("compact", "--batch", "--wait", "--demo-llm");
+    expect(waited.out).toContain("Submitted batch");
+    expect(waited.out).toContain("processed 9");
+
+    const { run: run2 } = harness();
+    await run2("init", "--demo");
+    await run2("compact", "--batch", "--demo-llm");
+    expect((await run2("compact", "--abandon-batch")).out).toContain("pending again");
+    expect(JSON.parse((await run2("compact", "--demo-llm", "--json")).out)).toMatchObject({ processed: 9 });
+  });
+
+  it("validates model config and flags", async () => {
+    const { home, run } = harness();
+    expect((await run("init", "--name", "T")).code).toBe(0);
+    await run("observe", "--source", "manual", "--role", "self", "--lang", "en", "--file", join(home, "config.json"));
+    expect((await run("compact", "--limit", "abc")).err).toContain("--limit must be a positive integer");
+
+    const cfg = JSON.parse(readFileSync(join(home, "config.json"), "utf8"));
+    cfg.compaction.model = { provider: "anthropic", model: "claude-opus-5-5", apiKeyEnv: "STANDIN_TEST_MISSING_KEY" };
+    writeFileSync(join(home, "config.json"), JSON.stringify(cfg));
+    const missing = await run("compact");
+    expect(missing.code).toBe(1);
+    expect(missing.err).toBe("error: STANDIN_TEST_MISSING_KEY is not set (named by apiKeyEnv for model claude-opus-5-5)");
+
+    cfg.compaction.model = { provider: "openai-compatible", model: "qwen", baseURL: "http://127.0.0.1:9/v1" };
+    writeFileSync(join(home, "config.json"), JSON.stringify(cfg));
+    expect((await run("compact", "--batch")).err).toContain("--batch needs a provider with a batch API");
   });
 
   it("prints usage for unknown commands", async () => {
