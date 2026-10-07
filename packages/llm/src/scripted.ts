@@ -6,6 +6,10 @@ import {
   type BatchRequest,
   type BatchStatus,
   type GenerateObjectRequest,
+  type Generation,
+  type ModelProvider,
+  type Usage,
+  ZERO_USAGE,
 } from "./types.ts";
 
 export type ScriptHandler = (req: GenerateObjectRequest<unknown>) => unknown | Promise<unknown>;
@@ -20,19 +24,31 @@ let batchCounter = 0;
 
 function scriptedBatch(batchId: string) {
   const b = BATCHES.get(batchId);
-  if (!b) throw new LLMError(`unknown batch ${batchId} (scripted batches only live within one process; abandon it and use --wait)`);
+  if (!b) throw new LLMError("api_error", `unknown batch ${batchId} (scripted batches only live within one process; abandon it and use --wait)`);
   return b;
 }
 
 /** Deterministic LLM for tests and offline demos. Output is still validated against the request schema. */
-export class ScriptedLLM implements BatchLLM {
+export class ScriptedLLM implements BatchLLM, ModelProvider {
+  readonly provider = "scripted" as const;
+  readonly model = "scripted";
   readonly calls: GenerateObjectRequest<unknown>[] = [];
+  private readonly usage: Usage;
 
-  /** `batchPolls`: how many status checks report a batch as still processing before it ends. */
+  /**
+   * `batchPolls`: how many status checks report a batch as still processing before it ends.
+   * `usage`: what every call reports (default zeros).
+   */
   constructor(
     private readonly handler: ScriptHandler,
-    private readonly opts: { batchPolls?: number } = {},
-  ) {}
+    private readonly opts: { batchPolls?: number; usage?: Partial<Usage> } = {},
+  ) {
+    this.usage = { ...ZERO_USAGE, ...opts.usage };
+  }
+
+  async generate<T>(req: GenerateObjectRequest<T>): Promise<Generation<T>> {
+    return { output: await this.generateObject(req), usage: { ...this.usage }, responseModel: this.model };
+  }
 
   async generateObject<T>(req: GenerateObjectRequest<T>): Promise<T> {
     this.calls.push(req as GenerateObjectRequest<unknown>);
@@ -40,10 +56,10 @@ export class ScriptedLLM implements BatchLLM {
     try {
       raw = await this.handler(req as GenerateObjectRequest<unknown>);
     } catch (err) {
-      throw new LLMError(`scripted handler failed: ${(err as Error).message}`, { cause: err });
+      throw new LLMError("api_error", `scripted handler failed: ${(err as Error).message}`, { cause: err });
     }
     const parsed = req.schema.safeParse(raw);
-    if (!parsed.success) throw new LLMError(`scripted output does not match schema: ${parsed.error.message}`);
+    if (!parsed.success) throw new LLMError("invalid", `scripted output does not match schema: ${parsed.error.message}`);
     return parsed.data;
   }
 
@@ -66,9 +82,11 @@ export class ScriptedLLM implements BatchLLM {
     for (const { id, req } of b.requests) {
       try {
         // Answered by this instance's handler, whichever instance submitted the batch.
-        out.set(id, { ok: true, value: await this.generateObject({ ...req, schema }) });
+        const g = await this.generate({ ...req, schema });
+        out.set(id, { ok: true, value: g.output, usage: g.usage, responseModel: g.responseModel });
       } catch (err) {
-        out.set(id, { ok: false, error: (err as Error).message });
+        const kind = err instanceof LLMError ? err.kind : "api_error";
+        out.set(id, { ok: false, error: (err as Error).message, kind, usage: null });
       }
     }
     return out;

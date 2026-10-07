@@ -55,9 +55,9 @@ export async function compactBatch(opts: CompactBatchOptions): Promise<BatchStep
   for (const id of open.observationIds) {
     const o = store.getObservation(id);
     if (o.compactedAt) continue; // applied by an earlier, interrupted collection
-    const outcome = results.get(id) ?? { ok: false as const, error: "missing from batch results" };
+    const outcome = results.get(id) ?? { ok: false as const, error: "missing from batch results", kind: "api_error" as const, usage: null };
     await finishObservation(store, opts.reconcileLLM ?? llm, config, o, report, async () => {
-      if (!outcome.ok) throw new LLMError(outcome.error);
+      if (!outcome.ok) throw new LLMError(outcome.kind, outcome.error);
       return outcome.value;
     });
   }

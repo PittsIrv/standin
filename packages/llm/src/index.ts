@@ -1,6 +1,12 @@
 export {
+  addUsage,
   LLMError,
   supportsBatch,
+  ZERO_USAGE,
+  type Generation,
+  type LLMErrorKind,
+  type ModelProvider,
+  type Usage,
   type BatchLLM,
   type BatchOutcome,
   type BatchRequest,

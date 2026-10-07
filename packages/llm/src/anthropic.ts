@@ -10,6 +10,9 @@ import {
   type BatchRequest,
   type BatchStatus,
   type GenerateObjectRequest,
+  type Generation,
+  type ModelProvider,
+  type Usage,
 } from "./types.ts";
 
 /**
@@ -26,12 +29,15 @@ export interface AnthropicLLMOptions {
 }
 
 /** Structured-output calls through the official SDK. Credentials resolve the SDK's default way. */
-export class AnthropicLLM implements BatchLLM {
+export class AnthropicLLM implements BatchLLM, ModelProvider {
+  readonly provider = "anthropic" as const;
+  readonly model: string;
   private readonly client: Anthropic;
   private readonly useFallbacks: boolean;
   private readonly effort: AnthropicLLMOptions["effort"];
 
   constructor(private readonly opts: AnthropicLLMOptions) {
+    this.model = opts.model;
     this.client = opts.client ?? new Anthropic();
     this.useFallbacks = FALLBACK_MODELS.has(opts.model);
     this.effort = opts.effort ?? (this.useFallbacks ? "medium" : undefined);
@@ -41,7 +47,8 @@ export class AnthropicLLM implements BatchLLM {
     return {
       model: this.opts.model,
       max_tokens: req.maxTokens ?? 16000,
-      system: req.system,
+      // Cacheable prefix; the API simply skips caching below its minimum prompt length.
+      system: [{ type: "text" as const, text: req.system, cache_control: { type: "ephemeral" as const } }],
       messages: [{ role: "user" as const, content: req.prompt }],
       ...(this.useFallbacks ? { fallbacks: "default" as const } : {}),
     };
@@ -56,6 +63,10 @@ export class AnthropicLLM implements BatchLLM {
   }
 
   async generateObject<T>(req: GenerateObjectRequest<T>): Promise<T> {
+    return (await this.generate(req)).output;
+  }
+
+  async generate<T>(req: GenerateObjectRequest<T>): Promise<Generation<T>> {
     let response;
     try {
       response = await this.client.beta.messages.parse({
@@ -68,9 +79,9 @@ export class AnthropicLLM implements BatchLLM {
     }
     checkStop(response);
     if (response.parsed_output === null || response.parsed_output === undefined) {
-      throw new LLMError("model output did not parse against the schema");
+      throw new LLMError("invalid", "model output did not parse against the schema");
     }
-    return response.parsed_output as T;
+    return { output: response.parsed_output as T, usage: toUsage(response.usage), responseModel: response.model ?? this.model };
   }
 
   async submitBatch(requests: BatchRequest<unknown>[]): Promise<string> {
@@ -116,16 +127,18 @@ export class AnthropicLLM implements BatchLLM {
       for await (const r of await this.client.beta.messages.batches.results(batchId)) {
         if (r.result.type !== "succeeded") {
           const detail = r.result.type === "errored" ? `: ${r.result.error.error.message}` : "";
-          out.set(r.custom_id, { ok: false, error: `batch request ${r.result.type}${detail}` });
+          out.set(r.custom_id, { ok: false, error: `batch request ${r.result.type}${detail}`, kind: "api_error", usage: null });
           continue;
         }
+        const message = r.result.message;
+        const usage = toUsage(message.usage);
         try {
-          const message = r.result.message;
           checkStop(message);
           const text = message.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
-          out.set(r.custom_id, { ok: true, value: parseJsonOutput(text, schema) });
+          out.set(r.custom_id, { ok: true, value: parseJsonOutput(text, schema), usage, responseModel: message.model ?? this.model });
         } catch (err) {
-          out.set(r.custom_id, { ok: false, error: err instanceof Error ? err.message : String(err) });
+          const kind = err instanceof LLMError ? err.kind : "invalid";
+          out.set(r.custom_id, { ok: false, error: err instanceof Error ? err.message : String(err), kind, usage });
         }
       }
     } catch (err) {
@@ -137,12 +150,24 @@ export class AnthropicLLM implements BatchLLM {
 
 function checkStop(message: Pick<BetaMessage, "stop_reason" | "stop_details">): void {
   if (message.stop_reason === "refusal") {
-    throw new LLMError(`model refused (${message.stop_details?.category ?? "unknown category"})`);
+    throw new LLMError("refusal", `model refused (${message.stop_details?.category ?? "unknown category"})`);
   }
-  if (message.stop_reason === "max_tokens") throw new LLMError("output truncated at max_tokens");
+  if (message.stop_reason === "max_tokens") throw new LLMError("truncated", "output truncated at max_tokens");
 }
 
 function wrapApiError(err: unknown): unknown {
-  if (err instanceof Anthropic.APIError) return new LLMError(`Anthropic API error ${err.status}: ${err.message}`, { cause: err });
+  if (err instanceof Anthropic.APIConnectionError) return new LLMError("unreachable", `could not reach the Anthropic API: ${err.message}`, { cause: err });
+  if (err instanceof Anthropic.APIError) return new LLMError("api_error", `Anthropic API error ${err.status}: ${err.message}`, { cause: err });
   return err;
+}
+
+type ApiUsage = { input_tokens?: number | null; output_tokens?: number | null; cache_read_input_tokens?: number | null; cache_creation_input_tokens?: number | null };
+
+function toUsage(u: ApiUsage | null | undefined): Usage {
+  return {
+    inputTokens: u?.input_tokens ?? 0,
+    outputTokens: u?.output_tokens ?? 0,
+    cacheReadTokens: u?.cache_read_input_tokens ?? 0,
+    cacheWriteTokens: u?.cache_creation_input_tokens ?? 0,
+  };
 }

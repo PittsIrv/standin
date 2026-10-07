@@ -14,11 +14,49 @@ export interface LLM {
   generateObject<T>(req: GenerateObjectRequest<T>): Promise<T>;
 }
 
+export type LLMErrorKind = "invalid" | "refusal" | "truncated" | "api_error" | "unreachable";
+
 export class LLMError extends Error {
-  constructor(message: string, options?: { cause?: unknown }) {
+  constructor(
+    readonly kind: LLMErrorKind,
+    message: string,
+    options?: { cause?: unknown },
+  ) {
     super(message, options);
     this.name = "LLMError";
   }
+}
+
+export interface Usage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+}
+
+export const ZERO_USAGE: Usage = Object.freeze({ inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 });
+
+export function addUsage(a: Usage, b: Usage): Usage {
+  return {
+    inputTokens: a.inputTokens + b.inputTokens,
+    outputTokens: a.outputTokens + b.outputTokens,
+    cacheReadTokens: a.cacheReadTokens + b.cacheReadTokens,
+    cacheWriteTokens: a.cacheWriteTokens + b.cacheWriteTokens,
+  };
+}
+
+export interface Generation<T> {
+  output: T;
+  usage: Usage;
+  /** The model that actually answered; may differ from the requested one (server-side fallback). */
+  responseModel: string;
+}
+
+/** A concrete model endpoint. Callers that don't need usage keep using `LLM.generateObject`. */
+export interface ModelProvider extends LLM {
+  readonly provider: "anthropic" | "openai-compatible" | "scripted";
+  readonly model: string;
+  generate<T>(req: GenerateObjectRequest<T>): Promise<Generation<T>>;
 }
 
 export interface BatchRequest<T> {
@@ -27,7 +65,9 @@ export interface BatchRequest<T> {
   req: GenerateObjectRequest<T>;
 }
 
-export type BatchOutcome<T> = { ok: true; value: T } | { ok: false; error: string };
+export type BatchOutcome<T> =
+  | { ok: true; value: T; usage: Usage; responseModel: string }
+  | { ok: false; error: string; kind: LLMErrorKind; usage: Usage | null };
 
 export interface BatchStatus {
   ended: boolean;

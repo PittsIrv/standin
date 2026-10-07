@@ -141,7 +141,7 @@ describe("AnthropicLLM batches (fake client)", () => {
 
     expect(await llm.batchStatus(id)).toEqual({ ended: true, processing: 0, succeeded: 2, errored: 2 });
     const out = await llm.batchResults(id, Schema);
-    expect(out.get("a")).toEqual({ ok: true, value: { city: "Pittsburgh", year: 2022 } });
+    expect(out.get("a")).toMatchObject({ ok: true, value: { city: "Pittsburgh", year: 2022 } });
     expect(out.get("b")).toMatchObject({ ok: false, error: expect.stringContaining("refused") });
     expect(out.get("c")).toMatchObject({ ok: false, error: expect.stringContaining("busy") });
     expect(out.get("d")).toMatchObject({ ok: false, error: expect.stringContaining("expired") });
@@ -153,5 +153,143 @@ describe("AnthropicLLM batches (fake client)", () => {
     expect(created[0].betas).toBeUndefined();
     expect(created[0].requests[0].params.fallbacks).toBeUndefined();
     expect(created[0].requests[0].params.output_config.effort).toBeUndefined();
+  });
+});
+
+describe("usage reporting and error kinds", () => {
+  const req = { system: "Extract the city.", prompt: "I moved to Pittsburgh in 2022.", schema: Schema };
+
+  function parseClient(response: object | Error) {
+    const calls: any[] = [];
+    const client = {
+      beta: {
+        messages: {
+          parse: async (params: unknown) => {
+            calls.push(params);
+            if (response instanceof Error) throw response;
+            return response;
+          },
+        },
+      },
+    };
+    return { client: client as unknown as Anthropic, calls };
+  }
+  const okResponse = {
+    stop_reason: "end_turn",
+    stop_details: null,
+    parsed_output: { city: "Pittsburgh", year: 2022 },
+    model: "claude-opus-5",
+    usage: { input_tokens: 1200, output_tokens: 300, cache_read_input_tokens: 1000, cache_creation_input_tokens: null },
+  };
+
+  it("Anthropic generate returns usage and the response model, and marks the system prompt cacheable", async () => {
+    const { client, calls } = parseClient(okResponse);
+    const g = await new AnthropicLLM({ model: "claude-opus-5-5", client }).generate(req);
+    expect(g).toEqual({
+      output: { city: "Pittsburgh", year: 2022 },
+      usage: { inputTokens: 1200, outputTokens: 300, cacheReadTokens: 1000, cacheWriteTokens: 0 },
+      responseModel: "claude-opus-5",
+    });
+    expect(calls[0].system).toEqual([{ type: "text", text: "Extract the city.", cache_control: { type: "ephemeral" } }]);
+  });
+
+  it("Anthropic classifies failures by kind", async () => {
+    const kindOf = async (response: object | Error) => {
+      const { client } = parseClient(response);
+      try {
+        await new AnthropicLLM({ model: "claude-haiku-4-5", client }).generate(req);
+      } catch (err) {
+        return (err as LLMError).kind;
+      }
+      return "no error";
+    };
+    expect(await kindOf({ ...okResponse, stop_reason: "refusal", stop_details: { category: "cyber" } })).toBe("refusal");
+    expect(await kindOf({ ...okResponse, stop_reason: "max_tokens" })).toBe("truncated");
+    expect(await kindOf({ ...okResponse, parsed_output: null })).toBe("invalid");
+    expect(await kindOf(new Anthropic.APIError(529, { type: "error" }, "overloaded", new Headers()))).toBe("api_error");
+  });
+
+  it("Anthropic batch requests use a cacheable system block and results carry usage", async () => {
+    const created: any[] = [];
+    const client = {
+      beta: {
+        messages: {
+          batches: {
+            create: async (p: unknown) => (created.push(p), { id: "b1" }),
+            results: async () =>
+              (async function* () {
+                yield {
+                  custom_id: "a",
+                  result: {
+                    type: "succeeded",
+                    message: {
+                      content: [{ type: "text", text: '{"city":"Pittsburgh","year":null}' }],
+                      stop_reason: "end_turn",
+                      stop_details: null,
+                      model: "claude-opus-5-5",
+                      usage: { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 0, cache_creation_input_tokens: 7 },
+                    },
+                  },
+                };
+                yield { custom_id: "b", result: { type: "expired" } };
+              })(),
+          },
+        },
+      },
+    } as unknown as Anthropic;
+    const llm = new AnthropicLLM({ model: "claude-opus-5-5", client });
+    await llm.submitBatch([{ id: "a", req }]);
+    expect(created[0].requests[0].params.system).toEqual([{ type: "text", text: req.system, cache_control: { type: "ephemeral" } }]);
+    const out = await llm.batchResults("b1", Schema);
+    expect(out.get("a")).toEqual({
+      ok: true,
+      value: { city: "Pittsburgh", year: null },
+      usage: { inputTokens: 10, outputTokens: 5, cacheReadTokens: 0, cacheWriteTokens: 7 },
+      responseModel: "claude-opus-5-5",
+    });
+    expect(out.get("b")).toMatchObject({ ok: false, kind: "api_error", usage: null });
+  });
+
+  it("OpenAI-compatible maps usage, sums it across a repair, and defaults to zeros", async () => {
+    const replies = [
+      { content: '{"city":1}', usage: { prompt_tokens: 100, completion_tokens: 20 } },
+      { content: '{"city":"Pittsburgh","year":2022}', usage: { prompt_tokens: 130, completion_tokens: 15 } },
+    ];
+    const fetch = (async () => {
+      const r = replies.shift()!;
+      return new Response(JSON.stringify({ choices: [{ message: { content: r.content }, finish_reason: "stop" }], usage: r.usage, model: "qwen3:8b" }));
+    }) as unknown as typeof globalThis.fetch;
+    const g = await new OpenAICompatibleLLM({ baseURL: "http://x/v1", model: "qwen3", fetch }).generate(req);
+    expect(g.usage).toEqual({ inputTokens: 230, outputTokens: 35, cacheReadTokens: 0, cacheWriteTokens: 0 });
+    expect(g.responseModel).toBe("qwen3:8b");
+
+    const bare = fakeServer(['{"city":"Pittsburgh","year":2022}']);
+    const g2 = await new OpenAICompatibleLLM({ baseURL: "http://x/v1", model: "m", fetch: bare.fetch }).generate(req);
+    expect(g2.usage).toEqual({ inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 });
+    expect(g2.responseModel).toBe("m");
+  });
+
+  it("OpenAI-compatible classifies failures by kind", async () => {
+    const kindOf = async (fetch: typeof globalThis.fetch) => {
+      try {
+        await new OpenAICompatibleLLM({ baseURL: "http://x/v1", model: "m", fetch }).generate(req);
+      } catch (err) {
+        return (err as LLMError).kind;
+      }
+      return "no error";
+    };
+    expect(await kindOf(fakeServer([{ status: 404, body: "nope" }]).fetch)).toBe("api_error");
+    expect(await kindOf(fakeServer([{ finish: "length" }]).fetch)).toBe("truncated");
+    expect(await kindOf(fakeServer(["bad", "still bad"]).fetch)).toBe("invalid");
+    expect(await kindOf((async () => Promise.reject(new TypeError("fetch failed"))) as unknown as typeof fetch)).toBe("unreachable");
+  });
+
+  it("parseJsonOutput failures are kind invalid", () => {
+    try {
+      parseJsonOutput("nope", Schema);
+    } catch (err) {
+      expect((err as LLMError).kind).toBe("invalid");
+    }
+    expect.assertions(1);
   });
 });

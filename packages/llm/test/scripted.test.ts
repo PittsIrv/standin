@@ -23,3 +23,16 @@ describe("ScriptedLLM", () => {
     await expect(llm.generateObject({ system: "s", prompt: "p", schema: Schema })).rejects.toThrow(/boom/);
   });
 });
+
+describe("ScriptedLLM.generate", () => {
+  it("reports configured usage and the scripted response model", async () => {
+    const llm = new ScriptedLLM(() => ({ answer: 1 }), { usage: { inputTokens: 5 } });
+    await expect(llm.generate({ system: "s", prompt: "p", schema: Schema })).resolves.toEqual({
+      output: { answer: 1 },
+      usage: { inputTokens: 5, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+      responseModel: "scripted",
+    });
+    expect(llm.provider).toBe("scripted");
+    expect(llm.model).toBe("scripted");
+  });
+});

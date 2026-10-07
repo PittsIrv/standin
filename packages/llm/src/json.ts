@@ -22,12 +22,12 @@ export function parseJsonOutput<T>(text: string, schema: z.ZodType<T>): T {
     } catch {
       raw = undefined;
     }
-    if (raw === undefined) throw new LLMError(`model output is not JSON: ${cleaned.slice(0, 200)}`);
+    if (raw === undefined) throw new LLMError("invalid", `model output is not JSON: ${cleaned.slice(0, 200)}`);
   }
   const parsed = schema.safeParse(raw);
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`).join("; ");
-    throw new LLMError(`model output does not match the schema: ${issues}`);
+    throw new LLMError("invalid", `model output does not match the schema: ${issues}`);
   }
   return parsed.data;
 }
