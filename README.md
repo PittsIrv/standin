@@ -34,6 +34,18 @@ pnpm standin consolidate                   # expire stale memories, decay confid
 
 On your own data, `standin compact` calls Claude (default `claude-opus-5-5`) through the official SDK. Credentials resolve the SDK's default way (`ANTHROPIC_API_KEY` or `ant auth login`).
 
+## Start with an interview
+
+Interviews are the cleanest source: you decide exactly what goes in. The first question bank (`core-v1`) has about 30 bilingual questions, including what you *don't* know, which is what lets the standin say "I don't know" instead of guessing.
+
+```bash
+pnpm standin init --name "Your Name" --languages en,zh
+pnpm standin interview template                 # writes $STANDIN_HOME/interviews/core-v1-<date>.md (owner-only)
+# answer in your editor, in whatever mix of languages you'd actually use; leave questions blank to skip
+pnpm standin interview import <that file>       # one observation per answer; re-importing is idempotent
+pnpm standin compact && pnpm standin queue
+```
+
 ## Your data stays out of this repo
 
 Instance data lives in `$STANDIN_HOME` (default `~/.standin`). A pre-commit hook and CI guard (`pnpm guard`) refuse to commit SQLite stores or observation dumps.

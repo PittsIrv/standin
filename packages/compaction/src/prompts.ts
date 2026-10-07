@@ -26,8 +26,9 @@ Rules:
 - validFrom / validUntil: ISO-8601 dates only when the text states or clearly implies them; otherwise null.
 - entities: the named projects, organizations, places, works (books, papers, games), public figures, and topics the memory is about.
 - suggestedTier: 1 if already public or harmless (work, projects, published writing, public interests); 2 for ordinary personal details that are fine to share in conversation; 3 for sensitive topics: compensation, immigration or visa status, health, relationships, family, private individuals, confidential employer information, unpublished research results, or a location more specific than a city.
+- If the source is an interview, the text is a question ("Q:", asked by the interviewer, not ${n}'s words) followed by ${n}'s answer ("A:"). Extract only what the answer says; use the question for context. A short answer like "yes" affirms what the question asks.
 - If the source is another AI's memory of ${n}, treat each item as an unverified claim. Extract it, but do not make it sound more certain than the source.
-- exemplars: up to 3 short verbatim excerpts (at most 280 characters each) that show how ${n} naturally talks, only when ${n} wrote the text. Copy them exactly. Skip boilerplate.`;
+- exemplars: up to 3 short verbatim excerpts (at most 280 characters each) that show how ${n} naturally talks, only when ${n} wrote the text. Copy them exactly, never from an interview question. Skip boilerplate.`;
 
   const aiNote = AI_MEMORY_SOURCES.has(o.sourceKind) ? " (another AI's memory of the person)" : "";
   const prompt = `Observation ${o.id}

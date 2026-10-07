@@ -88,6 +88,13 @@ export class Store {
     return this.getObservation(id);
   }
 
+  /** The observation `addObservation` would dedupe this content against, if any (still found after its text is purged). */
+  findObservationByContent(sourceKind: string, text: string): Observation | null {
+    const hash = contentHash(sourceKind, normalizeText(text));
+    const row = this.db.prepare("SELECT * FROM observations WHERE content_hash = ?").get(hash) as Row | undefined;
+    return row ? rowToObservation(row) : null;
+  }
+
   getObservation(id: string): Observation {
     const row = this.db.prepare("SELECT * FROM observations WHERE id = ?").get(id) as Row | undefined;
     if (!row) throw new NotFoundError("observation", id);

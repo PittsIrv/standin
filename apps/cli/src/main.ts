@@ -18,6 +18,10 @@ Commands:
   init [--name N] [--languages en,zh] [--demo]   create an instance in $STANDIN_HOME (default ~/.standin)
   observe --source K --role R --lang L [--ref S] [--occurred ISO] [--file F]
                                                  add an observation (from a file or stdin)
+  interview template [--bank B] [--lang both|en|zh] [--out F | --stdout]
+                                                 write a private answer sheet (default: $STANDIN_HOME/interviews/)
+  interview import <file> [--occurred ISO] [--lang L] [--dry-run]
+                                                 turn each answered question into an observation
   compact [--limit N] [--retry-failed] [--demo-llm]
                                                  turn observations into proposed memories
   queue                                          show this week's review queue
