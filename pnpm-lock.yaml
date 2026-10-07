@@ -65,9 +65,16 @@ importers:
       '@standin/store':
         specifier: workspace:*
         version: link:../store
+      '@standin/trace':
+        specifier: workspace:*
+        version: link:../trace
       zod:
         specifier: ^4.6.5
         version: 4.6.5
+    devDependencies:
+      '@standin/models':
+        specifier: workspace:*
+        version: link:../models
 
   packages/interview:
     dependencies:

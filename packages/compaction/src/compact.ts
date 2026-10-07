@@ -1,6 +1,7 @@
 import type { LLM } from "@standin/llm";
 import type { Config, Memory, MemoryAttrs, Observation } from "@standin/schema";
 import { computeConfidence, type NewMemory, type Store } from "@standin/store";
+import { noopTracer, type Span, type Tracer } from "@standin/trace";
 import { buildExtractionPrompt, buildReconcilePrompt } from "./prompts.ts";
 import { salience, type Novelty } from "./salience.ts";
 import { ExtractionSchema, ReconcileSchema, type ExtractedMemory, type Extraction, type ReconcileAction } from "./schemas.ts";
@@ -28,6 +29,8 @@ export interface CompactOptions {
   config: Config;
   limit?: number;
   retryFailed?: boolean;
+  /** Records the run as a trace; defaults to a tracer that records nothing. */
+  tracer?: Tracer;
 }
 
 interface Planned {
@@ -56,15 +59,27 @@ export const emptyReport = (): CompactionReport => ({
  */
 export async function compact(opts: CompactOptions): Promise<CompactionReport> {
   const { store, llm, config } = opts;
-  const report = emptyReport();
-  const pending = takePending(store, config, report, opts);
+  const tracer = opts.tracer ?? noopTracer;
+  return tracer.run("compaction", { "standin.compaction.mode": "live" }, async (run) => {
+    const report = emptyReport();
+    const pending = takePending(store, config, report, opts);
+    for (const o of pending) {
+      await finishObservation(store, opts.reconcileLLM ?? llm, config, o, report, tracer, () =>
+        llm.generateObject({ ...extractionRequest(o, config), schema: ExtractionSchema }),
+      );
+    }
+    recordReport(run, report);
+    return report;
+  });
+}
 
-  for (const o of pending) {
-    await finishObservation(store, opts.reconcileLLM ?? llm, config, o, report, () =>
-      llm.generateObject({ ...extractionRequest(o, config), schema: ExtractionSchema }),
-    );
-  }
-  return report;
+export function recordReport(run: Span, report: CompactionReport): void {
+  run.setAttributes({
+    "standin.compaction.processed": report.processed,
+    "standin.compaction.failed": report.failed.length,
+    "standin.compaction.created": report.created,
+    "standin.compaction.skipped_exposed": report.skippedExposed,
+  });
 }
 
 export function extractionRequest(o: Observation, config: Config) {
@@ -95,17 +110,25 @@ export async function finishObservation(
   config: Config,
   o: Observation,
   report: CompactionReport,
+  tracer: Tracer,
   extract: () => Promise<Extraction>,
 ): Promise<void> {
-  try {
-    const extraction = await extract();
-    const plans = await planCandidates(store, reconcileLLM, config, extraction, report);
-    store.transaction(() => apply(store, config, o, plans, extraction, report));
-    report.processed++;
-  } catch (err) {
-    store.markCompacted(o.id, "failed");
-    report.failed.push({ observationId: o.id, error: err instanceof Error ? err.message : String(err) });
-  }
+  const attributes = { "standin.observation.id": o.id, "standin.observation.source": o.sourceKind };
+  await tracer.span("compaction.observation", { attributes }, async (span) => {
+    try {
+      const extraction = await extract();
+      const plans = await planCandidates(store, reconcileLLM, config, extraction, report);
+      await tracer.span("store.apply", { attributes: { "standin.candidates": plans.length } }, async () =>
+        store.transaction(() => apply(store, config, o, plans, extraction, report)),
+      );
+      report.processed++;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      store.markCompacted(o.id, "failed");
+      report.failed.push({ observationId: o.id, error: message });
+      span.setStatus("error", message);
+    }
+  });
 }
 
 function toAttrs(c: ExtractedMemory): MemoryAttrs | null {

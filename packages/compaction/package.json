@@ -11,6 +11,10 @@
     "@standin/llm": "workspace:*",
     "@standin/schema": "workspace:*",
     "@standin/store": "workspace:*",
-    "zod": "^4.6.5"
+    "zod": "^4.6.5",
+    "@standin/trace": "workspace:*"
+  },
+  "devDependencies": {
+    "@standin/models": "workspace:*"
   }
 }

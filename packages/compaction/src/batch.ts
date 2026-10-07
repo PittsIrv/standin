@@ -1,7 +1,8 @@
 import { LLMError, type BatchLLM, type BatchStatus, type LLM } from "@standin/llm";
 import type { Config } from "@standin/schema";
 import type { Store } from "@standin/store";
-import { emptyReport, extractionRequest, finishObservation, takePending, type CompactionReport } from "./compact.ts";
+import { noopTracer, type Tracer } from "@standin/trace";
+import { emptyReport, extractionRequest, finishObservation, recordReport, takePending, type CompactionReport } from "./compact.ts";
 import { ExtractionSchema } from "./schemas.ts";
 
 export interface CompactBatchOptions {
@@ -15,6 +16,7 @@ export interface CompactBatchOptions {
   modelLabel: string;
   limit?: number;
   retryFailed?: boolean;
+  tracer?: Tracer;
 }
 
 export type BatchStep =
@@ -34,35 +36,43 @@ export type BatchStep =
  */
 export async function compactBatch(opts: CompactBatchOptions): Promise<BatchStep> {
   const { store, llm, config } = opts;
+  const tracer = opts.tracer ?? noopTracer;
   const open = store.openCompactionBatch();
 
   if (!open) {
     const report = emptyReport();
     const pending = takePending(store, config, report, opts);
     if (pending.length === 0) return { kind: "idle", skippedExposed: report.skippedExposed };
-    const providerBatchId = await llm.submitBatch(
-      pending.map((o) => ({ id: o.id, req: { ...extractionRequest(o, config), schema: ExtractionSchema } })),
-    );
-    store.createCompactionBatch({ providerBatchId, model: opts.modelLabel, observationIds: pending.map((o) => o.id) });
-    return { kind: "submitted", batchId: providerBatchId, observations: pending.length, skippedExposed: report.skippedExposed };
+    return tracer.run("compaction", { "standin.compaction.mode": "batch-submit", "standin.compaction.observations": pending.length }, async (run) => {
+      const providerBatchId = await llm.submitBatch(
+        pending.map((o) => ({ id: o.id, req: { ...extractionRequest(o, config), schema: ExtractionSchema } })),
+      );
+      store.createCompactionBatch({ providerBatchId, model: opts.modelLabel, observationIds: pending.map((o) => o.id) });
+      run.setAttributes({ "standin.batch_id": providerBatchId, "standin.compaction.skipped_exposed": report.skippedExposed });
+      return { kind: "submitted" as const, batchId: providerBatchId, observations: pending.length, skippedExposed: report.skippedExposed };
+    });
   }
 
+  // A status poll is not a run: --wait would otherwise record one every 30 seconds.
   const status = await llm.batchStatus(open.providerBatchId);
   if (!status.ended) return { kind: "processing", batchId: open.providerBatchId, status };
 
-  const results = await llm.batchResults(open.providerBatchId, ExtractionSchema);
-  const report = emptyReport();
-  for (const id of open.observationIds) {
-    const o = store.getObservation(id);
-    if (o.compactedAt) continue; // applied by an earlier, interrupted collection
-    const outcome = results.get(id) ?? { ok: false as const, error: "missing from batch results", kind: "api_error" as const, usage: null };
-    await finishObservation(store, opts.reconcileLLM ?? llm, config, o, report, async () => {
-      if (!outcome.ok) throw new LLMError(outcome.kind, outcome.error);
-      return outcome.value;
-    });
-  }
-  store.closeCompactionBatch(open.id, "collected");
-  return { kind: "collected", batchId: open.providerBatchId, report };
+  return tracer.run("compaction", { "standin.compaction.mode": "batch-collect", "standin.batch_id": open.providerBatchId }, async (run) => {
+    const results = await llm.batchResults(open.providerBatchId, ExtractionSchema, { submittedAt: open.submittedAt });
+    const report = emptyReport();
+    for (const id of open.observationIds) {
+      const o = store.getObservation(id);
+      if (o.compactedAt) continue; // applied by an earlier, interrupted collection
+      const outcome = results.get(id) ?? { ok: false as const, error: "missing from batch results", kind: "api_error" as const, usage: null };
+      await finishObservation(store, opts.reconcileLLM ?? llm, config, o, report, tracer, async () => {
+        if (!outcome.ok) throw new LLMError(outcome.kind, outcome.error);
+        return outcome.value;
+      });
+    }
+    store.closeCompactionBatch(open.id, "collected");
+    recordReport(run, report);
+    return { kind: "collected" as const, batchId: open.providerBatchId, report };
+  });
 }
 
 /** Gives up on the open batch; its observations go back to the pending pool. Returns the provider batch id. */
