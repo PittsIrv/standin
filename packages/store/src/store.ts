@@ -14,6 +14,8 @@ import { rowToEntity, rowToObservation, type Row } from "./rows.ts";
 import { contentHash, normalizeName, normalizeText } from "./text.ts";
 import * as mem from "./memories.ts";
 import * as exm from "./exemplars.ts";
+import * as spans from "./spans.ts";
+import type { SpanContent, SpanData, SpanSink } from "@standin/trace";
 import { consolidate, type ConsolidationReport } from "./consolidate.ts";
 import type {
   Config,
@@ -270,5 +272,23 @@ export class Store {
 
   consolidate(config: Config): ConsolidationReport {
     return consolidate(this, config);
+  }
+
+  // ---- traces -------------------------------------------------------------
+
+  spanSink(): SpanSink {
+    return spans.spanSink(this);
+  }
+  usage(opts: { since?: string; by: "role" | "model" }): spans.UsageRow[] {
+    return spans.usage(this, opts);
+  }
+  listRuns(opts: { since?: string; kind?: string; limit?: number }): spans.RunSummary[] {
+    return spans.listRuns(this, opts);
+  }
+  getTrace(idOrPrefix: string): { span: SpanData; content: SpanContent | null }[] {
+    return spans.getTrace(this, idOrPrefix);
+  }
+  lastTraceId(): string | null {
+    return spans.lastTraceId(this);
   }
 }

@@ -95,6 +95,9 @@ importers:
       '@standin/schema':
         specifier: workspace:*
         version: link:../schema
+      '@standin/trace':
+        specifier: workspace:*
+        version: link:../trace
 
   packages/trace: {}
 

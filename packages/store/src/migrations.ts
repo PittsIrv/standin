@@ -114,6 +114,29 @@ const MIGRATIONS: string[] = [
     PRIMARY KEY (batch_id, observation_id)
   );
   `,
+  `
+  -- OpenTelemetry-shaped spans. Text (prompts, outputs) lives in span_content so retention can purge it alone.
+  CREATE TABLE spans (
+    span_id TEXT PRIMARY KEY,
+    trace_id TEXT NOT NULL,
+    parent_span_id TEXT,
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    start_time TEXT NOT NULL,
+    end_time TEXT NOT NULL,
+    status TEXT NOT NULL,
+    status_message TEXT,
+    attributes TEXT NOT NULL,
+    events TEXT NOT NULL
+  );
+  CREATE INDEX spans_trace ON spans (trace_id);
+  CREATE INDEX spans_roots ON spans (start_time) WHERE parent_span_id IS NULL;
+  CREATE TABLE span_content (
+    span_id TEXT PRIMARY KEY REFERENCES spans(span_id),
+    recorded_at TEXT NOT NULL,
+    content TEXT NOT NULL
+  );
+  `,
 ];
 
 export function migrate(db: DatabaseSync): void {

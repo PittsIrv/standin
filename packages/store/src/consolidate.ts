@@ -1,11 +1,14 @@
 import type { Config } from "@standin/schema";
 import { expire, listMemories, recomputeConfidence } from "./memories.ts";
+import { purgeSpanContent } from "./spans.ts";
 import type { Store } from "./store.ts";
 
 export interface ConsolidationReport {
   expired: string[];
   recomputed: number;
   purged: number;
+  /** Spans whose stored text (prompts, outputs) was deleted; their structure is kept. */
+  purgedSpanContent: number;
 }
 
 const DAY_MS = 86_400_000;
@@ -46,6 +49,8 @@ export function consolidate(s: Store, config: Config): ConsolidationReport {
       )
       .run(nowIso, purgeBefore).changes;
 
-    return { expired, recomputed, purged: Number(purged) };
+    const purgedSpanContent = purgeSpanContent(s, purgeBefore);
+
+    return { expired, recomputed, purged: Number(purged), purgedSpanContent };
   });
 }

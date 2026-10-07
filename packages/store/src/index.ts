@@ -5,3 +5,4 @@ export { computeConfidence, ROLE_FACTORS, SOURCE_WEIGHTS, type ConfidenceInput }
 export { bigrams, contentHash, dice, normalizeName, normalizeText } from "./text.ts";
 export { SHARED_ENTITY_BOOST, type InsertContext, type Neighbor, type NewMemory } from "./memories.ts";
 export type { ConsolidationReport } from "./consolidate.ts";
+export type { RunSummary, UsageRow } from "./spans.ts";
