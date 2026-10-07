@@ -96,6 +96,8 @@ importers:
         specifier: workspace:*
         version: link:../schema
 
+  packages/trace: {}
+
 packages:
 
   '@anthropic-ai/sdk@0.131.0':
