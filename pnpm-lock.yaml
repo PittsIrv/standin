@@ -84,6 +84,21 @@ importers:
         specifier: ^4.6.5
         version: 4.6.5
 
+  packages/models:
+    dependencies:
+      '@standin/llm':
+        specifier: workspace:*
+        version: link:../llm
+      '@standin/schema':
+        specifier: workspace:*
+        version: link:../schema
+      '@standin/trace':
+        specifier: workspace:*
+        version: link:../trace
+      zod:
+        specifier: ^4.6.5
+        version: 4.6.5
+
   packages/schema:
     dependencies:
       zod:

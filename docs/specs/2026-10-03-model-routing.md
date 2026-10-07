@@ -117,13 +117,11 @@ PR #3's `compaction.model` and `compaction.reconcileModel` move into `models` be
 | `turn` | one visitor turn (SP4) |
 | `eval` | one eval case (SP3) |
 
-**Model-call spans.** The span is named `chat {model}`. It carries the GenAI semantic-convention attributes (operation name, provider, request and response model, input and output tokens) plus:
+**Model-call spans.** The span is named `chat {model}`. It carries the GenAI semantic-convention attributes (operation name, provider, request and response model, input and output tokens, and `gen_ai.usage.cache_read.input_tokens` / `gen_ai.usage.cache_write.input_tokens`; per the Anthropic conventions, input tokens include cached tokens) plus:
 
 - `standin.role`
 - `standin.tier`
 - `standin.cost_usd`
-- `standin.cache_read_tokens`
-- `standin.cache_write_tokens`
 - `standin.batch`
 - `standin.outcome`: `ok`, `invalid`, `refusal`, `truncated`, `api_error`, or `unreachable`
 

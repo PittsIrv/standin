@@ -84,8 +84,8 @@ export function usage(s: Store, opts: { since?: string; by: "role" | "model" }):
               SUM(COALESCE(${attr("standin.outcome")}, 'ok') != 'ok') AS failed,
               SUM(COALESCE(${attr("gen_ai.usage.input_tokens")}, 0)) AS inputTokens,
               SUM(COALESCE(${attr("gen_ai.usage.output_tokens")}, 0)) AS outputTokens,
-              SUM(COALESCE(${attr("standin.cache_read_tokens")}, 0)) AS cacheReadTokens,
-              SUM(COALESCE(${attr("standin.cache_write_tokens")}, 0)) AS cacheWriteTokens,
+              SUM(COALESCE(${attr("gen_ai.usage.cache_read.input_tokens")}, 0)) AS cacheReadTokens,
+              SUM(COALESCE(${attr("gen_ai.usage.cache_write.input_tokens")}, 0)) AS cacheWriteTokens,
               COALESCE(SUM(${COST}), 0) AS costUsd,
               SUM(${COST} IS NULL) AS unpricedCalls
        FROM spans

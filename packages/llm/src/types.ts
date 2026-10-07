@@ -84,7 +84,7 @@ export interface BatchLLM extends LLM {
   submitBatch(requests: BatchRequest<unknown>[]): Promise<string>;
   batchStatus(batchId: string): Promise<BatchStatus>;
   /** Every result validated against `schema`. Requests missing from the results are absent from the map. */
-  batchResults<T>(batchId: string, schema: z.ZodType<T>): Promise<Map<string, BatchOutcome<T>>>;
+  batchResults<T>(batchId: string, schema: z.ZodType<T>, meta?: { submittedAt?: string }): Promise<Map<string, BatchOutcome<T>>>;
 }
 
 export function supportsBatch(llm: LLM): llm is BatchLLM {

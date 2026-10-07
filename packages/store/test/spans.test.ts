@@ -21,8 +21,8 @@ async function chat(tracer: Tracer, role: string, model: string, attrs: { in: nu
       "gen_ai.response.model": model,
       "gen_ai.usage.input_tokens": attrs.in,
       "gen_ai.usage.output_tokens": attrs.out,
-      "standin.cache_read_tokens": attrs.cacheRead ?? 0,
-      "standin.cache_write_tokens": 0,
+      "gen_ai.usage.cache_read.input_tokens": attrs.cacheRead ?? 0,
+      "gen_ai.usage.cache_write.input_tokens": 0,
       "standin.cost_usd": attrs.cost,
       "standin.outcome": attrs.outcome ?? "ok",
     });
