@@ -213,13 +213,13 @@ describe("standin CLI, end to end on the demo persona", () => {
     expect((await run("compact", "--limit", "abc")).err).toContain("--limit must be a positive integer");
 
     const cfg = JSON.parse(readFileSync(join(home, "config.json"), "utf8"));
-    cfg.compaction.model = { provider: "anthropic", model: "claude-opus-5-5", apiKeyEnv: "STANDIN_TEST_MISSING_KEY" };
+    cfg.models.tiers.large = { provider: "anthropic", model: "claude-opus-5-5", apiKeyEnv: "STANDIN_TEST_MISSING_KEY" };
     writeFileSync(join(home, "config.json"), JSON.stringify(cfg));
     const missing = await run("compact");
     expect(missing.code).toBe(1);
     expect(missing.err).toBe("error: STANDIN_TEST_MISSING_KEY is not set (named by apiKeyEnv for model claude-opus-5-5)");
 
-    cfg.compaction.model = { provider: "openai-compatible", model: "qwen", baseURL: "http://127.0.0.1:9/v1" };
+    cfg.models.tiers.large = { provider: "openai-compatible", model: "qwen", baseURL: "http://127.0.0.1:9/v1" };
     writeFileSync(join(home, "config.json"), JSON.stringify(cfg));
     expect((await run("compact", "--batch")).err).toContain("--batch needs a provider with a batch API");
   });

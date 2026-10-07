@@ -1,7 +1,7 @@
 import { abandonBatch, compact, compactBatch, type BatchStep, type CompactionReport } from "@standin/compaction";
 import { demoLLM } from "@standin/demo-persona";
 import { createLLM, supportsBatch, type LLM } from "@standin/llm";
-import type { Config } from "@standin/schema";
+import { resolveModelRef, type Config } from "@standin/schema";
 import type { Store } from "@standin/store";
 import { CliError } from "../errors.ts";
 import { loadInstance } from "../home.ts";
@@ -14,10 +14,9 @@ function models(ctx: CommandContext, config: Config): { llm: LLM; reconcileLLM: 
     const llm = demoLLM();
     return { llm, reconcileLLM: llm, label: "demo" };
   }
-  const extract = config.compaction.model;
-  const reconcile = config.compaction.reconcileModel;
+  const extract = resolveModelRef(config, "extract");
   const llm = createLLM(extract, ctx.io.env);
-  return { llm, reconcileLLM: reconcile ? createLLM(reconcile, ctx.io.env) : llm, label: extract.model };
+  return { llm, reconcileLLM: createLLM(resolveModelRef(config, "reconcile"), ctx.io.env), label: extract.model };
 }
 
 function parseLimit(ctx: CommandContext): number | undefined {

@@ -99,26 +99,20 @@ describe("config", () => {
     const c = parseConfig({ persona: { name: "X" } });
     expect(c).toEqual({
       persona: { name: "X", languages: ["en"] },
-      compaction: { model: { provider: "anthropic", model: "claude-opus-5-5" }, batchSize: 20 },
+      compaction: { batchSize: 20 },
+      models: {
+        tiers: {
+          small: { provider: "anthropic", model: "claude-haiku-4-5-20251001" },
+          medium: { provider: "anthropic", model: "claude-sonnet-5-5" },
+          large: { provider: "anthropic", model: "claude-opus-5-5" },
+        },
+        roles: {},
+        prices: {},
+      },
+      tracing: {},
       consolidation: { retentionDays: 90, freshnessDays: 120, currentStateHalfLifeDays: 90 },
       review: { weeklyCap: 25 },
     });
-  });
-
-  it("accepts a bare model id, a local OpenAI-compatible model, and rejects keys missing a baseURL", () => {
-    const c = parseConfig({
-      persona: { name: "X" },
-      compaction: {
-        model: "claude-sonnet-5-5",
-        reconcileModel: { provider: "openai-compatible", model: "qwen", baseURL: "http://localhost:11434/v1" },
-      },
-    });
-    expect(c.compaction.model).toEqual({ provider: "anthropic", model: "claude-sonnet-5-5" });
-    expect(c.compaction.reconcileModel).toMatchObject({ provider: "openai-compatible", baseURL: "http://localhost:11434/v1" });
-    // Re-parsing the stored (object) form is stable.
-    expect(parseConfig(JSON.parse(JSON.stringify(c)))).toEqual(c);
-    expect(() => parseConfig({ persona: { name: "X" }, compaction: { model: { provider: "openai-compatible", model: "q" } } })).toThrow(/baseURL/);
-    expect(() => parseConfig({ persona: { name: "X" }, compaction: { model: { model: "m", apiKeyEnv: "sk-ant-oops key" } } })).toThrow();
   });
 });
 
