@@ -36,7 +36,10 @@ Commands:
   retract <id>                                   retract an approved memory
   memories [--status S] [--kind K] [--as-of ISO] [--recorded-at ISO]
                                                  list memories (bitemporal with --as-of)
-  consolidate                                    expire stale memories, decay confidence, purge raw text
+  consolidate                                    expire stale memories, decay confidence, purge raw and trace text
+  usage [--since ISO] [--by role|model]          model calls, tokens and cost
+  traces [--since ISO] [--kind K] [--limit N]    recent runs (compaction, import, ...)
+  trace <id> | --last [--content]                one run as a tree of steps
 
 List commands accept --json.`;
 

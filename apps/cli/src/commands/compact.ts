@@ -1,23 +1,14 @@
 import { abandonBatch, compact, compactBatch, type BatchStep, type CompactionReport } from "@standin/compaction";
-import { demoLLM } from "@standin/demo-persona";
-import { createLLM, supportsBatch, type LLM } from "@standin/llm";
-import { resolveModelRef, type Config } from "@standin/schema";
+import type { TracedModel } from "@standin/models";
+import type { Config } from "@standin/schema";
 import type { Store } from "@standin/store";
+import type { Tracer } from "@standin/trace";
 import { CliError } from "../errors.ts";
 import { loadInstance } from "../home.ts";
+import { instanceModels, instanceTracer } from "../runtime.ts";
 import { flag, json, str, type Command, type CommandContext } from "./shared.ts";
 
 const POLL_MS = 30_000;
-
-function models(ctx: CommandContext, config: Config): { llm: LLM; reconcileLLM: LLM; label: string } {
-  if (flag(ctx, "demo-llm")) {
-    const llm = demoLLM();
-    return { llm, reconcileLLM: llm, label: "demo" };
-  }
-  const extract = resolveModelRef(config, "extract");
-  const llm = createLLM(extract, ctx.io.env);
-  return { llm, reconcileLLM: createLLM(resolveModelRef(config, "reconcile"), ctx.io.env), label: extract.model };
-}
 
 function parseLimit(ctx: CommandContext): number | undefined {
   const raw = str(ctx, "limit");
@@ -53,11 +44,11 @@ function stepLines(step: BatchStep, wait: boolean): string[] {
   }
 }
 
-async function runBatch(ctx: CommandContext, store: Store, config: Config, llm: LLM, reconcileLLM: LLM, label: string) {
-  if (!supportsBatch(llm)) throw new CliError("--batch needs a provider with a batch API (the anthropic provider)");
+async function runBatch(ctx: CommandContext, store: Store, config: Config, tracer: Tracer, llm: TracedModel, reconcileLLM: TracedModel) {
+  if (!llm.batchCapable) throw new CliError("--batch needs a provider with a batch API (the anthropic provider)");
   const wait = flag(ctx, "wait");
   const sleep = ctx.io.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
-  const opts = { store, llm, reconcileLLM, config, modelLabel: label, limit: parseLimit(ctx), retryFailed: flag(ctx, "retry-failed") };
+  const opts = { store, llm, reconcileLLM, config, tracer, modelLabel: llm.model, limit: parseLimit(ctx), retryFailed: flag(ctx, "retry-failed") };
 
   let step = await compactBatch(opts);
   while (wait && (step.kind === "submitted" || step.kind === "processing")) {
@@ -88,14 +79,17 @@ export const compactCommand: Command = {
         ctx.io.stdout(id ? `Abandoned batch ${id}; its observations are pending again.` : "No open batch.");
         return 0;
       }
-      const { llm, reconcileLLM, label } = models(ctx, config);
-      if (flag(ctx, "batch")) return await runBatch(ctx, store, config, llm, reconcileLLM, label);
+      const tracer = instanceTracer(ctx, store, config);
+      const models = instanceModels(ctx, config, tracer, { demo: flag(ctx, "demo-llm") });
+      const llm = models.for("extract");
+      const reconcileLLM = models.for("reconcile");
+      if (flag(ctx, "batch")) return await runBatch(ctx, store, config, tracer, llm, reconcileLLM);
 
       const open = store.openCompactionBatch();
       if (open && !flag(ctx, "json")) {
         ctx.io.stderr(`note: batch ${open.providerBatchId} is open; its ${open.observationIds.length} observations wait for: standin compact --batch`);
       }
-      const report = await compact({ store, llm, reconcileLLM, config, limit: parseLimit(ctx), retryFailed: flag(ctx, "retry-failed") });
+      const report = await compact({ store, llm, reconcileLLM, config, tracer, limit: parseLimit(ctx), retryFailed: flag(ctx, "retry-failed") });
       if (flag(ctx, "json")) ctx.io.stdout(JSON.stringify(report, null, 2));
       else ctx.io.stdout(reportLines(report).join("\n"));
       return report.failed.length > 0 ? 1 : 0;

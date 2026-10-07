@@ -35,12 +35,18 @@ importers:
       '@standin/llm':
         specifier: workspace:*
         version: link:../../packages/llm
+      '@standin/models':
+        specifier: workspace:*
+        version: link:../../packages/models
       '@standin/schema':
         specifier: workspace:*
         version: link:../../packages/schema
       '@standin/store':
         specifier: workspace:*
         version: link:../../packages/store
+      '@standin/trace':
+        specifier: workspace:*
+        version: link:../../packages/trace
       tsx:
         specifier: ^4
         version: 4.23.15

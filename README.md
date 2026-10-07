@@ -46,31 +46,59 @@ pnpm standin interview import <that file>       # one observation per answer; re
 pnpm standin compact && pnpm standin queue
 ```
 
-## Choosing models
+## Choosing models: roles and tiers
 
-Each stage picks its own model in `$STANDIN_HOME/config.json`. A bare string is an Anthropic model id:
+Every model call belongs to a **role**, and each role defaults to a **tier**. The cheapest thing that does the job well wins: code first, then a cache, then small, medium, and large models.
+
+| Role | Tier | Zone | Job |
+|---|---|---|---|
+| `extract` | large | private | Extract memories from an observation (quality-critical) |
+| `reconcile` | small | private | Classify a candidate against similar memories |
+| `screen` | small | private | Flag possibly sensitive memories for review |
+| `answer` | small | public | Answer a visitor (the $20/month public agent) |
+| `checkin`, `quiz`, `attack` | medium | private | Check-in questions, self-quiz, break-me attempts |
+| `style`, `judge` | large | private | Style-card rewrites, eval grading |
+
+`$STANDIN_HOME/config.json` maps tiers to models and can override any role. A bare string is an Anthropic model id:
 
 ```jsonc
-"compaction": {
-  "model": "claude-opus-5-5",            // extraction: long reads, quality-critical
-  "reconcileModel": "claude-haiku-4-5-20251001"  // short classification; defaults to `model`
+"models": {
+  "tiers": { "small": "claude-haiku-4-5-20251001", "medium": "claude-sonnet-5-5", "large": "claude-opus-5-5" },
+  "roles": {
+    "reconcile": {                             // any OpenAI-compatible server: Ollama, vLLM, LM Studio, hosted open models
+      "provider": "openai-compatible",
+      "baseURL": "http://localhost:11434/v1",
+      "model": "qwen3:8b",
+      "apiKeyEnv": "MY_PROVIDER_KEY"           // optional: the env var's name, never the key itself
+    }
+  },
+  "prices": { "qwen3:8b": { "inputPerMTok": 0, "outputPerMTok": 0 } }   // USD per million tokens
 }
 ```
 
-Any OpenAI-compatible server works too (Ollama, vLLM, LM Studio, llama.cpp, hosted open models). With a local server, your raw data never leaves your machine:
+Public-zone roles run on Cloudflare and can't reach your machine, so config validation rejects a local model for `answer` and tells you which setting to change. Every reply is validated against its schema locally and gets one repair attempt. A weaker model costs retries, not bad data.
 
-```jsonc
-"model": {
-  "provider": "openai-compatible",
-  "baseURL": "http://localhost:11434/v1",  // Ollama
-  "model": "qwen3:8b",
-  "apiKeyEnv": "MY_PROVIDER_KEY"           // optional: the env var name, never the key itself
-}
+**Batch mode** (Anthropic): `standin compact --batch` sends extraction through the Message Batches API at half the price. A later `standin compact --batch` collects the results (or add `--wait`). Reconciliation stays live and in order, so results match live compaction.
+
+## Observability
+
+Every run (a compaction, an import) is recorded as a trace: a tree of steps shaped like OpenTelemetry spans, with model calls following the GenAI semantic conventions (`gen_ai.usage.input_tokens`, `gen_ai.response.model`, …) plus the role, tier, cost, and outcome.
+
+```bash
+pnpm standin traces                  # recent runs: duration, model calls, cost
+pnpm standin trace --last            # one run as a tree; --content shows prompts and outputs
+pnpm standin usage --by role         # calls, tokens, and cost per role (or --by model)
 ```
 
-Every reply is validated against the schema locally, and an invalid reply gets one repair attempt. Failures mark the observation failed (`standin compact --retry-failed`), so the cost of a weaker model is retries, not bad data.
+Prices come from Anthropic's pricing page and can be overridden under `models.prices`. A call with no known price is reported as unpriced, never as $0.
 
-**Batch mode** (Anthropic): `standin compact --batch` sends extraction through the Message Batches API at about half the price, and a later `standin compact --batch` collects the results (or add `--wait`). Reconciliation stays live and in order, so results match live compaction.
+To view traces in Jaeger, Arize Phoenix, or Langfuse, point standin at their OTLP/HTTP endpoint:
+
+```jsonc
+"tracing": { "otlp": { "endpoint": "http://localhost:4318/v1/traces", "headersEnv": "OTLP_HEADERS", "exportContent": false } }
+```
+
+Prompts and outputs are stored apart from the trace structure. Locally they are deleted by `standin consolidate` on the same schedule as raw observation text (90 days by default). They leave your machine only if you set `exportContent: true`.
 
 ## Your data stays out of this repo
 

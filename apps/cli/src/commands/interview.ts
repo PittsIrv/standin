@@ -13,6 +13,7 @@ import { Lang } from "@standin/schema";
 import { systemClock } from "@standin/store";
 import { CliError } from "../errors.ts";
 import { isInitialized, loadInstance, NotInitializedError } from "../home.ts";
+import { instanceTracer } from "../runtime.ts";
 import { flag, json, str, type Command, type CommandContext } from "./shared.ts";
 
 const TEMPLATE_LANGS = new Set<TemplateLang>(["both", "en", "zh"]);
@@ -44,7 +45,7 @@ function template(ctx: CommandContext): number {
   return 0;
 }
 
-function importSheet(ctx: CommandContext): number {
+async function importSheet(ctx: CommandContext): Promise<number> {
   const file = ctx.positionals[1];
   if (!file) throw new CliError("usage: standin interview import <file>");
   const langArg = str(ctx, "lang");
@@ -68,9 +69,9 @@ function importSheet(ctx: CommandContext): number {
   }));
 
   const dryRun = flag(ctx, "dry-run");
-  const { store } = loadInstance(ctx.home, ctx.io.clock);
+  const { store, config } = loadInstance(ctx.home, ctx.io.clock);
   const rows: { questionId: string; lang: string; status: "added" | "unchanged" | "would add"; observationId: string | null }[] = [];
-  try {
+  const importAll = () =>
     store.transaction(() => {
       for (const { questionId, input } of inputs) {
         const existing = store.findObservationByContent(input.sourceKind, input.text);
@@ -79,6 +80,18 @@ function importSheet(ctx: CommandContext): number {
         else rows.push({ questionId, lang: input.lang, status: "added", observationId: store.addObservation(input).id });
       }
     });
+  try {
+    // A dry run writes nothing, its trace included.
+    if (dryRun) importAll();
+    else
+      await instanceTracer(ctx, store, config).run("import", { "standin.import.source": "interview", "standin.import.bank": sheet.bankId }, async (run) => {
+        importAll();
+        run.setAttributes({
+          "standin.import.added": rows.filter((r) => r.status === "added").length,
+          "standin.import.unchanged": rows.filter((r) => r.status === "unchanged").length,
+          "standin.import.blank": sheet.skipped.length,
+        });
+      });
   } finally {
     store.close();
   }
