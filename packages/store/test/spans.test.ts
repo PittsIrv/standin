@@ -113,4 +113,48 @@ describe("trace storage", () => {
     expect(newer![1]!.content).not.toBeNull();
     expect(store.usage({ by: "role" })[0]!.inputTokens).toBe(before[0]!.inputTokens + 1);
   });
+
+  it("purges trace text as soon as its observation's raw text is purged, even if the trace is newer", async () => {
+    const { store, tracer, clock } = traced();
+    const o = store.addObservation({
+      sourceKind: "interview",
+      sourceRef: "i",
+      authorRole: "self",
+      lang: "en",
+      text: "My private answer.",
+      occurredAt: "2026-09-01T00:00:00.000Z",
+    });
+    const other = store.addObservation({
+      sourceKind: "interview",
+      sourceRef: "i",
+      authorRole: "self",
+      lang: "en",
+      text: "Another answer.",
+      occurredAt: "2026-09-01T00:00:00.000Z",
+    });
+    // Compacted 80 days after import: the trace is much newer than the observation.
+    clock.advanceDays(80);
+    await tracer.run("compaction", {}, async () => {
+      for (const obs of [o, other]) {
+        await tracer.span("compaction.observation", { attributes: { "standin.observation.id": obs.id } }, async () => {
+          await chat(tracer, "extract", "m", { in: 1, out: 1 });
+        });
+      }
+      await tracer.span("chat m", { attributes: { "standin.batch.custom_id": o.id } }, async (span) => span.setContent({ output: "batched" }));
+    });
+    store.markCompacted(o.id, "processed");
+    clock.advanceDays(11); // o's raw text is now past retention; the trace text is only 11 days old
+    store.consolidate(config);
+    expect(store.getObservation(o.id).text).toBeNull();
+    const trace = store.getTrace(store.lastTraceId()!);
+    const contentOf = (pred: (s: (typeof trace)[number]) => boolean) => trace.filter(pred).map((s) => s.content);
+    const underObs = (id: string) => {
+      const parent = trace.find((s) => s.span.attributes["standin.observation.id"] === id)!.span.spanId;
+      return contentOf((s) => s.span.parentSpanId === parent);
+    };
+    expect(underObs(o.id)).toEqual([null]);
+    expect(contentOf((s) => s.span.attributes["standin.batch.custom_id"] === o.id)).toEqual([null]);
+    // The other observation was never compacted, so its raw text and trace text both stay.
+    expect(underObs(other.id)).not.toEqual([null]);
+  });
 });

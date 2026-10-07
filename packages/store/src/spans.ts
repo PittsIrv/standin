@@ -186,7 +186,23 @@ function toSpan(r: SpanRow): SpanData {
   };
 }
 
-/** Deletes stored span text recorded before `before`; span structure stays. */
+/**
+ * Deletes stored span text recorded before `before`, and any span text tied to an
+ * observation whose raw text is already purged (so trace text never outlives its
+ * source, however late the observation was compacted). Span structure stays.
+ */
 export function purgeSpanContent(s: Store, before: string): number {
-  return Number(s.db.prepare("DELETE FROM span_content WHERE recorded_at < ?").run(before).changes);
+  const purgedObservation = (key: string) => `${attr(key)} IN (SELECT id FROM observations WHERE text IS NULL)`;
+  return Number(
+    s.db
+      .prepare(
+        `DELETE FROM span_content WHERE recorded_at < ? OR span_id IN (
+           SELECT span_id FROM spans WHERE ${purgedObservation("standin.observation.id")} OR ${purgedObservation("standin.batch.custom_id")}
+           UNION
+           SELECT c.span_id FROM spans c JOIN spans p ON c.parent_span_id = p.span_id
+           WHERE ${purgedObservation("standin.observation.id").replace("attributes", "p.attributes")}
+         )`,
+      )
+      .run(before).changes,
+  );
 }
