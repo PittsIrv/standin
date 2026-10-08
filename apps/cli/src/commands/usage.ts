@@ -4,6 +4,9 @@ import { loadInstance } from "../home.ts";
 import { fmtUsd } from "../runtime.ts";
 import { flag, json, str, type Command } from "./shared.ts";
 
+/** Share of input tokens read from the prompt cache (input tokens include cached ones). */
+const cachedShare = (cacheRead: number, input: number) => (input === 0 ? "-" : `${Math.round((100 * cacheRead) / input)}%`);
+
 export const usageCommand: Command = {
   options: { since: { type: "string" }, by: { type: "string" }, ...json },
   async run(ctx) {
@@ -24,8 +27,10 @@ export const usageCommand: Command = {
       }
       ctx.io.stdout(
         table(
-          [by, "calls", "failed", "in", "out", "cache read", "cost", "unpriced"],
-          rows.map((r) => [r.key, r.calls, r.failed, r.inputTokens, r.outputTokens, r.cacheReadTokens, fmtUsd(r.costUsd), r.unpricedCalls].map(String)),
+          [by, "calls", "failed", "in", "out", "cached", "cost", "unpriced"],
+          rows.map((r) =>
+            [r.key, r.calls, r.failed, r.inputTokens, r.outputTokens, cachedShare(r.cacheReadTokens, r.inputTokens), fmtUsd(r.costUsd), r.unpricedCalls].map(String),
+          ),
         ),
       );
       const total = rows.reduce((t, r) => ({ calls: t.calls + r.calls, cost: t.cost + r.costUsd, unpriced: t.unpriced + r.unpricedCalls }), {

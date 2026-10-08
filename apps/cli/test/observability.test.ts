@@ -54,6 +54,7 @@ describe("standin observability", () => {
     expect(usage.reduce((n, u) => n + u.calls, 0)).toBe(runs[0]!.modelCalls);
     const text = (await run("usage")).out;
     expect(text).toContain("extract");
+    expect(text).toContain("cached");
     expect(text).toMatch(/\d+ calls have no known price/);
     expect((await run("usage", "--by", "model")).out).toContain("scripted");
     expect((await run("usage", "--by", "nope")).code).toBe(1);

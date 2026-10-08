@@ -1,4 +1,4 @@
-export { compact, type CompactionReport, type CompactOptions } from "./compact.ts";
+export { compact, extractionRequest, type CompactionReport, type CompactOptions } from "./compact.ts";
 export { abandonBatch, compactBatch, type BatchStep, type CompactBatchOptions } from "./batch.ts";
 export { reviewQueue } from "./queue.ts";
 export { salience, KIND_WEIGHTS, NOVELTY_WEIGHTS, type Novelty } from "./salience.ts";
