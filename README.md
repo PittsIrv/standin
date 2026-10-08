@@ -54,7 +54,7 @@ Every model call belongs to a **role**, and each role defaults to a **tier**. Th
 |---|---|---|---|
 | `extract` | large | private | Extract memories from an observation (quality-critical) |
 | `reconcile` | small | private | Classify a candidate against similar memories |
-| `screen` | small | private | Flag possibly sensitive memories for review |
+| `screen` | medium | private | Flag possibly sensitive memories for review (the safety net, so not the cheapest tier) |
 | `answer` | small | public | Answer a visitor (the $20/month public agent) |
 | `checkin`, `quiz`, `attack` | medium | private | Check-in questions, self-quiz, break-me attempts |
 | `style`, `judge` | large | private | Style-card rewrites, eval grading |

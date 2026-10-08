@@ -46,7 +46,7 @@ Default tiers: `small` = `claude-haiku-4-5-20251001`, `medium` = `claude-sonnet-
 |---|---|---|---|---|---|
 | `extract` | compaction | per observation | large | private | The hardest task. Its errors become review work, and review time is the bottleneck. |
 | `reconcile` | compaction | per candidate with neighbors | small | private | A short four-way classification. |
-| `screen` | airlock | per proposed memory | small | private | Runs after the regex scanners. It only flags; the person decides. Its prompt is biased toward recall. |
+| `screen` | airlock | per proposed memory | medium | private | Runs after the regex scanners. It only flags; the person decides. Its prompt is biased toward recall. Medium rather than small (decided 2026-10-07): it is the safety net, and a missed flag is the costliest error. |
 | `answer` | runtime | per visitor turn | small | public | Fits the $20 cap. Disclosure is enforced in tools. Stage 2 escalates it. |
 | `checkin` | scribe | weekly | medium | private | Writes follow-up interview questions from unanswered questions and stale memories. |
 | `quiz` | voice | rare | medium | private | Generates self-quiz questions. |

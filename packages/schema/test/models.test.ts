@@ -12,6 +12,7 @@ describe("roles", () => {
     }
     expect(ROLES.extract.tier).toBe("large");
     expect(ROLES.reconcile.tier).toBe("small");
+    expect(ROLES.screen.tier).toBe("medium");
     expect(ROLES.answer.zone).toBe("public");
   });
 });
@@ -26,7 +27,8 @@ describe("models config", () => {
       },
     });
     expect(resolveModelRef(c, "extract")).toEqual({ provider: "anthropic", model: "claude-opus-5-5" });
-    expect(resolveModelRef(c, "screen")).toEqual({ provider: "anthropic", model: "claude-haiku-4-5-20251001" });
+    expect(resolveModelRef(c, "answer")).toEqual({ provider: "anthropic", model: "claude-haiku-4-5-20251001" });
+    expect(resolveModelRef(c, "screen")).toEqual({ provider: "anthropic", model: "claude-sonnet-5-5" });
     expect(resolveModelRef(c, "reconcile")).toMatchObject({ provider: "openai-compatible", model: "qwen3:8b" });
     // The stored (object) form re-parses to the same config.
     expect(parseConfig(JSON.parse(JSON.stringify(c)))).toEqual(c);

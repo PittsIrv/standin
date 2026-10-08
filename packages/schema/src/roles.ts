@@ -9,7 +9,8 @@ export type Zone = "private" | "public";
 export const ROLES = {
   extract: { tier: "large", zone: "private", purpose: "Extract atomic memories from one observation" },
   reconcile: { tier: "small", zone: "private", purpose: "Classify a candidate against similar memories" },
-  screen: { tier: "small", zone: "private", purpose: "Flag possibly sensitive memories for review" },
+  // Medium, not small: this is the safety net before review, and a missed flag is the costliest error here.
+  screen: { tier: "medium", zone: "private", purpose: "Flag possibly sensitive memories for review" },
   answer: { tier: "small", zone: "public", purpose: "Answer a visitor turn" },
   checkin: { tier: "medium", zone: "private", purpose: "Write follow-up interview questions" },
   quiz: { tier: "medium", zone: "private", purpose: "Generate self-quiz questions" },
