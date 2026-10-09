@@ -1,6 +1,6 @@
 # SP2a: Knowledge map and local review page
 
-Status: decisions approved in conversation on 2026-10-07 (logged in §10). Awaiting written-spec review.
+Status: decisions approved in conversation on 2026-10-07 (logged in §11). Awaiting written-spec review.
 Builds on: [architecture spec](2026-10-01-standin-architecture.md) §5 (memory model) and §7 (competence-gated knowledge), and the [model-routing spec](2026-10-03-model-routing.md) (roles, traces).
 
 ## 1. Goal
@@ -216,14 +216,58 @@ The memory review queue (weekly cap, ranking by importance) is the same one the 
   - bound to localhost only unless `--lan`;
   - rate, approve, and reject end to end against a temp instance.
 
-## 9. Out of scope
+## 9. Phase 2: a learned knowledge predictor
+
+The rules in §3 work from day one with no data, and every change carries a readable reason. They also generate labeled data: each probe response is an example of "this person, this item → know / roughly / no idea". Phase 2 trains a predictor on that data and swaps it in **only if it beats the rules** on the held-out probes.
+
+**Target.** `P(rating ∈ {know, roughly})` for a probe. `wouldnt_say` is excluded.
+
+**Features.**
+- The probe text, as an embedding.
+- Its stated difficulty, plus a difficulty predicted from the text.
+- Its topic's depth signals: claim, evidence floor, probe history.
+- Graph features: depths of ancestors, descendants, and prerequisites.
+
+**Models**, kept small and interpretable because there is one person and a few hundred items:
+1. **Bayesian IRT.** An ability per topic, with hierarchical priors that flow along `parent` and `requires` edges; item difficulty from text.
+2. **Logistic regression** on the same features.
+
+**Baselines.**
+- The §3 rules.
+- An LLM shown the approved map and asked to predict the rating (the "digital twin" approach).
+
+**Evaluation**, on the held-out probes (§4.5), never on training probes:
+- AUC
+- Brier score
+- Expected calibration error, with a reliability diagram
+
+**Swap-in rule.** The predictor replaces the rules for the `answerMode` threshold only if it beats them on Brier score and does not do worse at catching "no idea" items (recall on declines).
+
+**When.** After about 200 non-held-out responses. Until then, Phase 1 stores everything Phase 2 needs. The probe text, difficulty, topic, rating, spot-check grade, and timestamp are already in the data model. No extra logging is required.
+
+**Probe choice.** Once the predictor exists, it also picks probes. Each weekly batch favors the items it is least sure about (active learning), so ten probes teach it as much as possible.
+
+**Showcase.** A `/how-it-works` chart compares the rules, the learned model, and the LLM baseline on the person's own held-out probes, with the reliability diagram.
+
+### Related work
+
+The problem sits between four areas. We did not find work that models **one real person's knowledge boundary** from a few of their answers plus language-model priors, in order to decide what an agent speaking as them may say. That gap is the framing for `/how-it-works`, to be re-checked before publishing.
+
+| Area | Work | What it models | What standin borrows |
+|---|---|---|---|
+| Psychometrics | Item response theory (Rasch; Lord); computerized adaptive testing | P(correct) from ability and item difficulty | Adaptive probing (§4.3); the Phase-2 IRT model |
+| Knowledge tracing | Bayesian KT (Corbett & Anderson 1995); Deep KT (Piech et al. 2015); cognitive diagnosis (NeuralCD, Wang et al. 2020); LLM-based KT: LKT, NTKT ([arXiv 2511.02599](https://arxiv.org/abs/2511.02599)); LLM difficulty prediction, DCL4KT+LLM ([arXiv 2312.11890](https://arxiv.org/abs/2312.11890)) | A learner's mastery over time; text helps cold-start items | Text-based item features for a learner with few answers |
+| Digital twins | Park et al. 2024 (1,000-people interviews); Twin-2K-500 (Toubia et al., *Marketing Science* 2025, [arXiv 2505.17479](https://arxiv.org/abs/2505.17479)) | One person's held-out answers predicted from their interview, mostly attitudes and behavior | The LLM baseline; the test-retest comparison |
+| Model self-knowledge and role-play | P(IK), Kadavath et al. 2022 ([arXiv 2207.05221](https://arxiv.org/abs/2207.05221)); TimeChara, Ahn et al., ACL Findings 2024 ([arXiv 2405.18027](https://arxiv.org/abs/2405.18027)) | Whether a model knows an answer; role-play characters showing knowledge they shouldn't have | The same question asked of a person; "character hallucination" as the failure mode the calibration score measures |
+
+## 10. Out of scope
 
 - Scanners, the `screen` role, publishing, rollback: SP2b.
 - The runtime `competence` tool and badges in the public widget: SP4.
 - Full eval suites beyond the calibration score: SP3.
-- Learning probe difficulty from response data (item response theory). It is possible later, from the stored responses.
+- Building the Phase-2 predictor (§9). Phase 1 only has to store the data it needs, which it already does.
 
-## 10. Decisions log
+## 11. Decisions log
 
 | # | Decision | Choice | Rejected |
 |---|---|---|---|
@@ -234,3 +278,4 @@ The memory review queue (weekly cap, ranking by importance) is the same one the 
 | 5 | Topic structure | A topic tree grown from the person's data, with merges reviewed | Free text; a fixed external taxonomy |
 | 6 | Where probes happen | A local web page shared with memory review | Terminal; Markdown sheet |
 | 7 | Advanced implies foundations | Prerequisite links predict foundations; within a topic, passing a hard level implies the easier ones (adaptive probing) | Probing every level and every foundation separately |
+| 8 | Learned predictor | Phase 2: a small Bayesian IRT or logistic model on probe responses; swapped in only if it beats the rules on held-out probes | Training before data exists; a deep model on one person's data |
