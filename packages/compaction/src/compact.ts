@@ -1,6 +1,7 @@
 import type { LLM } from "@standin/llm";
 import type { Config, Memory, MemoryAttrs, Observation } from "@standin/schema";
 import { computeConfidence, type NewMemory, type Store } from "@standin/store";
+import { noopTracer, type Span, type Tracer } from "@standin/trace";
 import { buildExtractionPrompt, buildReconcilePrompt } from "./prompts.ts";
 import { salience, type Novelty } from "./salience.ts";
 import { ExtractionSchema, ReconcileSchema, type ExtractedMemory, type Extraction, type ReconcileAction } from "./schemas.ts";
@@ -21,10 +22,15 @@ export interface CompactionReport {
 
 export interface CompactOptions {
   store: Store;
+  /** Extraction model. */
   llm: LLM;
+  /** Reconciliation model; defaults to `llm`. */
+  reconcileLLM?: LLM;
   config: Config;
   limit?: number;
   retryFailed?: boolean;
+  /** Records the run as a trace; defaults to a tracer that records nothing. */
+  tracer?: Tracer;
 }
 
 interface Planned {
@@ -34,7 +40,7 @@ interface Planned {
   target: Memory | null;
 }
 
-const emptyReport = (): CompactionReport => ({
+export const emptyReport = (): CompactionReport => ({
   processed: 0,
   skippedExposed: 0,
   failed: [],
@@ -53,30 +59,76 @@ const emptyReport = (): CompactionReport => ({
  */
 export async function compact(opts: CompactOptions): Promise<CompactionReport> {
   const { store, llm, config } = opts;
-  const report = emptyReport();
-  const batch = store.uncompactedObservations(opts.limit ?? config.compaction.batchSize, { retryFailed: opts.retryFailed });
+  const tracer = opts.tracer ?? noopTracer;
+  return tracer.run("compaction", { "standin.compaction.mode": "live" }, async (run) => {
+    const report = emptyReport();
+    const pending = takePending(store, config, report, opts);
+    for (const o of pending) {
+      await finishObservation(store, opts.reconcileLLM ?? llm, config, o, report, tracer, () =>
+        llm.generateObject({ ...extractionRequest(o, config), schema: ExtractionSchema }),
+      );
+    }
+    recordReport(run, report);
+    return report;
+  });
+}
 
-  for (const o of batch) {
+export function recordReport(run: Span, report: CompactionReport): void {
+  run.setAttributes({
+    "standin.compaction.processed": report.processed,
+    "standin.compaction.failed": report.failed.length,
+    "standin.compaction.created": report.created,
+    "standin.compaction.skipped_exposed": report.skippedExposed,
+  });
+}
+
+export function extractionRequest(o: Observation, config: Config) {
+  return { ...buildExtractionPrompt(o, config.persona.name), purpose: "extract" };
+}
+
+/** The next uncompacted observations; `exposed` ones are marked skipped on the way, since they never become knowledge. */
+export function takePending(
+  store: Store,
+  config: Config,
+  report: CompactionReport,
+  opts: { limit?: number; retryFailed?: boolean },
+): Observation[] {
+  const out: Observation[] = [];
+  for (const o of store.uncompactedObservations(opts.limit ?? config.compaction.batchSize, { retryFailed: opts.retryFailed })) {
     if (o.authorRole === "exposed") {
       store.markCompacted(o.id, "skipped_exposed");
       report.skippedExposed++;
-      continue;
-    }
+    } else out.push(o);
+  }
+  return out;
+}
+
+/** Reconciles one observation's extraction and applies it in one transaction; any failure marks the observation failed. */
+export async function finishObservation(
+  store: Store,
+  reconcileLLM: LLM,
+  config: Config,
+  o: Observation,
+  report: CompactionReport,
+  tracer: Tracer,
+  extract: () => Promise<Extraction>,
+): Promise<void> {
+  const attributes = { "standin.observation.id": o.id, "standin.observation.source": o.sourceKind };
+  await tracer.span("compaction.observation", { attributes }, async (span) => {
     try {
-      const extraction = await llm.generateObject({
-        ...buildExtractionPrompt(o, config.persona.name),
-        schema: ExtractionSchema,
-        purpose: "extract",
-      });
-      const plans = await planCandidates(store, llm, config, extraction, report);
-      store.transaction(() => apply(store, config, o, plans, extraction, report));
+      const extraction = await extract();
+      const plans = await planCandidates(store, reconcileLLM, config, extraction, report);
+      await tracer.span("store.apply", { attributes: { "standin.candidates": plans.length } }, async () =>
+        store.transaction(() => apply(store, config, o, plans, extraction, report)),
+      );
       report.processed++;
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       store.markCompacted(o.id, "failed");
-      report.failed.push({ observationId: o.id, error: err instanceof Error ? err.message : String(err) });
+      report.failed.push({ observationId: o.id, error: message });
+      span.setStatus("error", message);
     }
-  }
-  return report;
+  });
 }
 
 function toAttrs(c: ExtractedMemory): MemoryAttrs | null {

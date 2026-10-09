@@ -14,6 +14,8 @@ import { rowToEntity, rowToObservation, type Row } from "./rows.ts";
 import { contentHash, normalizeName, normalizeText } from "./text.ts";
 import * as mem from "./memories.ts";
 import * as exm from "./exemplars.ts";
+import * as spans from "./spans.ts";
+import type { SpanContent, SpanData, SpanSink } from "@standin/trace";
 import { consolidate, type ConsolidationReport } from "./consolidate.ts";
 import type {
   Config,
@@ -27,6 +29,15 @@ import type {
   Register,
   Tier,
 } from "@standin/schema";
+
+export interface CompactionBatch {
+  id: string;
+  providerBatchId: string;
+  model: string;
+  submittedAt: string;
+  /** In submission order. */
+  observationIds: string[];
+}
 
 export interface StoreOptions {
   path: string;
@@ -106,6 +117,10 @@ export class Store {
       .prepare(
         `SELECT * FROM observations
          WHERE text IS NOT NULL AND (compacted_at IS NULL OR (? AND compaction_result = 'failed'))
+           AND id NOT IN (
+             SELECT i.observation_id FROM compaction_batch_items i
+             JOIN compaction_batches b ON b.id = i.batch_id WHERE b.closed_at IS NULL
+           )
          ORDER BY occurred_at, ingested_at, id
          LIMIT ?`,
       )
@@ -118,6 +133,46 @@ export class Store {
       .prepare("UPDATE observations SET compacted_at = ?, compaction_result = ? WHERE id = ?")
       .run(this.nowIso(), result, id);
     if (r.changes === 0) throw new NotFoundError("observation", id);
+  }
+
+  // ---- compaction batches -------------------------------------------------
+
+  /** The batch awaiting collection, if any. Its observations are excluded from `uncompactedObservations`. */
+  openCompactionBatch(): CompactionBatch | null {
+    const row = this.db.prepare("SELECT * FROM compaction_batches WHERE closed_at IS NULL").get() as Row | undefined;
+    if (!row) return null;
+    const items = this.db
+      .prepare("SELECT observation_id FROM compaction_batch_items WHERE batch_id = ? ORDER BY position")
+      .all(row.id as string) as { observation_id: string }[];
+    return {
+      id: row.id as string,
+      providerBatchId: row.provider_batch_id as string,
+      model: row.model as string,
+      submittedAt: row.submitted_at as string,
+      observationIds: items.map((i) => i.observation_id),
+    };
+  }
+
+  createCompactionBatch(input: { providerBatchId: string; model: string; observationIds: string[] }): CompactionBatch {
+    return this.transaction(() => {
+      const open = this.openCompactionBatch();
+      if (open) throw new Error(`compaction batch ${open.id} is still open`);
+      const id = newId("cb");
+      this.db
+        .prepare("INSERT INTO compaction_batches (id, provider_batch_id, model, submitted_at) VALUES (?, ?, ?, ?)")
+        .run(id, input.providerBatchId, input.model, this.nowIso());
+      const insert = this.db.prepare("INSERT INTO compaction_batch_items (batch_id, observation_id, position) VALUES (?, ?, ?)");
+      input.observationIds.forEach((o, i) => insert.run(id, o, i));
+      return this.openCompactionBatch()!;
+    });
+  }
+
+  /** `abandoned` returns the batch's unprocessed observations to the pending pool. */
+  closeCompactionBatch(id: string, outcome: "collected" | "abandoned"): void {
+    const r = this.db
+      .prepare("UPDATE compaction_batches SET closed_at = ?, outcome = ? WHERE id = ? AND closed_at IS NULL")
+      .run(this.nowIso(), outcome, id);
+    if (r.changes === 0) throw new NotFoundError("open compaction batch", id);
   }
 
   // ---- entities -----------------------------------------------------------
@@ -217,5 +272,23 @@ export class Store {
 
   consolidate(config: Config): ConsolidationReport {
     return consolidate(this, config);
+  }
+
+  // ---- traces -------------------------------------------------------------
+
+  spanSink(): SpanSink {
+    return spans.spanSink(this);
+  }
+  usage(opts: { since?: string; by: "role" | "model" }): spans.UsageRow[] {
+    return spans.usage(this, opts);
+  }
+  listRuns(opts: { since?: string; kind?: string; limit?: number }): spans.RunSummary[] {
+    return spans.listRuns(this, opts);
+  }
+  getTrace(idOrPrefix: string): { span: SpanData; content: SpanContent | null }[] {
+    return spans.getTrace(this, idOrPrefix);
+  }
+  lastTraceId(): string | null {
+    return spans.lastTraceId(this);
   }
 }
