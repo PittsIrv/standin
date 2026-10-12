@@ -216,38 +216,88 @@ The memory review queue (weekly cap, ranking by importance) is the same one the 
   - bound to localhost only unless `--lan`;
   - rate, approve, and reject end to end against a temp instance.
 
-## 9. Phase 2: a learned knowledge predictor
+## 9. Phase 2: a hybrid knowledge model
 
-The rules in §3 work from day one with no data, and every change carries a readable reason. They also generate labeled data: each probe response is an example of "this person, this item → know / roughly / no idea". Phase 2 trains a predictor on that data and swaps it in **only if it beats the rules** on the held-out probes.
+The rules in §3 work from day one with no data, and every change carries a readable reason. They also generate labeled data: each probe response is an example of "this person, this item → know / roughly / no idea". Phase 2 replaces the rules with a **hybrid** model, and only if it beats them on the held-out probes. A capable model reasons over a knowledge graph, and a small statistical layer keeps its numbers honest.
+
+```
+answered probes + authored work ──► KNOWN nodes (observations only)
+                                        │
+large model reasons over the graph ─► HYPOTHESIS nodes: depth + raw confidence + reason + evidence path
+                                        │
+calibration layer (fit on held-out probes) ─► calibrated P(depth ≥ k) per node
+                                        │
+answerMode + probe selection ◄──────────┘
+```
+
+### 9.1 Known and hypothesis nodes
+
+Every topic node carries **two separate numbers**: a depth (how much the person knows) and a probability (how sure we are of that depth).
+
+- **Known nodes** come only from observations: probe ratings, graded spot-checks, authored work. Nothing else can create or promote one. In particular, the model can never turn its own hypothesis into a known node.
+- **Hypothesis nodes** are written by a new role, **`hypothesize`** (large tier, private zone). It reads the current graph and the new observations and proposes, for each topic it can reason about:
+  - a depth;
+  - a raw confidence;
+  - a one-line reason;
+  - the **evidence path** it relies on, e.g. "strong in probability, because RLHF was probed at 4 and RLHF requires probability".
+
+  It may also propose new topics and edges that the probes revealed. These go through the normal review queue, like `map` proposals.
+- **Rules against snowballing:**
+  - A hypothesis must cite at least one known node.
+  - It may reach at most **2 hops** from that node, losing confidence at each hop.
+  - Hypotheses never serve as evidence for other hypotheses.
+- **Incremental, not rebuilt.** Each weekly run proposes changes to the existing graph instead of regenerating it, so model nondeterminism cannot reshuffle the map. Changes in depth go to the review queue as in §3.6.
+
+### 9.2 Calibration layer
+
+A language model's stated confidence is usually overconfident, and P(IK)-style self-estimates calibrate poorly on new tasks. So the raw confidence is a **score**, not a probability. The layer turns it into calibrated `P(depth ≥ k)` per node.
+
+The layer starts simple and grows only when the data supports it:
+
+1. **Isotonic or Platt scaling** of the raw confidences, fit on held-out probes.
+2. **Graded-response IRT as the calibrator**, once there is enough data:
+   - **Ordinal ratings.** `P(rating ≥ k) = σ(θ_topic − b_item − τ_k)`, using all of no idea < roughly < know.
+   - **Abilities linked through the graph.** `θ` for each topic is pooled with its parent, and softly constrained by prerequisites (`θ_foundation ≳ θ_advanced − 1`).
+   - **Hypotheses as priors.** The hypothesis depth (with its calibrated confidence), the person's claim, and the evidence floor set each `θ`'s prior mean, with learned weights. This is explanatory IRT.
+   - **Item difficulty from the text.** With one person, ability and item difficulty cannot be separated from responses alone. So `b_item` takes a prior from the stated level plus a model's estimate from the question text, and responses only nudge it.
+   - **A self-rating bias term.** Spot-checks are a second, graded measurement of the same ability. The gap between "know it" ratings and graded spot-checks gives one bias parameter per broad area, which corrects self-ratings automatically.
+   - **Optional drift.** `θ` may drift slowly week to week, so the map follows learning and forgetting.
+   - **Fitting.** A few hundred parameters, fit by MAP with a Laplace approximation, in TypeScript with no Python dependency. Refit after each probe session.
+
+### 9.3 Using the model
+
+- **Answering.** `answerMode` uses the posterior, not a point estimate. For example, `explain` requires `P(depth ≥ 3) > 0.8`; otherwise it steps down a mode.
+- **Probes test hypotheses.** Each weekly batch goes to the hypotheses with the highest expected information gain, weighted by how often the topic matters for answering. Probing works like testing claims, not like a quiz.
+
+### 9.4 Evaluation and swap-in
 
 **Target.** `P(rating ∈ {know, roughly})` for a probe. `wouldnt_say` is excluded.
 
-**Features.**
-- The probe text, as an embedding.
-- Its stated difficulty, plus a difficulty predicted from the text.
-- Its topic's depth signals: claim, evidence floor, probe history.
-- Graph features: depths of ancestors, descendants, and prerequisites.
+**Systems compared** on the held-out probes (§4.5), never on training probes:
+- the §3 rules;
+- the LLM baseline: a model shown the approved map and asked to predict the rating (the "digital twin" approach);
+- the graph alone, with simple calibration (9.2 step 1);
+- IRT alone, without hypotheses;
+- the full hybrid.
 
-**Models**, kept small and interpretable because there is one person and a few hundred items:
-1. **Bayesian IRT.** An ability per topic, with hierarchical priors that flow along `parent` and `requires` edges; item difficulty from text.
-2. **Logistic regression** on the same features.
-
-**Baselines.**
-- The §3 rules.
-- An LLM shown the approved map and asked to predict the rating (the "digital twin" approach).
-
-**Evaluation**, on the held-out probes (§4.5), never on training probes:
+**Metrics.**
 - AUC
 - Brier score
-- Expected calibration error, with a reliability diagram
+- expected calibration error, with a reliability diagram
 
-**Swap-in rule.** The predictor replaces the rules for the `answerMode` threshold only if it beats them on Brier score and does not do worse at catching "no idea" items (recall on declines).
+**Ablations of the hybrid:** graph priors, text-based difficulty, the self-rating bias term, and evidence paths.
 
-**When.** After about 200 non-held-out responses. Until then, Phase 1 stores everything Phase 2 needs. The probe text, difficulty, topic, rating, spot-check grade, and timestamp are already in the data model. No extra logging is required.
+**Swap-in rule.** A system replaces the rules only if it beats them on Brier score and does not do worse at catching "no idea" items (recall on declines). If a simpler system matches the hybrid, the simpler one wins.
 
-**Probe choice.** Once the predictor exists, it also picks probes. Each weekly batch favors the items it is least sure about (active learning), so ten probes teach it as much as possible.
+**When.** After about 200 non-held-out responses. Until then, Phase 1 stores everything Phase 2 needs. The probe text, difficulty, topic, rating, spot-check grade, and timestamp are already in the data model. Hypothesis runs are traced like any other run.
 
-**Showcase.** A `/how-it-works` chart compares the rules, the learned model, and the LLM baseline on the person's own held-out probes, with the reliability diagram.
+**Cost.** One `hypothesize` run per week on the large tier costs cents to about a dollar. It can use the batch API, since nobody waits on it.
+
+**Showcase.** `/how-it-works` shows:
+- the comparison chart;
+- the reliability diagram;
+- the self-rating bias per area ("how well I know what I know");
+- a sample hypothesis with its evidence path, and the probe that confirmed or refuted it.
 
 ### Related work
 
@@ -265,7 +315,7 @@ The problem sits between four areas. We did not find work that models **one real
 - Scanners, the `screen` role, publishing, rollback: SP2b.
 - The runtime `competence` tool and badges in the public widget: SP4.
 - Full eval suites beyond the calibration score: SP3.
-- Building the Phase-2 predictor (§9). Phase 1 only has to store the data it needs, which it already does.
+- Building the Phase-2 hybrid model (§9). Phase 1 only has to store the data it needs, which it already does.
 
 ## 11. Decisions log
 
@@ -278,4 +328,4 @@ The problem sits between four areas. We did not find work that models **one real
 | 5 | Topic structure | A topic tree grown from the person's data, with merges reviewed | Free text; a fixed external taxonomy |
 | 6 | Where probes happen | A local web page shared with memory review | Terminal; Markdown sheet |
 | 7 | Advanced implies foundations | Prerequisite links predict foundations; within a topic, passing a hard level implies the easier ones (adaptive probing) | Probing every level and every foundation separately |
-| 8 | Learned predictor | Phase 2: a small Bayesian IRT or logistic model on probe responses; swapped in only if it beats the rules on held-out probes | Training before data exists; a deep model on one person's data |
+| 8 | Phase-2 model | Hybrid: a large model proposes hypothesis nodes with reasons and evidence paths over known (observed-only) nodes; a calibration layer (isotonic scaling, then graded-response IRT with graph priors, text difficulty, and a self-rating bias) turns them into calibrated probabilities; swapped in only if it beats the rules on held-out probes | IRT alone (blind to meaning); the graph alone with raw model confidence (miscalibrated, snowballs); a deep model on one person's data |
