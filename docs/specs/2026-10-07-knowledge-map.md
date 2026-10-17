@@ -98,10 +98,11 @@ The rating "wouldn't say" is **not** a knowledge signal and never lowers depth. 
 
 ### 4.1 Probe and response
 
-- **A probe** has a topic, a question, a difficulty (1–4), a language, and a flag marking it as held out.
+- **A probe** has a topic, a question, a difficulty (1–4), a language, and a holdout set: `none`, `fixed`, or `rotating` (§4.5).
 - **A response** has:
   - a rating: `know`, `roughly`, `no_idea`, or `wouldnt_say`;
   - optionally, a spot-check answer (one line) with the judge's grade (`pass` or `fail`, plus a reason);
+  - the standin's prediction for the probe, recorded when the probe is shown and before the rating (§4.5);
   - the time it was answered.
 
 ### 4.2 Writing probes
@@ -131,16 +132,24 @@ The rating "wouldn't say" is **not** a knowledge signal and never lowers depth. 
 
 - About one in five `know` or `roughly` ratings asks for a one-line answer.
 - The `judge` role (large) grades spot-checks through the batch API. Nobody waits on the grade.
-- Spot-check answers in the person's words also become voice samples (exemplars) and eval cases with known answers. Both go through the normal review queue.
+- Spot-check answers in the person's words also become voice samples (exemplars), through the normal review queue. A spot-check on a held-out probe does not, until the probe is released (§4.5); a fixed probe's answer never does.
 
 ### 4.5 Held out for calibration
 
-Twenty percent of probes are **held out**:
+A held-out probe is a test item: the system must not have learned from it before it is scored. Otherwise the calibration score grades the standin on answers it has already seen. Each probe is assigned a set at random when it is written, and a fixed probe is never reassigned.
 
-- They never feed depth.
-- They are the calibration set: the standin's `answerMode` (§5) for the probe's topic is compared with the person's rating.
-- The **calibration score** is the share of held-out probes where "would answer" (explain, or brief and hedged) matches `know` / `roughly`, and "would decline" matches `no_idea`. `wouldnt_say` is excluded.
+| Set | Share | Feeds depth, exemplars, Phase-2 training? | Purpose |
+|---|---|---|---|
+| `fixed` | about 10% | Never | A stable benchmark: scores stay comparable across versions and months |
+| `rotating` | about 20% | Only after it is scored and released | Fresh test items each week, without wasting the data |
+| `none` | the rest | Yes, immediately | Training |
+
+- **The prediction is recorded first.** When a held-out probe is shown, the standin's `answerMode` for its topic (and, in Phase 2, its probability) is stored on the response before the rating is submitted. Scoring compares that stored prediction with the rating, so later changes to the map cannot leak into the score.
+- **Release.** A rotating probe is released at the end of the check-in in which it was answered. From then on it counts like any other probe.
+- The **calibration score** is the share of held-out probes where "would answer" (explain, or brief and hedged) matches `know` / `roughly`, and "would decline" matches `no_idea`. `wouldnt_say` is excluded. It is reported separately for the fixed and rotating sets.
 - It is reported by `standin eval` (SP3) and on `/how-it-works`, next to the self-quiz test-retest score.
+
+This tests the knowledge map only. Testing the whole standin on open questions, comparing the person's own answer with the standin's, is an SP3 eval with its own question bank (§10).
 
 ## 5. Answering rule
 
@@ -187,8 +196,8 @@ The memory review queue (weekly cap, ranking by importance) is the same one the 
 
 - A migration adds three tables:
   - `topic_edges (from_topic, to_topic, kind: parent|requires, status, created_at)`, with proposed and approved edges;
-  - `probes`;
-  - `probe_responses`.
+  - `probes`, including `holdout` (`none` | `fixed` | `rotating`) and `released_at`;
+  - `probe_responses`, including the prediction recorded before the rating.
 - Competence memories reference a topic entity, so `attrs.domain` resolves to a topic id at compaction time.
 - A depth estimate is computed, not stored. It is a pure function of the competence memories, map edges, and probe responses. Only the resulting proposals are stored, as memories.
 
@@ -208,7 +217,12 @@ The memory review queue (weekly cap, ranking by importance) is the same one the 
   - the depth-4 spot-check requirement;
   - probes overriding claims.
 - Upward flow and prerequisite prediction: established vs claimed, transitive with decay, never overriding probes.
-- Probe selection: adaptive steps, priority order, held-out share.
+- Probe selection: adaptive steps, priority order.
+- Holdout:
+  - set shares at assignment, and fixed probes never reassigned;
+  - held-out responses do not change depth, and their spot-checks do not become exemplars, until release;
+  - fixed probes never released;
+  - the prediction stored before the rating is the one scored.
 - Calibration score on the demo persona with scripted ratings.
 - `answerMode`, including low-confidence demotion.
 - Page:
@@ -273,7 +287,7 @@ The layer starts simple and grows only when the data supports it:
 
 **Target.** `P(rating ∈ {know, roughly})` for a probe. `wouldnt_say` is excluded.
 
-**Systems compared** on the held-out probes (§4.5), never on training probes:
+**Systems compared** on the held-out probes (§4.5): the fixed set, and rotating probes before their release. Never on training probes:
 - the §3 rules;
 - the LLM baseline: a model shown the approved map and asked to predict the rating (the "digital twin" approach);
 - the graph alone, with simple calibration (9.2 step 1);
@@ -314,7 +328,7 @@ The problem sits between four areas. We did not find work that models **one real
 
 - Scanners, the `screen` role, publishing, rollback: SP2b.
 - The runtime `competence` tool and badges in the public widget: SP4.
-- Full eval suites beyond the calibration score: SP3.
+- Full eval suites beyond the calibration score: SP3. This includes the open-question test, which compares the person's own answers with the standin's answers to the same questions. It needs the SP4 answer path, has its own question bank, and uses the same fixed-and-rotating holdout.
 - Building the Phase-2 hybrid model (§9). Phase 1 only has to store the data it needs, which it already does.
 
 ## 11. Decisions log
@@ -329,3 +343,5 @@ The problem sits between four areas. We did not find work that models **one real
 | 6 | Where probes happen | A local web page shared with memory review | Terminal; Markdown sheet |
 | 7 | Advanced implies foundations | Prerequisite links predict foundations; within a topic, passing a hard level implies the easier ones (adaptive probing) | Probing every level and every foundation separately |
 | 8 | Phase-2 model | Hybrid: a large model proposes hypothesis nodes with reasons and evidence paths over known (observed-only) nodes; a calibration layer (isotonic scaling, then graded-response IRT with graph priors, text difficulty, and a self-rating bias) turns them into calibrated probabilities; swapped in only if it beats the rules on held-out probes | IRT alone (blind to meaning); the graph alone with raw model confidence (miscalibrated, snowballs); a deep model on one person's data |
+| 9 | Holdout | A fixed set (about 10%, never released) plus a rotating set (about 20%, released after scoring); predictions recorded before the rating | Rotating only (scores not comparable over time); fixed only (those answers never help) |
+| 10 | Open-question test | All in SP3, with its own question bank: the person's answer vs the standin's | Collecting held-out open answers in SP2a; a temporary answer step in SP2a |
