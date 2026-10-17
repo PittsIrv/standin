@@ -1,6 +1,6 @@
 # SP2a: Knowledge map and local review page
 
-Status: decisions approved in conversation on 2026-10-07 (logged in §11). Awaiting written-spec review.
+Status: approved 2026-10-17 (decisions logged in §11). Implementation plan: [docs/plans/2026-10-17-knowledge-map.md](../plans/2026-10-17-knowledge-map.md).
 Builds on: [architecture spec](2026-10-01-standin-architecture.md) §5 (memory model) and §7 (competence-gated knowledge), and the [model-routing spec](2026-10-03-model-routing.md) (roles, traces).
 
 ## 1. Goal
