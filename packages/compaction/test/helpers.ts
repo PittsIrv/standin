@@ -73,6 +73,7 @@ type Decision = { action: "new" | "duplicate" | "update" | "contradiction"; targ
 export function script(
   extractions: Record<string, ReturnType<typeof extraction> | (() => never)>,
   reconcile: (candidate: string, neighbors: string[]) => Decision = () => ({ action: "new", targetId: null, reason: "" }),
+  opts: { batchPolls?: number } = {},
 ) {
   return new ScriptedLLM((req: GenerateObjectRequest<unknown>) => {
     if (req.purpose === "extract") {
@@ -81,5 +82,5 @@ export function script(
       return typeof e === "function" ? e() : e;
     }
     return reconcile(candidateStatement(req.prompt), neighborIds(req.prompt));
-  });
+  }, opts);
 }

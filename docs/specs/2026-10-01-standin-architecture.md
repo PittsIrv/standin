@@ -177,3 +177,4 @@ MCP server / agent-to-agent interface (same tiers, served over a new transport) 
 | Languages | English and Chinese | — |
 | Data sources | Interviews (primary), school/lab/club Slack (the person's own messages), long-form writing (knowledge only), AI memory exports | Private chats, employer workspaces, calendar, email |
 | Implementation | Claude implements directly | Codex-as-worker workflow (retired) |
+| Models | Chosen per stage; Anthropic or any OpenAI-compatible server (local or hosted); batch extraction for bulk imports; the choice is settled by the eval harness | One hard-wired model |
