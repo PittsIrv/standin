@@ -265,7 +265,7 @@ export function estimateTopic(s: TopicSignals): Estimate | null;   // null: no c
   - **Probe level:** know at 1, 2, 3 and no_idea at 4 → 3, probed, high.
   - **Monotonic difficulty:** a single `know` at 3, and nothing else → 3, since 1 and 2 are implied. Because every rated level passed, the result is `max(3, prior)`.
   - **Depth 4 gate:** know at 4 with 1 passed spot-check at 4 → 3. With 2 passes → 4.
-  - **Spot-check rule:** know at 3 twice, but spot-checks at 3 graded fail twice → 3 fails the 70% rule. Check the result for level 2.
+  - **Spot-check rule:** know twice at 2 and twice at 3, with both spot-checks at 3 graded fail → level 3 fails the 70% rule. Level 2 qualifies (no spot-checks counted there), so the result is 2, probed.
   - **Probes override claims:** claim 3 + 2 authored (floor 2), probes know at 1, no_idea at 2 → 1, probed, with `disagreement: true` and a "below the claim" reason.
   - **`roughly`** at 2 alone → 1. **`wouldnt_say` only** → `null` when nothing else exists.
 - [ ] Implement. Tests pass. Commit "Estimate one topic's depth from claims, evidence and probes".
@@ -376,7 +376,7 @@ export const SESSION_SIZE = { first: 60, later: 10 } as const;
 - Ties break by name. Skips follow Plan ruling 8.
 - `AdaptiveRun`:
   - start at `startLevel`;
-  - `know` → up one, `no_idea` → down one, `roughly` → stay and mark the level;
+  - `know` → up one; `no_idea` or `roughly` → down one (Plan ruling 2: `roughly` counts against a level);
   - stop when two adjacent levels disagree, at a bound (4 known or 1 failed), after 4 probes, or after 1 if `single`;
   - `wouldnt_say` ends the topic.
 
@@ -548,7 +548,7 @@ export async function startReviewServer(o: ReviewServerOptions): Promise<{ url: 
 - [ ] Write the failing e2e test on the demo persona:
   - `init --demo` → `compact --demo-llm` → approve the extracted competence memories;
   - `review --demo-llm` with an aborting signal after a scripted HTTP walk: rate 3 probes, then finish;
-  - `map --json` shows the topics with estimates, and `traces --kind review` lists the session.
+  - `map --json` shows the topics with estimates and the calibration counts for both sets, and `traces --kind review` lists the session.
 - [ ] Implement. Run `pnpm typecheck && pnpm test && pnpm guard`.
 - [ ] Manual smoke test against a temp `STANDIN_HOME`: `standin review --demo-llm`, open the URL, and rate with the keyboard. Commit "Add review and map commands".
 
