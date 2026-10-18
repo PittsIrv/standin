@@ -1,5 +1,7 @@
 # Knowledge Map and Review Page (SP2a): Implementation Plan
 
+> **Superseded.** The spec was revised on 2026-10-18 (claim-first, lit tree). This plan will be rewritten to match. Do not execute it.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task by task. Steps use checkbox (`- [ ]`) syntax for tracking. Execution: Claude implements inline (the user's standing choice: no Codex, no subagents).
 
 **Goal:** The standin gets a measured, reviewable map of what the person knows: topics with `parent` and `requires` edges, a depth (0–4) per topic combined cautiously from claims, authored work and probes, an answering rule, a holdout-based calibration score, and a local `standin review` page for probes, memory approvals and map edits.
