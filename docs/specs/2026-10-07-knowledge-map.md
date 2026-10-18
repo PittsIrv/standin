@@ -83,7 +83,10 @@ A dark node has no depth: it is not on record.
 | **Gap note** (§4.4) | A component inside a claimed branch, at the level the person is fine up to | `probed` |
 
 - **Claims count as established.** Inference from a claim works the same as inference from probes.
-- **Precedence.** A probed level is never overridden by inference. Where a node gets several inferred values, the highest wins.
+- **Precedence.**
+  - A probed level is never overridden by inference.
+  - Otherwise the highest of the claim and the inferred values wins.
+  - Inference can raise a node above the person's own claim, as a proposal, e.g. "you claimed ML at 1, but RLHF at 4 implies 2". This catches under-claiming, and the person decides.
 
 ### 3.3 Not modeled in SP2a
 
@@ -455,3 +458,4 @@ The problem sits between four areas. We did not find work that models **one real
 | 24 | Where probes happen | A local web page shared with memory review | Terminal; Markdown sheet |
 | 25 | Phase-2 model | A hybrid of hypothesis nodes and a calibration layer. It replaces the inference rules only if it beats them on the map score, and never replaces the person's claims or gap decisions. | IRT alone; the graph alone with raw confidence; a deep model on one person's data |
 | 26 | Open-question test | All in SP3, with its own question bank | Collecting held-out open answers in SP2a |
+| 27 | Inference above a claim | Allowed, as a proposal for review | Claims as ceilings; flagging the disagreement only |
