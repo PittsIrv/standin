@@ -1,0 +1,36 @@
+import type { Gap } from "@standin/schema";
+import type { Store } from "@standin/store";
+import type { TreeSnapshot } from "./snapshot.ts";
+
+/** A stated limit sits at "heard of it, haven't used it". */
+export const STATED_GAP_LEVEL = 1;
+
+/**
+ * The person's own "I can't do X" counts like a confirmed probe miss: an approved negative whose topic sits
+ * under a lit node becomes a kept gap at level 1. Negatives with no lit ancestor stay plain negatives.
+ */
+export function syncStatedGaps(store: Store, t: TreeSnapshot): Gap[] {
+  const created: Gap[] = [];
+  for (const negative of t.negatives) {
+    for (const nodeId of negative.topicIds) {
+      const litAncestor = ancestors(t, nodeId).find((a) => t.approved.has(a));
+      if (!litAncestor) continue;
+      const gap = store.addGap({
+        nodeId,
+        claimNodeId: litAncestor,
+        level: STATED_GAP_LEVEL,
+        status: "kept",
+        source: "stated",
+        memoryId: negative.memoryId,
+      });
+      if (gap) created.push(gap);
+    }
+  }
+  return created;
+}
+
+function ancestors(t: TreeSnapshot, nodeId: string): string[] {
+  const out: string[] = [];
+  for (let n = t.parentOf.get(nodeId); n !== undefined && !out.includes(n) && n !== nodeId; n = t.parentOf.get(n)) out.push(n);
+  return out;
+}
