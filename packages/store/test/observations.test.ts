@@ -36,7 +36,7 @@ describe("observations", () => {
 
   it("persists across reopen", async () => {
     const { store, path, clock } = tempStore();
-    const o = store.addObservation(obs({ lang: "zh", text: "我喜欢扑克。", meta: { channel: "poker" } }));
+    const o = store.addObservation(obs({ text: "I like poker.", meta: { channel: "poker" } }));
     store.close();
     const { openStore } = await import("../src/index.ts");
     const again = openStore({ path, clock });

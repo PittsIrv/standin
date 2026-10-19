@@ -25,13 +25,6 @@ describe("findNeighbors", () => {
     expect(store.findNeighbors({ statement: "I hate poker.", entityIds: [] }).map((r) => r.memory.id)).toContain(rej.id);
   });
 
-  it("matches CJK statements", () => {
-    const { store } = tempStore();
-    const m = seedMemory(store, "我喜欢德州扑克。", { lang: "zh" });
-    const res = store.findNeighbors({ statement: "我很喜欢德州扑克", entityIds: [] });
-    expect(res[0]?.memory.id).toBe(m.id);
-  });
-
   it("respects limit and threshold", () => {
     const { store } = tempStore();
     for (let i = 0; i < 12; i++) seedMemory(store, `I like poker variant ${i}`);

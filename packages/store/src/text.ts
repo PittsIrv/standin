@@ -19,7 +19,7 @@ export function bigrams(s: string): Set<string> {
   return grams;
 }
 
-/** Sørensen–Dice similarity over character bigrams. Works for CJK and Latin text alike. */
+/** Sørensen–Dice similarity over character bigrams. */
 export function dice(a: string, b: string): number {
   const ga = bigrams(a);
   const gb = bigrams(b);

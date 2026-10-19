@@ -5,6 +5,7 @@ import { AmbiguousIdError, NotFoundError } from "../src/index.ts";
 import { tempStore } from "./helpers.ts";
 
 const config = parseConfig({ persona: { name: "Lin Qiao" } });
+const purging = parseConfig({ persona: { name: "Lin Qiao" }, consolidation: { purgeAfterDays: 90 } });
 
 function traced() {
   const env = tempStore();
@@ -103,9 +104,9 @@ describe("trace storage", () => {
     const { store, tracer, clock } = traced();
     await tracer.run("compaction", {}, async () => chat(tracer, "extract", "m", { in: 10, out: 5, cost: 0.1 }));
     const before = store.usage({ by: "role" });
-    clock.advanceDays(config.consolidation.retentionDays + 1);
+    clock.advanceDays(91);
     await tracer.run("compaction", {}, async () => chat(tracer, "extract", "m", { in: 1, out: 1, cost: 0.1 }));
-    const report = store.consolidate(config);
+    const report = store.consolidate(purging);
     expect(report.purgedSpanContent).toBe(1);
     const [newer, older] = store.listRuns({}).map((r) => store.getTrace(r.traceId));
     expect(older!.map((s) => s.span.name)).toEqual(["standin.run", "chat m"]);
@@ -120,7 +121,6 @@ describe("trace storage", () => {
       sourceKind: "interview",
       sourceRef: "i",
       authorRole: "self",
-      lang: "en",
       text: "My private answer.",
       occurredAt: "2026-09-01T00:00:00.000Z",
     });
@@ -128,7 +128,6 @@ describe("trace storage", () => {
       sourceKind: "interview",
       sourceRef: "i",
       authorRole: "self",
-      lang: "en",
       text: "Another answer.",
       occurredAt: "2026-09-01T00:00:00.000Z",
     });
@@ -143,8 +142,8 @@ describe("trace storage", () => {
       await tracer.span("chat m", { attributes: { "standin.batch.custom_id": o.id } }, async (span) => span.setContent({ output: "batched" }));
     });
     store.markCompacted(o.id, "processed");
-    clock.advanceDays(11); // o's raw text is now past retention; the trace text is only 11 days old
-    store.consolidate(config);
+    clock.advanceDays(11); // o's raw text is now past the purge window; the trace text is only 11 days old
+    store.consolidate(purging);
     expect(store.getObservation(o.id).text).toBeNull();
     const trace = store.getTrace(store.lastTraceId()!);
     const contentOf = (pred: (s: (typeof trace)[number]) => boolean) => trace.filter(pred).map((s) => s.content);

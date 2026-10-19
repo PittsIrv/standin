@@ -16,18 +16,27 @@ import * as mem from "./memories.ts";
 import * as exm from "./exemplars.ts";
 import * as spans from "./spans.ts";
 import type { SpanContent, SpanData, SpanSink } from "@standin/trace";
-import { consolidate, type ConsolidationReport } from "./consolidate.ts";
+import { consolidate, purge, type ConsolidationReport } from "./consolidate.ts";
+
+export interface QueueDecision {
+  itemId: string;
+  itemKind: "memory" | "still-true" | "exemplar";
+  group: string | null;
+  /** 0-based position in the queue when decided; null if the item wasn't in it. */
+  position: number | null;
+  decision: "approve" | "reject" | "keep" | "expire";
+}
 import type {
   Config,
   Exemplar,
   ExemplarStatus,
-  Lang,
   Memory,
   MemoryEvent,
   MemoryKind,
   MemoryStatus,
   Register,
   Tier,
+  Actor,
 } from "@standin/schema";
 
 export interface CompactionBatch {
@@ -42,19 +51,16 @@ export interface CompactionBatch {
 export interface StoreOptions {
   path: string;
   clock?: Clock;
-  /** Half-life used to decay current-state memories between consolidations. */
-  currentStateHalfLifeDays?: number;
 }
 
 export function openStore(opts: StoreOptions): Store {
-  return new Store(openDatabase(opts.path), opts.clock ?? systemClock, opts.currentStateHalfLifeDays ?? 90);
+  return new Store(openDatabase(opts.path), opts.clock ?? systemClock);
 }
 
 export class Store {
   constructor(
     readonly db: DatabaseSync,
     readonly clock: Clock,
-    readonly halfLifeDays = 90,
   ) {}
 
   close(): void {
@@ -81,15 +87,14 @@ export class Store {
     const id = newId("obs");
     this.db
       .prepare(
-        `INSERT INTO observations (id, source_kind, source_ref, author_role, lang, text, content_hash, occurred_at, ingested_at, meta)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO observations (id, source_kind, source_ref, author_role, text, content_hash, occurred_at, ingested_at, meta)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
         o.sourceKind,
         o.sourceRef,
         o.authorRole,
-        o.lang,
         o.text,
         hash,
         new Date(o.occurredAt).toISOString(),
@@ -213,8 +218,8 @@ export class Store {
   addCorroboration(memoryId: string, observationId: string): Memory {
     return mem.addCorroboration(this, memoryId, observationId);
   }
-  recomputeConfidence(id: string, halfLifeDays?: number): Memory {
-    return mem.recomputeConfidence(this, id, halfLifeDays);
+  memorySourceSummary(id: string): mem.SourceSummary {
+    return mem.memorySourceSummary(this, id);
   }
   getMemory(idOrPrefix: string): Memory {
     return mem.getMemory(this, idOrPrefix);
@@ -240,8 +245,14 @@ export class Store {
   retract(id: string, note?: string): Memory {
     return mem.retract(this, id, note ?? null);
   }
-  expire(id: string, note?: string): Memory {
-    return mem.expire(this, id, note ?? null);
+  expire(id: string, note?: string, actor?: Actor): Memory {
+    return mem.expire(this, id, note ?? null, actor);
+  }
+  staleCurrentState(freshnessDays: number): Memory[] {
+    return mem.staleCurrentState(this, freshnessDays);
+  }
+  keepCurrent(id: string): Memory {
+    return mem.keepCurrent(this, id);
   }
   findNeighbors(
     query: { statement: string; entityIds: string[] },
@@ -255,7 +266,7 @@ export class Store {
 
   // ---- exemplars ----------------------------------------------------------
 
-  insertExemplar(input: { observationId: string; text: string; lang: Lang; register: Register }): Exemplar | null {
+  insertExemplar(input: { observationId: string; text: string; register: Register }): Exemplar | null {
     return exm.insertExemplar(this, input);
   }
   approveExemplar(id: string): Exemplar {
@@ -272,6 +283,19 @@ export class Store {
 
   consolidate(config: Config): ConsolidationReport {
     return consolidate(this, config);
+  }
+
+  /** Deletes raw text of observations compacted before `before`, and the trace text tied to them. Hashes and pointers stay. */
+  purge(before: string): { observations: number; spanContent: number } {
+    return purge(this, before);
+  }
+
+  // ---- review decisions ---------------------------------------------------
+
+  recordQueueDecision(d: QueueDecision): void {
+    this.db
+      .prepare("INSERT INTO queue_decisions (id, item_id, item_kind, queue_group, position, decision, at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .run(newId("qdc"), d.itemId, d.itemKind, d.group, d.position, d.decision, this.nowIso());
   }
 
   // ---- traces -------------------------------------------------------------

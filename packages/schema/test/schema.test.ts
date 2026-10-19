@@ -6,6 +6,7 @@ import {
   TERMINAL_STATUSES,
   isId,
   newId,
+  isMostlyLatin,
   parseConfig,
 } from "../src/index.ts";
 
@@ -13,11 +14,8 @@ const baseMemory = {
   id: "mem_0123456789ab",
   kind: "fact",
   statement: "I interned at a data team in summer 2025.",
-  lang: "en",
   tier: 1,
   status: "proposed",
-  confidence: 0.9,
-  salience: 1,
   validFrom: null,
   validUntil: null,
   isCurrentState: false,
@@ -74,7 +72,6 @@ describe("ObservationInput", () => {
         sourceKind: "manual",
         sourceRef: "cli",
         authorRole: "self",
-        lang: "en",
         text: "   \n\t ",
         occurredAt: "2026-10-01T00:00:00.000Z",
       }),
@@ -86,11 +83,34 @@ describe("ObservationInput", () => {
       sourceKind: "interview",
       sourceRef: "interview-01",
       authorRole: "self",
-      lang: "zh",
-      text: "我喜欢扑克。",
+      text: "I like poker.",
       occurredAt: "2026-10-01T00:00:00.000Z",
     });
     expect(o.meta).toEqual({});
+  });
+
+  it("rejects mostly non-Latin text with the English-only message", () => {
+    const r = ObservationInput.safeParse({
+      sourceKind: "manual",
+      sourceRef: "cli",
+      authorRole: "self",
+      text: "我从小跟外公下围棋，所以后来做游戏AI一点也不意外。",
+      occurredAt: "2026-10-01T00:00:00.000Z",
+    });
+    expect(r.success).toBe(false);
+    expect(r.error?.issues[0]?.message).toBe("standin is English-only for now");
+  });
+});
+
+describe("isMostlyLatin", () => {
+  it("accepts English with a few non-Latin words", () => {
+    expect(isMostlyLatin("I learned Go (围棋) from my grandfather")).toBe(true);
+  });
+  it("rejects a mostly Chinese sentence", () => {
+    expect(isMostlyLatin("我从小跟外公下围棋，所以后来做游戏AI一点也不意外。")).toBe(false);
+  });
+  it("accepts text with no letters", () => {
+    expect(isMostlyLatin("12345 🎲")).toBe(true);
   });
 });
 
@@ -98,7 +118,7 @@ describe("config", () => {
   it("fills every default", () => {
     const c = parseConfig({ persona: { name: "X" } });
     expect(c).toEqual({
-      persona: { name: "X", languages: ["en"] },
+      persona: { name: "X" },
       compaction: { batchSize: 20 },
       models: {
         tiers: {
@@ -110,9 +130,20 @@ describe("config", () => {
         prices: {},
       },
       tracing: {},
+      consolidation: { freshnessDays: 120 },
+    });
+  });
+
+  it("ignores keys from configs written before the simplification", () => {
+    const c = parseConfig({
+      persona: { name: "X", languages: ["en", "zh"] },
       consolidation: { retentionDays: 90, freshnessDays: 120, currentStateHalfLifeDays: 90 },
       review: { weeklyCap: 25 },
     });
+    expect(c.persona).toEqual({ name: "X" });
+    expect(c.consolidation).toEqual({ freshnessDays: 120 });
+    expect(c.consolidation.purgeAfterDays).toBeUndefined();
+    expect("review" in c).toBe(false);
   });
 });
 

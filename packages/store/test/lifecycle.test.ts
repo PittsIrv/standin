@@ -9,7 +9,6 @@ describe("insertMemory", () => {
     const m = seedMemory(store, "I built Dealer's Choice.", {}, [e.id]);
     expect(m.status).toBe("proposed");
     expect(m.id).toMatch(/^mem_[0-9a-f]{12}$/);
-    expect(m.confidence).toBeCloseTo(0.9, 10);
     expect(store.memorySources(m.id)).toHaveLength(1);
     expect(store.memoryEntities(m.id).map((x) => x.id)).toEqual([e.id]);
     expect(store.memoryEvents(m.id).map((ev) => [ev.fromStatus, ev.toStatus, ev.actor])).toEqual([
@@ -17,27 +16,27 @@ describe("insertMemory", () => {
     ]);
   });
 
-  it("corroboration adds a source and raises confidence", () => {
+  it("corroboration adds a source once", () => {
     const { store } = tempStore();
     const m = seedMemory(store, "I like poker.", {});
     const o2 = store.addObservation(obs({ sourceKind: "slack", text: "poker night again, love it" }));
     const after = store.addCorroboration(m.id, o2.id);
     expect(store.memorySources(m.id)).toHaveLength(2);
-    expect(after.confidence).toBeCloseTo(1 - 0.1 * 0.3, 10);
+    expect(after.lastCorroboratedAt).toBe(store.nowIso());
     // idempotent
-    expect(store.addCorroboration(m.id, o2.id).confidence).toBeCloseTo(after.confidence, 10);
+    store.addCorroboration(m.id, o2.id);
+    expect(store.memorySourceSummary(m.id).distinct).toBe(2);
   });
 });
 
 describe("lifecycle", () => {
-  it("approve sets affirmed, full confidence, decidedAt and an event", () => {
+  it("approve sets affirmed, decidedAt and an event", () => {
     const { store, clock } = tempStore();
     const m = seedMemory(store, "I study at CMU.");
     clock.advanceDays(1);
     const a = store.approve(m.id);
     expect(a.status).toBe("approved");
     expect(a.affirmed).toBe(true);
-    expect(a.confidence).toBe(1);
     expect(a.decidedAt).toBe(clock.now().toISOString());
     expect(store.memoryEvents(m.id).at(-1)).toMatchObject({ fromStatus: "proposed", toStatus: "approved", actor: "person" });
   });

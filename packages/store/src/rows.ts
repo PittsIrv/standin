@@ -13,7 +13,6 @@ export function rowToObservation(r: Row): ObservationT {
     sourceKind: r.source_kind,
     sourceRef: r.source_ref,
     authorRole: r.author_role,
-    lang: r.lang,
     text: r.text,
     contentHash: r.content_hash,
     occurredAt: r.occurred_at,

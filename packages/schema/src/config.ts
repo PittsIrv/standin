@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { Lang } from "./records.ts";
 import { DEFAULT_TIER_MODELS, isPrivateAddress, ROLE_NAMES, ROLES, type ModelTier, type Role } from "./roles.ts";
 
 const ModelObject = z
@@ -73,21 +72,18 @@ const Tracing = z
   .prefault({});
 
 export const Config = z.object({
-  persona: z.object({
-    name: z.string().min(1),
-    languages: z.array(Lang).min(1).default(["en"]),
-  }),
+  persona: z.object({ name: z.string().min(1) }),
   compaction: z.object({ batchSize: z.number().int().positive().default(20) }).prefault({}),
   models: Models,
   tracing: Tracing,
   consolidation: z
     .object({
-      retentionDays: z.number().positive().default(90),
+      /** When set, `consolidate` purges raw and trace text older than this. Otherwise only `standin purge` does. */
+      purgeAfterDays: z.number().positive().optional(),
+      /** A current-state memory not mentioned for this long gets a "Still true?" card. */
       freshnessDays: z.number().positive().default(120),
-      currentStateHalfLifeDays: z.number().positive().default(90),
     })
     .prefault({}),
-  review: z.object({ weeklyCap: z.number().int().positive().default(25) }).prefault({}),
 });
 export type Config = z.infer<typeof Config>;
 export type ConfigInput = z.input<typeof Config>;

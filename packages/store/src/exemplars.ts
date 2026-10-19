@@ -1,4 +1,4 @@
-import { Exemplar, newId, type ExemplarStatus, type Lang, type Register } from "@standin/schema";
+import { Exemplar, newId, type ExemplarStatus, type Register } from "@standin/schema";
 import { InvalidTransitionError, NotFoundError } from "./errors.ts";
 import type { Row } from "./rows.ts";
 import type { Store } from "./store.ts";
@@ -9,7 +9,6 @@ function rowToExemplar(r: Row): Exemplar {
     id: r.id,
     observationId: r.observation_id,
     text: r.text,
-    lang: r.lang,
     register: r.register,
     status: r.status,
     contentHash: r.content_hash,
@@ -27,7 +26,7 @@ export function getExemplar(s: Store, id: string): Exemplar {
 /** Returns null when an exemplar with the same normalized text already exists, in any status. */
 export function insertExemplar(
   s: Store,
-  input: { observationId: string; text: string; lang: Lang; register: Register },
+  input: { observationId: string; text: string; register: Register },
 ): Exemplar | null {
   const text = input.text.trim();
   const hash = contentHash("exemplar", normalizeText(text));
@@ -36,10 +35,10 @@ export function insertExemplar(
   const id = newId("exm");
   s.db
     .prepare(
-      `INSERT INTO exemplars (id, observation_id, text, lang, register, status, content_hash, recorded_at)
-       VALUES (?, ?, ?, ?, ?, 'proposed', ?, ?)`,
+      `INSERT INTO exemplars (id, observation_id, text, register, status, content_hash, recorded_at)
+       VALUES (?, ?, ?, ?, 'proposed', ?, ?)`,
     )
-    .run(id, input.observationId, text, input.lang, input.register, hash, s.nowIso());
+    .run(id, input.observationId, text, input.register, hash, s.nowIso());
   return getExemplar(s, id);
 }
 

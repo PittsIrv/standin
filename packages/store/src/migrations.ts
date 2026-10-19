@@ -137,13 +137,33 @@ const MIGRATIONS: string[] = [
     content TEXT NOT NULL
   );
   `,
+  `
+  -- English only, and no guessed confidence or salience scores.
+  ALTER TABLE observations DROP COLUMN lang;
+  ALTER TABLE memories DROP COLUMN lang;
+  ALTER TABLE memories DROP COLUMN confidence;
+  ALTER TABLE memories DROP COLUMN salience;
+  ALTER TABLE exemplars DROP COLUMN lang;
+  ALTER TABLE preference_pairs DROP COLUMN lang;
+  -- Each review decision with the item's queue position, so a learned ordering can later be tested against the plain one.
+  CREATE TABLE queue_decisions (
+    id TEXT PRIMARY KEY,
+    item_id TEXT NOT NULL,
+    item_kind TEXT NOT NULL,
+    queue_group TEXT,
+    position INTEGER,
+    decision TEXT NOT NULL,
+    at TEXT NOT NULL
+  );
+  `,
 ];
 
-export function migrate(db: DatabaseSync): void {
+/** Applies pending migrations up to `target` (default: all of them). */
+export function migrate(db: DatabaseSync, target = MIGRATIONS.length): void {
   db.exec("CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)");
   const row = db.prepare("SELECT MAX(version) AS v FROM schema_migrations").get() as { v: number | null };
   const current = row.v ?? 0;
-  for (let i = current; i < MIGRATIONS.length; i++) {
+  for (let i = current; i < target; i++) {
     db.exec("BEGIN");
     try {
       db.exec(MIGRATIONS[i]!);
