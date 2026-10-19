@@ -12,6 +12,7 @@ interface Candidate {
   isCurrentState?: boolean;
   competence?: { domain: string; depth: number };
   stance?: { topic: string; strength: number };
+  background?: boolean;
 }
 
 function x(memories: Candidate[], exemplars: { text: string; register: "casual" | "formal" }[] = []) {
@@ -26,6 +27,7 @@ function x(memories: Candidate[], exemplars: { text: string; register: "casual" 
       isCurrentState: m.isCurrentState ?? false,
       competence: m.competence ?? null,
       stance: m.stance ?? null,
+      background: m.background ?? false,
     })),
     exemplars,
   };
@@ -42,7 +44,12 @@ export const EXTRACTIONS: Record<string, ReturnType<typeof x>> = {
   "I'm Lin Qiao, a second-year master's student at Riverside Institute of Technology. I build AIs for board games — mostly Go variants and a card game called Lantern. I'm currently working on a self-play trainer for Lantern.":
     x(
       [
-        { statement: "I'm a second-year master's student at Riverside Institute of Technology.", isCurrentState: true, entities: [{ name: "Riverside Institute of Technology", kind: "org" }] },
+        {
+          statement: "I'm a second-year master's student at Riverside Institute of Technology.",
+          isCurrentState: true,
+          background: true,
+          entities: [{ name: "Riverside Institute of Technology", kind: "org" }],
+        },
         { statement: "I build AIs for board games." },
         { kind: "competence", statement: "I'm strong at building game-playing AI.", competence: { domain: "game-playing AI", depth: 3 } },
         { statement: "I'm currently working on a self-play trainer for Lantern.", isCurrentState: true, entities: [lantern] },

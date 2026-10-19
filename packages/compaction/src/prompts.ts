@@ -22,6 +22,7 @@ Rules:
   - stance: an opinion or preference ${n} holds. Set stance.topic and stance.strength from 1 (mild) to 5 (strong).
   - negative: something ${n} explicitly says they don't know, haven't done, or don't do.
   Set competence and stance to null for other kinds.
+- background: true only for a fact stating ${n}'s degree program, school, or job role (what they study or do for a living); otherwise false.
 - isCurrentState: true for present-tense situations that will go stale ("currently reading", "working on", "living in").
 - validFrom / validUntil: ISO-8601 dates only when the text states or clearly implies them; otherwise null.
 - entities: the named projects, organizations, places, works (books, papers, games), public figures, and topics the memory is about.

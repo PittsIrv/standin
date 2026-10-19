@@ -139,9 +139,28 @@ function toAttrs(c: ExtractedMemory): MemoryAttrs | null {
         : null;
     case "stance":
       return c.stance && c.stance.topic.trim() ? { topic: c.stance.topic.trim(), strength: clamp(c.stance.strength, 1, 5) } : null;
+    case "fact":
+      return c.background ? { background: true } : {};
     default:
       return {};
   }
+}
+
+/**
+ * A competence claim is matched by its tree node, not by text: the same depth on that node is a duplicate,
+ * a different depth replaces the approved claim.
+ */
+function planCompetence(store: Store, candidate: ExtractedMemory, attrs: MemoryAttrs): Planned {
+  const domain = (attrs as { domain: string }).domain;
+  const depth = (attrs as { depth: number }).depth;
+  const topic = store.findEntity({ name: domain, kind: "topic" });
+  const onNode = topic
+    ? store.topicMemories(topic.id, { kind: "competence" }).filter((m) => m.status === "approved" || m.status === "proposed")
+    : [];
+  const same = onNode.find((m) => m.kind === "competence" && m.attrs.depth === depth);
+  if (same) return { candidate, attrs, action: "duplicate", target: same };
+  const approved = onNode.filter((m) => m.status === "approved").at(-1);
+  return approved ? { candidate, attrs, action: "update", target: approved } : { candidate, attrs, action: "new", target: null };
 }
 
 async function planCandidates(
@@ -156,6 +175,10 @@ async function planCandidates(
     const attrs = toAttrs(candidate);
     if (!attrs || !candidate.statement.trim()) {
       report.invalidCandidates++;
+      continue;
+    }
+    if (candidate.kind === "competence") {
+      plans.push(planCompetence(store, candidate, attrs));
       continue;
     }
     // Read-only lookups here; entities are created later inside the write transaction.
@@ -205,7 +228,9 @@ function apply(store: Store, config: Config, o: Observation, plans: Planned[], e
       continue;
     }
 
-    const entityIds = c.entities.map((e) => store.resolveEntity(e).id);
+    // Topics become tree nodes; a competence memory is always linked to its domain's node.
+    const entityIds = c.entities.map((e) => (e.kind === "topic" ? store.ensureTopic(e.name).id : store.resolveEntity(e).id));
+    if (c.kind === "competence") entityIds.push(store.ensureTopic((p.attrs as { domain: string }).domain).id);
     const linksTarget = (action === "update" || action === "contradiction") && target !== null;
     const input = {
       kind: c.kind,

@@ -14,6 +14,7 @@ export const ExtractionSchema = z.object({
       isCurrentState: z.boolean(),
       competence: z.object({ domain: z.string(), depth: z.number() }).nullable(),
       stance: z.object({ topic: z.string(), strength: z.number() }).nullable(),
+      background: z.boolean(),
     }),
   ),
   exemplars: z.array(z.object({ text: z.string(), register: Register })),
