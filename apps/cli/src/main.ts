@@ -40,6 +40,8 @@ Commands:
   expire <id>                                    a "currently…" memory is no longer true
   memories [--status S] [--kind K] [--as-of ISO] [--recorded-at ISO]
                                                  list memories (bitemporal with --as-of)
+  map [--json]                                   your knowledge tree: what's lit, at what depth, and why
+  map refresh [--demo-llm]                       place new topics, seed from background, propose lighting (calls the map model)
   consolidate                                    expire memories whose validity has ended
   purge --before ISO                             delete raw text and trace text for observations compacted before ISO
   usage [--since ISO] [--by role|model]          model calls, tokens and cost

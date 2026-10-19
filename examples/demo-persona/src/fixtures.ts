@@ -127,6 +127,8 @@ export const PLACEMENTS: Record<string, [string, string | null, string]> = {
   Rust: ["Programming languages", "Languages for writing software.", "A systems programming language."],
   "reinforcement learning theory": ["Machine learning", null, "The mathematics of learning from rewards."],
   "chess engines": ["Game AI", "Programs that play games.", "Programs that play chess."],
+  "game-playing AI": ["Game AI", "Programs that play games.", "AI that plays games."],
+  Japanese: ["Languages", "Human languages.", "The language of Japan."],
   Go: ["Board games", "Games played on a board.", "An abstract strategy board game."],
   salary: ["Personal matters", "Private details about the person.", "Pay."],
 };

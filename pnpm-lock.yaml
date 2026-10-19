@@ -32,6 +32,9 @@ importers:
       '@standin/interview':
         specifier: workspace:*
         version: link:../../packages/interview
+      '@standin/knowledge':
+        specifier: workspace:*
+        version: link:../../packages/knowledge
       '@standin/llm':
         specifier: workspace:*
         version: link:../../packages/llm

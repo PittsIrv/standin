@@ -29,6 +29,8 @@ export const approveCommand: Command = {
       const m = store.approve(id, { tier: tier?.data, statement: str(ctx, "statement") });
       store.recordQueueDecision({ itemId: m.id, itemKind: "memory", ...place, decision: "approve" });
       ctx.io.stdout(`approved ${m.id} (tier ${m.tier}): ${m.statement}`);
+      const shapesTree = m.kind === "competence" || m.kind === "negative" || (m.kind === "fact" && m.attrs.background === true);
+      if (shapesTree) ctx.io.stdout("Run `standin map refresh` to update your knowledge tree.");
       return 0;
     } finally {
       store.close();

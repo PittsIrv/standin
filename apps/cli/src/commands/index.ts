@@ -4,6 +4,7 @@ import { approveCommand, expireCommand, keepCommand, rejectCommand, retractComma
 import { evalCommand } from "./eval.ts";
 import { initCommand } from "./init.ts";
 import { interviewCommand } from "./interview.ts";
+import { mapCommand } from "./map.ts";
 import { memoriesCommand } from "./memories.ts";
 import { observeCommand } from "./observe.ts";
 import { purgeCommand } from "./purge.ts";
@@ -28,6 +29,7 @@ export const commands: Record<string, Command> = {
   keep: keepCommand,
   expire: expireCommand,
   memories: memoriesCommand,
+  map: mapCommand,
   consolidate: consolidateCommand,
   purge: purgeCommand,
   eval: evalCommand,
