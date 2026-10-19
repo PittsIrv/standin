@@ -36,7 +36,7 @@ Both only ordered the review queue and showed a number.
 **What replaces them:**
 - **Sources instead of confidence.** A memory lists its sources, e.g. "interview ×2, slack". AI-memory sources (`claude-memory`, `chatgpt-memory`, `muse-paste`) are marked *unverified*.
 - **A plain queue order:** contradictions, then updates, then new. Within each group, more distinct sources first, then oldest first.
-- **Logging decisions for later.** Every approve or reject records the item's queue position and group at decision time. Once there are a few hundred decisions, a learned ranker may replace the plain order. It must beat the plain order on decisions held out from its training, measured as the share of approvals in the first 25 positions.
+- **Logging decisions for later.** Every approve or reject records the item's queue position and group at decision time. Once there are a few hundred decisions, a learned ranker may replace the plain order. It must beat the plain order on decisions held out from its training. The metric is decided when the ranker is built.
 
 ## 4. Finding duplicates
 
