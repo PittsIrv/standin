@@ -231,3 +231,18 @@ describe("knowledge tree inputs", () => {
     expect(proposed).toMatchObject({ supersedesId: first.id, attrs: { domain: "Rust", depth: 4 } });
   });
 });
+
+describe("claims and map proposals", () => {
+  it("keeps the person's claim separate from a map proposal at the same depth", async () => {
+    const { store } = tempStore();
+    const node = store.ensureTopic("Algorithms");
+    store.insertMemory(
+      { kind: "competence", statement: "I've used Algorithms and can get things done with it.", tier: 1, isCurrentState: false, attrs: { domain: "Algorithms", depth: 2, basis: "predicted", reasons: [] } },
+      { sourceObservationIds: [], entityIds: [node.id], actor: "map" },
+    );
+    const o = store.addObservation(obs("I'm decent at algorithms."));
+    await compact({ store, llm: script({ [o.text!]: extraction([{ kind: "competence", statement: "I'm decent at algorithms.", competence: { domain: "Algorithms", depth: 2 } }]) }), config });
+    const claims = store.listMemories({ kind: "competence" }).filter((m) => m.kind === "competence" && !m.attrs.basis);
+    expect(claims.map((m) => m.statement)).toEqual(["I'm decent at algorithms."]);
+  });
+});

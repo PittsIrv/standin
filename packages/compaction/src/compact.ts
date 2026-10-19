@@ -157,7 +157,8 @@ function planCompetence(store: Store, candidate: ExtractedMemory, attrs: MemoryA
   const onNode = topic
     ? store.topicMemories(topic.id, { kind: "competence" }).filter((m) => m.status === "approved" || m.status === "proposed")
     : [];
-  const same = onNode.find((m) => m.kind === "competence" && m.attrs.depth === depth);
+  // Only the person's own claims count: a map proposal is a guess, not something they said.
+  const same = onNode.find((m) => m.kind === "competence" && !m.attrs.basis && m.attrs.depth === depth);
   if (same) return { candidate, attrs, action: "duplicate", target: same };
   const approved = onNode.filter((m) => m.status === "approved").at(-1);
   return approved ? { candidate, attrs, action: "update", target: approved } : { candidate, attrs, action: "new", target: null };
