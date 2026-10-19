@@ -57,7 +57,7 @@ describe("compact", () => {
     expect(report).toMatchObject({ created: 1, corroborated: 1 });
     const [m] = store.listMemories();
     expect(store.memorySources(m!.id)).toHaveLength(2);
-    expect(m!.confidence).toBeCloseTo(1 - 0.1 * 0.3, 10);
+    expect(store.memorySourceSummary(m!.id)).toMatchObject({ distinct: 2, unverified: false });
   });
 
   it("drops duplicates of rejected memories", async () => {
@@ -184,12 +184,11 @@ describe("compact", () => {
     expect(store.listMemories()).toHaveLength(1);
   });
 
-  it("computes salience from confidence and novelty", async () => {
+  it("marks memories from another AI's memory as unverified", async () => {
     const { store } = tempStore();
     const o = store.addObservation(obs("User likes jazz.", { sourceKind: "claude-memory" }));
     await compact({ store, llm: script({ [o.text!]: extraction([{ kind: "stance", statement: "I like jazz.", stance: { topic: "jazz", strength: 3 } }]) }), config });
     const m = store.listMemories()[0]!;
-    expect(m.confidence).toBeCloseTo(0.4, 10);
-    expect(m.salience).toBeCloseTo(0.9 * 0.7 * 1, 10);
+    expect(store.memorySourceSummary(m.id).unverified).toBe(true);
   });
 });

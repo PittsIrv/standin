@@ -25,7 +25,6 @@ export function obs(overrides: Partial<ObservationInput> = {}): ObservationInput
     sourceKind: "interview",
     sourceRef: "interview-01",
     authorRole: "self",
-    lang: "en",
     text: "I build board-game AIs.",
     occurredAt: "2026-09-01T00:00:00.000Z",
     ...overrides,
@@ -38,7 +37,6 @@ export function fact(statement: string, overrides: Partial<NewMemory> = {}): New
   return {
     kind: "fact",
     statement,
-    lang: "en",
     tier: 1,
     isCurrentState: false,
     attrs: {},
@@ -53,6 +51,5 @@ export function seedMemory(store: Store, statement: string, overrides: Partial<N
     sourceObservationIds: [o.id],
     entityIds,
     actor: "compaction",
-    salience: 1,
   });
 }

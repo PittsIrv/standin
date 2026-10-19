@@ -93,11 +93,13 @@ describe("standin observability", () => {
     expect((await run("compact", "--batch")).err).toContain("--batch needs a provider with a batch API");
   });
 
-  it("reports purged trace text in consolidate", async () => {
+  it("purges trace text only on request", async () => {
     const { run } = harness();
     await run("init", "--demo");
     await run("compact", "--demo-llm");
-    expect(JSON.parse((await run("consolidate", "--json")).out)).toMatchObject({ purgedSpanContent: 0 });
-    expect((await run("consolidate")).out).toContain("trace text");
+    expect(JSON.parse((await run("consolidate", "--json")).out)).toMatchObject({ purged: 0, purgedSpanContent: 0 });
+    expect((await run("consolidate")).out).not.toContain("trace text");
+    const purged = await run("purge", "--before", new Date(Date.now() + 86_400_000).toISOString());
+    expect(purged.out).toContain("trace text");
   });
 });

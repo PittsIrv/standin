@@ -53,9 +53,12 @@ describe("standin CLI, end to end on the demo persona", () => {
     });
 
     const queue = await run("queue", "--json");
-    const proposed = JSON.parse(queue.out) as { id: string; statement: string; conflictsWithId: string | null; supersedesId: string | null }[];
-    expect(proposed[0]!.statement).toBe("I write most of my game engines in Rust rather than Python.");
-    expect((await run("queue")).out).toContain("conflicts with");
+    const items = JSON.parse(queue.out) as { kind: string; group: string; memory: { id: string; statement: string } }[];
+    expect(items[0]).toMatchObject({ kind: "memory", group: "contradiction", memory: { statement: "I write most of my game engines in Rust rather than Python." } });
+    expect(items.map((i) => i.group)).toEqual([...items.map((i) => i.group)].sort((a, b) => ["contradiction", "still-true", "update", "new"].indexOf(a) - ["contradiction", "still-true", "update", "new"].indexOf(b)));
+    const text = (await run("queue")).out;
+    expect(text).toContain("conflicts with");
+    expect(text).toContain("chatgpt-memory (unverified)");
 
     const all = JSON.parse((await run("memories", "--json")).out) as { id: string; statement: string; tier: number }[];
     const byStatement = (s: string) => all.find((m) => m.statement === s)!;
@@ -63,7 +66,7 @@ describe("standin CLI, end to end on the demo persona", () => {
     const rust = byStatement("I write most of my game engines in Rust rather than Python.");
     const trainer = byStatement("I'm currently working on a self-play trainer for Lantern.");
     const kite = byStatement("I'm currently working on a Go-variant engine called Kite.");
-    const salary = byStatement("我不想公开讨论工资，想了解可以直接邮件问我。");
+    const salary = byStatement("I'd rather not discuss my salary publicly; people can email me about it.");
     expect(salary.tier).toBe(3);
 
     // Approve the AI-memory claim, then the contradiction that replaces it.
@@ -73,7 +76,7 @@ describe("standin CLI, end to end on the demo persona", () => {
     expect((await run("approve", trainer.id)).code).toBe(0);
     expect((await run("approve", kite.id)).code).toBe(0);
     // Re-tier and reword at approval; reject something.
-    expect((await run("approve", salary.id, "--tier", "3", "--statement", "工资的问题请直接邮件问我。")).code).toBe(0);
+    expect((await run("approve", salary.id, "--tier", "3", "--statement", "For salary questions, email me directly.")).code).toBe(0);
     expect((await run("reject", byStatement("I'm learning Japanese.").id)).code).toBe(0);
     expect((await run("approve", byStatement("I'm learning Japanese.").id)).code).toBe(1);
 
@@ -82,7 +85,7 @@ describe("standin CLI, end to end on the demo persona", () => {
       [
         "I write most of my game engines in Rust rather than Python.",
         "I'm currently working on a Go-variant engine called Kite.",
-        "工资的问题请直接邮件问我。",
+        "For salary questions, email me directly.",
       ].sort(),
     );
     const superseded = JSON.parse((await run("memories", "--status", "superseded", "--json")).out) as { statement: string }[];
@@ -98,17 +101,24 @@ describe("standin CLI, end to end on the demo persona", () => {
     const cons = await run("consolidate", "--json");
     expect(cons.code).toBe(0);
     expect(JSON.parse(cons.out)).toMatchObject({ expired: [], purged: 0 });
+
+    // Every decision above was logged with where the item sat in the queue.
+    const logged = openStore({ path: join(home, "standin.db") });
+    const decisions = logged.db.prepare("SELECT item_kind, queue_group, position, decision FROM queue_decisions ORDER BY at, rowid").all();
+    logged.close();
+    expect(decisions[0]).toEqual({ item_kind: "memory", queue_group: expect.any(String), position: expect.any(Number), decision: "approve" });
+    expect(decisions).toHaveLength(6);
   });
 
   it("adds observations from a file and reports unknown or ambiguous ids", async () => {
     const { home, run } = harness();
-    expect((await run("init", "--name", "Test Person", "--languages", "en,zh")).code).toBe(0);
+    expect((await run("init", "--name", "Test Person")).code).toBe(0);
     const file = join(home, "note.txt");
     writeFileSync(file, "I started learning the cello this month.");
-    const added = await run("observe", "--source", "manual", "--role", "self", "--lang", "en", "--file", file);
+    const added = await run("observe", "--source", "manual", "--role", "self", "--file", file);
     expect(added.code).toBe(0);
     expect(added.out).toMatch(/obs_[0-9a-f]{12}/);
-    expect((await run("observe", "--source", "nope", "--role", "self", "--lang", "en", "--file", file)).code).toBe(1);
+    expect((await run("observe", "--source", "nope", "--role", "self", "--file", file)).code).toBe(1);
 
     expect((await run("approve", "mem_ffffffffffff")).err).toContain("not found");
 
@@ -117,14 +127,13 @@ describe("standin CLI, end to end on the demo persona", () => {
       sourceKind: "manual",
       sourceRef: "t",
       authorRole: "self",
-      lang: "en",
       text: "seed",
       occurredAt: "2026-09-01T00:00:00.000Z",
     });
     for (const s of ["A", "B"])
       store.insertMemory(
-        { kind: "fact", statement: s, lang: "en", tier: 1, isCurrentState: false, attrs: {} },
-        { sourceObservationIds: [o.id], entityIds: [], actor: "person", salience: 1 },
+        { kind: "fact", statement: s, tier: 1, isCurrentState: false, attrs: {} },
+        { sourceObservationIds: [o.id], entityIds: [], actor: "person" },
       );
     store.db.exec("PRAGMA foreign_keys = OFF");
     store.db.exec("UPDATE memories SET id = 'mem_abcdef00000' || rowid");
@@ -149,17 +158,17 @@ describe("standin CLI, end to end on the demo persona", () => {
 
     const filled = readFileSync(sheetPath, "utf8")
       .replace(/(### now\.work\n(?:>.*\n)+)/, "$1\nI'm building standin.\n")
-      .replace(/(### competence\.gaps\n(?:>.*\n)+)/, "$1\n编译器优化我不太懂。\n");
+      .replace(/(### competence\.gaps\n(?:>.*\n)+)/, "$1\nI don't really get compiler optimization.\n");
     writeFileSync(sheetPath, filled);
 
     const dry = await run("interview", "import", sheetPath, "--dry-run");
     expect(dry.out).toContain("would add 2");
     const first = await run("interview", "import", sheetPath, "--occurred", "2026-10-02", "--json");
     expect(first.code).toBe(0);
-    const report = JSON.parse(first.out) as { answers: { questionId: string; lang: string; status: string }[]; blank: string[] };
-    expect(report.answers).toMatchObject([
-      { questionId: "now.work", lang: "en", status: "added" },
-      { questionId: "competence.gaps", lang: "zh", status: "added" },
+    const report = JSON.parse(first.out) as { answers: { questionId: string; status: string }[]; blank: string[] };
+    expect(report.answers).toEqual([
+      { questionId: "now.work", status: "added", observationId: expect.stringMatching(/^obs_/) },
+      { questionId: "competence.gaps", status: "added", observationId: expect.stringMatching(/^obs_/) },
     ]);
     expect(report.blank.length).toBeGreaterThan(20);
 
@@ -209,7 +218,7 @@ describe("standin CLI, end to end on the demo persona", () => {
   it("validates model config and flags", async () => {
     const { home, run } = harness();
     expect((await run("init", "--name", "T")).code).toBe(0);
-    await run("observe", "--source", "manual", "--role", "self", "--lang", "en", "--file", join(home, "config.json"));
+    await run("observe", "--source", "manual", "--role", "self", "--file", join(home, "config.json"));
     expect((await run("compact", "--limit", "abc")).err).toContain("--limit must be a positive integer");
 
     const cfg = JSON.parse(readFileSync(join(home, "config.json"), "utf8"));

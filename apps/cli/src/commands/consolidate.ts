@@ -10,7 +10,9 @@ export const consolidateCommand: Command = {
       if (flag(ctx, "json")) ctx.io.stdout(JSON.stringify(report, null, 2));
       else
         ctx.io.stdout(
-          `expired ${report.expired.length}, re-scored ${report.recomputed}, purged raw text of ${report.purged} observations and the trace text of ${report.purgedSpanContent} spans`,
+          config.consolidation.purgeAfterDays === undefined
+            ? `expired ${report.expired.length}`
+            : `expired ${report.expired.length}, purged raw text of ${report.purged} observations and the trace text of ${report.purgedSpanContent} spans`,
         );
       return 0;
     } finally {

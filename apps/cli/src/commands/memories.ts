@@ -38,7 +38,7 @@ export const memoriesCommand: Command = {
       }
       if (flag(ctx, "json")) ctx.io.stdout(JSON.stringify(memories, null, 2));
       else if (memories.length === 0) ctx.io.stdout("No memories.");
-      else ctx.io.stdout(table(MEMORY_HEADERS, memoryRows(memories)));
+      else ctx.io.stdout(table(MEMORY_HEADERS, memoryRows(memories, (m) => store.memorySourceSummary(m.id))));
       return 0;
     } finally {
       store.close();

@@ -8,9 +8,9 @@ import {
   type MemoryKind,
   type MemoryStatus,
   type Observation,
+  type SourceKind,
   type Tier,
 } from "@standin/schema";
-import { computeConfidence } from "./confidence.ts";
 import { AmbiguousIdError, InvalidTransitionError, NotFoundError } from "./errors.ts";
 import { rowToEntity, rowToObservation, type Row } from "./rows.ts";
 import type { Store } from "./store.ts";
@@ -23,8 +23,6 @@ export type NewMemory = DistributiveOmit<
   Memory,
   | "id"
   | "status"
-  | "confidence"
-  | "salience"
   | "affirmed"
   | "recordedAt"
   | "decidedAt"
@@ -44,7 +42,15 @@ export interface InsertContext {
   sourceObservationIds: string[];
   entityIds: string[];
   actor: Actor;
-  salience: number;
+}
+
+/** Sources another AI remembered about the person: shown, but marked unverified. */
+export const UNVERIFIED_SOURCES: ReadonlySet<SourceKind> = new Set<SourceKind>(["claude-memory", "chatgpt-memory", "muse-paste"]);
+
+export interface SourceSummary {
+  counts: { sourceKind: SourceKind; count: number }[];
+  distinct: number;
+  unverified: boolean;
 }
 
 export interface Neighbor {
@@ -62,11 +68,8 @@ export function rowToMemory(r: Row): Memory {
     id: r.id,
     kind: r.kind,
     statement: r.statement,
-    lang: r.lang,
     tier: r.tier,
     status: r.status,
-    confidence: r.confidence,
-    salience: r.salience,
     validFrom: r.valid_from,
     validUntil: r.valid_until,
     isCurrentState: r.is_current_state === 1,
@@ -120,22 +123,20 @@ export function memoryEvents(s: Store, id: string): MemoryEvent[] {
   return (s.db.prepare("SELECT * FROM memory_events WHERE memory_id = ? ORDER BY seq").all(id) as Row[]).map(rowToEvent);
 }
 
-function confidenceFor(s: Store, m: Memory, halfLifeDays: number): number {
-  const sources = memorySources(s, m.id).map((o) => ({ sourceKind: o.sourceKind, authorRole: o.authorRole }));
-  return computeConfidence({
-    affirmed: m.affirmed,
-    sources,
-    isCurrentState: m.isCurrentState,
-    lastCorroboratedAt: m.lastCorroboratedAt,
-    now: s.clock.now(),
-    halfLifeDays,
-  });
-}
-
-export function recomputeConfidence(s: Store, id: string, halfLifeDays = s.halfLifeDays): Memory {
-  const m = getMemory(s, id);
-  s.db.prepare("UPDATE memories SET confidence = ? WHERE id = ?").run(confidenceFor(s, m, halfLifeDays), m.id);
-  return getMemory(s, m.id);
+/** How many observations support a memory, by source kind (most first). */
+export function memorySourceSummary(s: Store, id: string): SourceSummary {
+  const rows = s.db
+    .prepare(
+      `SELECT o.source_kind AS kind, COUNT(*) AS n FROM memory_sources ms JOIN observations o ON o.id = ms.observation_id
+       WHERE ms.memory_id = ? GROUP BY o.source_kind ORDER BY n DESC, o.source_kind`,
+    )
+    .all(id) as { kind: SourceKind; n: number }[];
+  const counts = rows.map((r) => ({ sourceKind: r.kind, count: Number(r.n) }));
+  return {
+    counts,
+    distinct: counts.reduce((sum, c) => sum + c.count, 0),
+    unverified: counts.some((c) => UNVERIFIED_SOURCES.has(c.sourceKind)),
+  };
 }
 
 export function insertMemory(s: Store, input: NewMemory, ctx: InsertContext): Memory {
@@ -146,18 +147,16 @@ export function insertMemory(s: Store, input: NewMemory, ctx: InsertContext): Me
     for (const obsId of ctx.sourceObservationIds) s.getObservation(obsId);
     s.db
       .prepare(
-        `INSERT INTO memories (id, kind, statement, lang, tier, status, confidence, salience, valid_from, valid_until,
+        `INSERT INTO memories (id, kind, statement, tier, status, valid_from, valid_until,
            original_valid_until, is_current_state, affirmed, supersedes_id, conflicts_with_id, recorded_at, decided_at,
            last_corroborated_at, attrs)
-         VALUES (?, ?, ?, ?, ?, 'proposed', 0, ?, ?, ?, ?, ?, 0, ?, ?, ?, NULL, ?, ?)`,
+         VALUES (?, ?, ?, ?, 'proposed', ?, ?, ?, ?, 0, ?, ?, ?, NULL, ?, ?)`,
       )
       .run(
         id,
         input.kind,
         input.statement.trim(),
-        input.lang,
         input.tier,
-        ctx.salience,
         canonicalIso(input.validFrom),
         validUntil,
         validUntil,
@@ -173,7 +172,7 @@ export function insertMemory(s: Store, input: NewMemory, ctx: InsertContext): Me
     const linkEntity = s.db.prepare("INSERT OR IGNORE INTO memory_entities (memory_id, entity_id) VALUES (?, ?)");
     for (const entId of ctx.entityIds) linkEntity.run(id, entId);
     writeEvent(s, id, null, "proposed", ctx.actor, null);
-    return recomputeConfidence(s, id);
+    return getMemory(s, id);
   });
 }
 
@@ -183,7 +182,7 @@ export function addCorroboration(s: Store, memoryId: string, observationId: stri
     s.getObservation(observationId);
     s.db.prepare("INSERT OR IGNORE INTO memory_sources (memory_id, observation_id) VALUES (?, ?)").run(m.id, observationId);
     s.db.prepare("UPDATE memories SET last_corroborated_at = ? WHERE id = ?").run(s.nowIso(), m.id);
-    return recomputeConfidence(s, m.id);
+    return getMemory(s, m.id);
   });
 }
 
@@ -240,7 +239,6 @@ export function approve(s: Store, id: string, edits: { statement?: string; tier?
       )
       .run(statement, tier, now, now, validFrom, m.id);
     writeEvent(s, m.id, "proposed", "approved", "person", notes.length > 0 ? notes.join("; ") : null);
-    recomputeConfidence(s, m.id);
 
     for (const t of liveTargets) {
       s.db
@@ -271,13 +269,44 @@ export const retract = (s: Store, id: string, note: string | null = null) => sim
 export const expire = (s: Store, id: string, note: string | null = null, actor: Actor = "consolidation") =>
   simpleTransition(s, id, "expired", actor, note);
 
+/**
+ * Approved current-state memories not mentioned for `freshnessDays`: each gets a "Still true?" card.
+ * One that a pending proposal already updates or contradicts is left to that proposal's card.
+ */
+export function staleCurrentState(s: Store, freshnessDays: number): Memory[] {
+  const before = new Date(s.clock.now().getTime() - freshnessDays * 86_400_000).toISOString();
+  const rows = s.db
+    .prepare(
+      `SELECT * FROM memories m
+       WHERE m.status = 'approved' AND m.is_current_state = 1 AND m.last_corroborated_at < ?
+         AND NOT EXISTS (
+           SELECT 1 FROM memories p WHERE p.status = 'proposed' AND (p.supersedes_id = m.id OR p.conflicts_with_id = m.id)
+         )
+       ORDER BY m.last_corroborated_at, m.id`,
+    )
+    .all(before) as Row[];
+  return rows.map(rowToMemory);
+}
+
+/** The person says a current-state memory is still true: renew it. */
+export function keepCurrent(s: Store, id: string): Memory {
+  return s.transaction(() => {
+    const m = getMemory(s, id);
+    if (m.status !== "approved" || !m.isCurrentState) throw new InvalidTransitionError(m.id, m.status, "approved");
+    s.db.prepare("UPDATE memories SET last_corroborated_at = ? WHERE id = ?").run(s.nowIso(), m.id);
+    writeEvent(s, m.id, "approved", "approved", "person", "still true");
+    return getMemory(s, m.id);
+  });
+}
+
 export function findNeighbors(
   s: Store,
   query: { statement: string; entityIds: string[] },
   opts: { limit?: number; minSimilarity?: number } = {},
 ): Neighbor[] {
   const limit = opts.limit ?? 8;
-  const minSimilarity = opts.minSimilarity ?? 0.3;
+  // No cutoff by default: the dedup experiment (standin eval dedup) found the 0.3 cutoff dropped paraphrases.
+  const minSimilarity = opts.minSimilarity ?? 0;
   const rows = s.db.prepare("SELECT * FROM memories WHERE status IN ('proposed', 'approved', 'rejected')").all() as Row[];
   const shared = new Set<string>();
   if (query.entityIds.length > 0) {

@@ -1,4 +1,4 @@
-import { EntityKind, Lang, MemoryKind, Register } from "@standin/schema";
+import { EntityKind, MemoryKind, Register } from "@standin/schema";
 import { z } from "zod";
 
 /** What the model returns for one observation. Kind-specific attributes are flattened for structured output. */
@@ -7,7 +7,6 @@ export const ExtractionSchema = z.object({
     z.object({
       kind: MemoryKind,
       statement: z.string(),
-      lang: Lang,
       entities: z.array(z.object({ name: z.string(), kind: EntityKind })),
       suggestedTier: z.union([z.literal(1), z.literal(2), z.literal(3)]),
       validFrom: z.string().nullable(),

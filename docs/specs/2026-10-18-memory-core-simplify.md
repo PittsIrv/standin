@@ -53,6 +53,15 @@ There is no text search and no reconcile call. Until SP2a lands, competence foll
   - Dice top-k with no threshold, plus shared entities;
   - shared entities only.
 - **The default is chosen by the person** after reading the report. There is no automatic selection rule. Embeddings are added as a method only if the report shows lexical methods missing paraphrases that matter.
+- **Result (2026-10-19).** On 30 cases with about 20 memories each:
+
+  | Method | recall@8 |
+  |---|---|
+  | Dice ≥ 0.3, or a shared entity (the original) | 68% |
+  | Top 8 with no threshold | **88%** |
+  | Shared entities only | 48% |
+
+  Mingxi chose **top 8 with no threshold**, now `findNeighbors`' default. The remaining misses are pure paraphrases, which is where embeddings would come in.
 
 ## 5. Stale "currently…" memories
 

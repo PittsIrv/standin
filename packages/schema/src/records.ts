@@ -5,9 +5,6 @@ const IsoTime = z.iso.datetime();
 export const Tier = z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]);
 export type Tier = z.infer<typeof Tier>;
 
-export const Lang = z.enum(["en", "zh", "mixed", "other"]);
-export type Lang = z.infer<typeof Lang>;
-
 /** How the person relates to an observation. `exposed` never becomes knowledge. */
 export const AuthorRole = z.enum(["self", "engaged", "exposed"]);
 export type AuthorRole = z.infer<typeof AuthorRole>;
@@ -35,12 +32,22 @@ export type CompactionResult = z.infer<typeof CompactionResult>;
 
 const NonBlank = z.string().refine((s) => s.trim().length > 0, "must not be blank");
 
+const LETTER = /\p{L}/gu;
+const LATIN = /\p{Script=Latin}/gu;
+
+/** True unless more than half of the text's letters are outside the Latin script. Text with no letters passes. */
+export function isMostlyLatin(text: string): boolean {
+  const letters = text.match(LETTER)?.length ?? 0;
+  if (letters === 0) return true;
+  const latin = text.match(LATIN)?.length ?? 0;
+  return latin * 2 >= letters;
+}
+
 export const ObservationInput = z.object({
   sourceKind: SourceKind,
   sourceRef: z.string().min(1),
   authorRole: AuthorRole,
-  lang: Lang,
-  text: NonBlank,
+  text: NonBlank.refine(isMostlyLatin, "standin is English-only for now"),
   occurredAt: IsoTime,
   meta: z.record(z.string(), z.unknown()).default({}),
 });
@@ -51,7 +58,6 @@ export const Observation = z.object({
   sourceKind: SourceKind,
   sourceRef: z.string(),
   authorRole: AuthorRole,
-  lang: Lang,
   /** Null once purged by consolidation; the hash and pointers remain. */
   text: z.string().nullable(),
   contentHash: z.string(),
@@ -88,11 +94,8 @@ export const EmptyAttrs = z.object({});
 const memoryBase = {
   id: z.string(),
   statement: NonBlank,
-  lang: Lang,
   tier: Tier,
   status: MemoryStatus,
-  confidence: z.number().min(0).max(1),
-  salience: z.number().min(0),
   validFrom: IsoTime.nullable(),
   validUntil: IsoTime.nullable(),
   /** "Currently ..." memories expire unless re-corroborated. */
@@ -125,7 +128,6 @@ export const Exemplar = z.object({
   id: z.string(),
   observationId: z.string(),
   text: z.string(),
-  lang: Lang,
   register: Register,
   status: ExemplarStatus,
   contentHash: z.string(),
@@ -154,7 +156,6 @@ export const PreferencePair = z.object({
   question: z.string(),
   standinAnswer: z.string(),
   personAnswer: z.string(),
-  lang: Lang,
   createdAt: IsoTime,
 });
 export type PreferencePair = z.infer<typeof PreferencePair>;

@@ -18,28 +18,32 @@ export interface CliIO {
 export const USAGE = `Usage: standin <command> [options]
 
 Commands:
-  init [--name N] [--languages en,zh] [--demo]   create an instance in $STANDIN_HOME (default ~/.standin)
-  observe --source K --role R --lang L [--ref S] [--occurred ISO] [--file F]
+  init [--name N] [--demo]                       create an instance in $STANDIN_HOME (default ~/.standin)
+  observe --source K --role R [--ref S] [--occurred ISO] [--file F]
                                                  add an observation (from a file or stdin)
-  interview template [--bank B] [--lang both|en|zh] [--out F | --stdout]
+  interview template [--bank B] [--out F | --stdout]
                                                  write a private answer sheet (default: $STANDIN_HOME/interviews/)
-  interview import <file> [--occurred ISO] [--lang L] [--dry-run]
+  interview import <file> [--occurred ISO] [--dry-run]
                                                  turn each answered question into an observation
   compact [--limit N] [--retry-failed] [--demo-llm]
                                                  turn observations into proposed memories
   compact --batch [--wait]                       same, through the batch API at about half the price:
                                                  submits, then collects on a later run (--wait polls)
   compact --abandon-batch                        give up on the open batch; its observations go back to pending
-  queue                                          show this week's review queue
+  queue                                          the review queue, in order: contradictions, still true?, updates, new
   approve <id> [--tier T] [--statement S]        approve a proposed memory (or exm_ exemplar)
   reject <id>                                    reject a proposed memory (or exm_ exemplar)
   retract <id>                                   retract an approved memory
+  keep <id>                                      a "currently…" memory is still true (renews it)
+  expire <id>                                    a "currently…" memory is no longer true
   memories [--status S] [--kind K] [--as-of ISO] [--recorded-at ISO]
                                                  list memories (bitemporal with --as-of)
-  consolidate                                    expire stale memories, decay confidence, purge raw and trace text
+  consolidate                                    expire memories whose validity has ended
+  purge --before ISO                             delete raw text and trace text for observations compacted before ISO
   usage [--since ISO] [--by role|model]          model calls, tokens and cost
   traces [--since ISO] [--kind K] [--limit N]    recent runs (compaction, import, ...)
   trace <id> | --last [--content]                one run as a tree of steps
+  eval dedup                                     recall@1/4/8 of each duplicate-search method on the labeled set
 
 List commands accept --json.`;
 
