@@ -52,7 +52,7 @@ There is no text search and no reconcile call. Until SP2a lands, competence foll
   - the current method: Dice ≥ 0.3, or a shared entity;
   - Dice top-k with no threshold, plus shared entities;
   - shared entities only.
-- **The default** is whichever method reaches the best recall@8. Ties go to the method with fewer parameters. Embeddings are added as a method only if every lexical method misses paraphrases that matter.
+- **The default is chosen by the person** after reading the report. There is no automatic selection rule. Embeddings are added as a method only if the report shows lexical methods missing paraphrases that matter.
 
 ## 5. Stale "currently…" memories
 
@@ -80,7 +80,7 @@ There is no text search and no reconcile call. Until SP2a lands, competence foll
 | 1 | Confidence and salience | Plain rules now (sources listed; contradictions → updates → new; more sources, then oldest), with queue position and decision logged for a later learned ranker that must beat the rules | Plain rules with no logging; keeping the formulas with weights in config |
 | 2 | Language scope | English only for now | English and Chinese |
 | 3 | Non-English input | Multilingual support removed from the code; a guard rejects mostly non-Latin text | Skipping non-English observations; translating facts into English |
-| 4 | Duplicates | Competence matches by tree node. Facts, stances and negatives: measure retrieval (recall@k) and choose from the numbers. | Switching to embeddings now; dropping the threshold unmeasured |
+| 4 | Duplicates | Competence matches by tree node. Facts, stances and negatives: measure retrieval (recall@k), and the person picks the method from the report. | Switching to embeddings now; dropping the threshold unmeasured |
 | 5 | Stale current-state memories | Ask "Still true?" after 120 days | Expiring silently; never expiring |
 | 6 | Raw text retention | Kept until the person purges | 90 days; deleted right after compaction |
 | 7 | Review cap | None; an ordered queue the person stops whenever they like | 25 a week; a per-session cap |
