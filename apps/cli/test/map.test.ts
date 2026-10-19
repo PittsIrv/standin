@@ -40,7 +40,7 @@ describe("standin map", () => {
     for (const i of queue) await run("approve", i.memory.id);
 
     const text = (await run("map")).out;
-    expect(text).toMatch(/Computer science {2}lit 1 \(predicted\)/);
+    expect(text).toMatch(/Computer science {2}lit 2 \(predicted\)/);
     expect(text).toMatch(/\n {2}Algorithms {2}lit 2 \(predicted\)/);
     expect(text).toMatch(/Board games {2}dark/);
 

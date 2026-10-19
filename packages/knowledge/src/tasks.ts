@@ -60,7 +60,9 @@ export async function seedBackground(store: Store, model: LLM, personaName: stri
   for (const fact of facts) {
     const seed = await model.generateObject({ ...buildSeedPrompt(fact.statement, personaName), schema: SeedSchema, purpose: "seed" });
     store.transaction(() => {
+      // The field itself is seeded too: background means working knowledge of the field as a whole.
       const field = store.ensureTopic(seed.field.name, seed.field.definition);
+      if (!field.seedMemoryId && !field.deletedAt) store.setTopic(field.id, { seedMemoryId: fact.id });
       for (const c of seed.core) {
         const core = store.ensureTopic(c.name, c.definition);
         if (core.deletedAt || core.id === field.id) continue;

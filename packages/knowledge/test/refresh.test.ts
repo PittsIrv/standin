@@ -38,9 +38,9 @@ describe("refresh", () => {
     t.approve("fact", "I'm a CS master's student at CMU.", { background: true });
     const report = await t.run();
     expect(report.seeded).toEqual(["Computer science"]);
-    // 5 core topics at 2, plus the field at 1 by upward inference (a parent is at least one below its strongest child).
+    // The field and its 5 core topics, all at 2: background means working knowledge of the field as a whole.
     expect(report.proposed).toBe(6);
-    expect(t.store.listMemories({ status: "proposed" }).map((m) => m.statement)).toContain("I've heard of Computer science but haven't used it.");
+    expect(t.store.listMemories({ status: "proposed" }).map((m) => m.statement)).toContain("I've used Computer science and can get things done with it.");
     const names = t.store.listMemories({ status: "proposed" }).map((m) => m.statement);
     expect(names).toContain("I've used Algorithms and can get things done with it.");
     expect((await t.run()).proposed).toBe(0);
