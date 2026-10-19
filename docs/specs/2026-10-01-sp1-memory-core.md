@@ -1,5 +1,7 @@
 # SP1: Memory Core, Spec
 
+> **Amended 2026-10-18** by [Memory core, simplified](2026-10-18-memory-core-simplify.md): English only; confidence and salience removed; measured duplicate search; no silent expiry; raw text kept until purged; no review cap.
+
 **Date:** 2026-10-01
 **Status:** Approved for implementation (2026-10-01)
 **Parent:** `2026-10-01-standin-architecture.md` (§5 memory model, §11 OSS structure, §12 row 1)

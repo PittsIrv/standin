@@ -1,6 +1,6 @@
 # SP2a: Knowledge map (a lit tree) and local review page
 
-Status: revised 2026-10-18 after a decision-by-decision review (logged in §13). Awaiting written-spec review. The implementation plan will be rewritten to match.
+Status: revised 2026-10-18 after a decision-by-decision review (logged in §13), then made English-only. Awaiting written-spec review. The implementation plan will be rewritten to match.
 Builds on: [architecture spec](2026-10-01-standin-architecture.md) §5 (memory model) and §7 (competence-gated knowledge), and the [model-routing spec](2026-10-03-model-routing.md) (roles, traces).
 
 ## 1. Goal
@@ -26,7 +26,7 @@ Why claims come first, and probes still matter:
 
 ### 2.1 Nodes and definitions
 
-- A node is a topic: an entity of kind `topic`, with a one-line **definition**. English and Chinese names merge as aliases.
+- A node is a topic: an entity of kind `topic`, with a one-line **definition**. Alternative names merge as aliases.
 - **Edges**, of two kinds:
 
   | Edge | Meaning | Example |
@@ -43,7 +43,7 @@ Why claims come first, and probes still matter:
   - 4–8 components, each with a one-line definition;
   - the node's prerequisites.
 - **Stored and reused.** An expansion is never regenerated, so model variability can't reshuffle the tree.
-- **Merging.** The `map` role also merges duplicates ("RL" = "reinforcement learning" = "强化学习"), including a topic from the person's data and the same topic from an expansion.
+- **Merging.** The `map` role also merges duplicates ("RL" = "reinforcement learning"), including a topic from the person's data and the same topic from an expansion.
 
 ### 2.3 Background seeding
 
@@ -110,16 +110,14 @@ A dark node has no depth: it is not on record.
   - A different depth, or new evidence (a new claim or a probe result), can propose again.
 - **Wording.** Proposals are written in the person's voice, using these templates (`{t}` is the topic):
 
-  | Depth | English | 中文 |
-  |---|---|---|
-  | 0 | {t} isn't something I know. | {t}我不太懂。 |
-  | 1 | I've heard of {t} but haven't used it. | {t}我听说过，没用过。 |
-  | 2 | I've used {t} and can get things done with it. | {t}我用过，能上手。 |
-  | 3 | I know {t} well. | {t}我挺熟的。 |
-  | 4 | {t} is one of my deep areas. | {t}是我很深入的方向。 |
-  | gap note | I'm fine with {sub} up to {level}, but not deeper. | {sub}我懂到{level}，再深就不行了。 |
-
-  The Chinese template is used when the topic's name is Chinese.
+  | Depth | Statement |
+  |---|---|
+  | 0 | {t} isn't something I know. |
+  | 1 | I've heard of {t} but haven't used it. |
+  | 2 | I've used {t} and can get things done with it. |
+  | 3 | I know {t} well. |
+  | 4 | {t} is one of my deep areas. |
+  | gap note | I'm fine with {sub} up to {level}, but not deeper. |
 
 ## 4. Probes
 
@@ -129,7 +127,6 @@ A dark node has no depth: it is not on record.
   - a node;
   - a question;
   - a difficulty (1–4);
-  - a language;
   - a holdout set: `none`, `fixed`, or `rotating` (§4.8);
   - for a claim check, the claimed node it checks.
 - **A response** has:
@@ -141,7 +138,7 @@ A dark node has no depth: it is not on record.
 ### 4.2 Writing probes
 
 - **Who writes them.** The `quiz` role (medium) writes probes for a node at a given difficulty.
-- **Language.** The majority language of the person's claims about that topic, otherwise their first configured language.
+- **Language.** English only, following the [memory-core simplification](2026-10-18-memory-core-simplify.md).
 - **Content.** Probes test understanding, not trivia: "could someone at this level explain or do X", never dates or names.
 - **Reuse.** Probes are stored and reused. A probe is never shown twice.
 
@@ -279,6 +276,7 @@ The memory review queue (weekly cap, ranking by importance) is the same one the 
 
 **Other changes:**
 - Competence memories reference a topic entity, so `attrs.domain` resolves to a topic id at compaction time.
+- **Competence duplicates match by node.** A competence candidate whose node already has the same depth from a claim is a duplicate (a source is added). A different depth becomes a lighting proposal. There is no text search and no reconcile call ([memory-core simplification](2026-10-18-memory-core-simplify.md) §4).
 - Lighting (claims, inheritance, inference) is **computed, not stored**. It is a pure function of approved competence memories, edges, gaps and usable probe responses. Only the resulting proposals are stored, as memories.
 
 ## 9. Errors and testing
@@ -451,7 +449,7 @@ The problem sits between four areas. We did not find work that models **one real
 | 17 | "Wouldn't say" | A tier-3 boundary applied at once, covering the branch, undoable | Suggest only; skip the probe only |
 | 18 | Wording | Casual first-person templates (§3.5) | Plain templates |
 | 19 | Tiers | `map` large, `quiz` medium, `grade` medium | `map` medium and `judge` large; all medium |
-| 20 | Probe language | The language of the person's claims about the topic | Always English; chosen per session |
+| 20 | Language | English only (memory-core simplification). This replaces the earlier choice of each topic's own language. | Bilingual probes |
 | 21 | Scope | Representation only. Learning, forgetting, evidence and web search come later. | A learning loop in SP2a |
 | 22 | Probe answer | Rate each probe; spot-check a share with a graded one-line answer | Ratings only; answering every probe |
 | 23 | Answering rule | Depth-gated: explain / brief / decline; facts about the person only from memories | Memories only; general knowledge everywhere |

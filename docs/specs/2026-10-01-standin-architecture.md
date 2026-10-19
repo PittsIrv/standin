@@ -123,7 +123,7 @@ Stack: Cloudflare Worker · D1 · Vectorize (multilingual embeddings) · Claude 
 
 Three layers, all of which pass through the airlock:
 
-1. **Style card** (L2): sentence length, EN↔中文 code-switching, humor, characteristic phrases, things the person never says. Regenerated from approved exemplars; the person reviews each change.
+1. **Style card** (L2): sentence length, humor, characteristic phrases, things the person never says. Regenerated from approved exemplars; the person reviews each change.
 2. **Exemplar pool:** retrieved as style few-shots, weighted toward recent text and by source (interview / Slack / the person's own AI-chat messages > AI memory > AI-polished essays, which count as knowledge only).
 3. **Phase-2 tuning:** the self-quiz produces *(standin answer, person's correction)* **preference pairs**. Train DPO/LoRA on approved, public-tier data only. A new model is promoted only if it beats the current one on the eval harness. v1 captures the pairs; training comes later.
 
@@ -174,6 +174,6 @@ MCP server / agent-to-agent interface (same tiers, served over a new transport) 
 | Budget | $20/month hard cap | — |
 | Live model | Claude Haiku 4.5; Sonnet/Opus as eval comparisons | — |
 | Distribution | Open-source framework; the person's own data kept in a private instance | Personal-only build |
-| Languages | English and Chinese | — |
+| Languages | English only for now (changed 2026-10-18: voice patterns differ by language) | English and Chinese |
 | Data sources | Interviews (primary), school/lab/club Slack (the person's own messages), long-form writing (knowledge only), AI memory exports | Private chats, employer workspaces, calendar, email |
 | Implementation | Claude implements directly | Codex-as-worker workflow (retired) |
