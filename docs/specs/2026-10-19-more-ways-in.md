@@ -1,6 +1,6 @@
 # More ways in: detailed question banks and direct facts
 
-Status: approved in conversation on 2026-10-19 (decisions in §5). The question wording is reviewed with the plan.
+Status: approved 2026-10-19, wording included (decisions in §5).
 Builds on: the interview kit (PR #2) and the [memory-core simplification](2026-10-18-memory-core-simplify.md). Lands as its own PR after the simplification and before SP2a.
 
 ## 1. Goal
@@ -25,7 +25,8 @@ Detail comes from **repeating items**: the sheet asks you to list things (projec
 
 **Sheet format:**
 - Each repeating group is a block marked `<!-- repeat: projects -->`. To add a project, copy the block.
-- The parser numbers the copies (`projects.1.role`, `projects.2.role`, …), so each answer becomes its own observation with `sourceRef interview:<bank>#<question>`.
+- The parser numbers the copies (`projects.1.role`, `projects.2.role`, …).
+- **One observation per item.** All the answers about one project, skill, course or interest become a single observation, e.g. `Project 2 (Kite):` followed by its Q/A pairs, with `sourceRef interview:<bank>#projects.2`. The model sees the whole item, and two projects that share an answer ("Python") can't collide. Questions outside repeating blocks stay one observation each.
 
 **Extraction:**
 - A skills answer like "Rust: 3" becomes a competence memory with depth 3 as a **claim**.
@@ -49,3 +50,5 @@ Detail comes from **repeating items**: the sheet asks you to list things (projec
 | 1 | Extra inputs | Detailed question banks, and direct facts processed through the normal pipeline | Model-written follow-up questions (for now) |
 | 2 | Banks | Projects, skills and depth, education and coursework, work style and opinions, life and interests | A subset |
 | 3 | Sequencing | Its own PR after the simplification, before SP2a | Inside the simplification PR; with SP2a |
+| 4 | Question wording | As drafted on 2026-10-19 (§2), with 3 copies of each repeating block on the sheet | — |
+| 5 | Repeating items | One observation per item | One observation per answer, prefixed with the item's name |
