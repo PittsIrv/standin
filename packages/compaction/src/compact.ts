@@ -1,9 +1,8 @@
 import type { LLM } from "@standin/llm";
 import type { Config, Memory, MemoryAttrs, Observation } from "@standin/schema";
-import { computeConfidence, type NewMemory, type Store } from "@standin/store";
+import type { NewMemory, Store } from "@standin/store";
 import { noopTracer, type Span, type Tracer } from "@standin/trace";
 import { buildExtractionPrompt, buildReconcilePrompt } from "./prompts.ts";
-import { salience, type Novelty } from "./salience.ts";
 import { ExtractionSchema, ReconcileSchema, type ExtractedMemory, type Extraction, type ReconcileAction } from "./schemas.ts";
 
 export interface CompactionReport {
@@ -207,20 +206,10 @@ function apply(store: Store, config: Config, o: Observation, plans: Planned[], e
     }
 
     const entityIds = c.entities.map((e) => store.resolveEntity(e).id);
-    const confidence = computeConfidence({
-      affirmed: false,
-      sources: [{ sourceKind: o.sourceKind, authorRole: o.authorRole }],
-      isCurrentState: c.isCurrentState,
-      lastCorroboratedAt: store.nowIso(),
-      now: store.clock.now(),
-      halfLifeDays: config.consolidation.currentStateHalfLifeDays,
-    });
-    const novelty: Novelty = action === "update" ? "update" : action === "contradiction" ? "contradiction" : "new";
     const linksTarget = (action === "update" || action === "contradiction") && target !== null;
     const input = {
       kind: c.kind,
       statement: c.statement,
-      lang: c.lang,
       tier: c.suggestedTier,
       isCurrentState: c.isCurrentState,
       attrs: p.attrs,
@@ -234,7 +223,6 @@ function apply(store: Store, config: Config, o: Observation, plans: Planned[], e
       sourceObservationIds: [o.id],
       entityIds,
       actor: "compaction",
-      salience: salience({ kind: c.kind, confidence, novelty }),
     });
     if (action === "update") report.updates++;
     else if (action === "contradiction") report.contradictions++;
@@ -244,7 +232,7 @@ function apply(store: Store, config: Config, o: Observation, plans: Planned[], e
   if (o.authorRole === "self") {
     for (const e of extraction.exemplars) {
       if (!e.text.trim()) continue;
-      if (store.insertExemplar({ observationId: o.id, text: e.text, lang: o.lang, register: e.register })) report.exemplars++;
+      if (store.insertExemplar({ observationId: o.id, text: e.text, register: e.register })) report.exemplars++;
     }
   }
   store.markCompacted(o.id, "processed");

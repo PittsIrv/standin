@@ -16,7 +16,6 @@ describe.skipIf(!live)("extraction prompt caching (live)", () => {
       sourceKind: "interview",
       sourceRef: "live-test",
       authorRole: "self",
-      lang: "en",
       text,
       contentHash: "x",
       occurredAt: "2026-10-07T00:00:00.000Z",

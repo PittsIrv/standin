@@ -5,7 +5,7 @@ import { ScriptedLLM, type GenerateObjectRequest } from "@standin/llm";
 import { parseConfig, type ObservationInput } from "@standin/schema";
 import { openStore } from "@standin/store";
 
-export const config = parseConfig({ persona: { name: "Lin Qiao", languages: ["en", "zh"] } });
+export const config = parseConfig({ persona: { name: "Lin Qiao" } });
 
 export class FakeClock {
   constructor(public current = new Date("2026-10-01T12:00:00.000Z")) {}
@@ -25,7 +25,6 @@ export function obs(text: string, overrides: Partial<ObservationInput> = {}): Ob
     sourceKind: "interview",
     sourceRef: "interview-01",
     authorRole: "self",
-    lang: "en",
     text,
     occurredAt: "2026-09-01T00:00:00.000Z",
     ...overrides,
@@ -35,7 +34,6 @@ export function obs(text: string, overrides: Partial<ObservationInput> = {}): Ob
 export type Candidate = {
   kind?: "fact" | "competence" | "stance" | "negative";
   statement: string;
-  lang?: "en" | "zh" | "mixed" | "other";
   entities?: { name: string; kind: "project" | "org" | "place" | "person" | "work" | "topic" }[];
   suggestedTier?: 1 | 2 | 3;
   validFrom?: string | null;
@@ -49,8 +47,7 @@ export function extraction(memories: Candidate[], exemplars: { text: string; reg
   return {
     memories: memories.map((m) => ({
       kind: "fact",
-      lang: "en",
-      entities: [],
+        entities: [],
       suggestedTier: 1,
       validFrom: null,
       validUntil: null,

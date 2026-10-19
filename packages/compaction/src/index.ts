@@ -1,7 +1,6 @@
 export { compact, extractionRequest, type CompactionReport, type CompactOptions } from "./compact.ts";
 export { abandonBatch, compactBatch, type BatchStep, type CompactBatchOptions } from "./batch.ts";
-export { reviewQueue } from "./queue.ts";
-export { salience, KIND_WEIGHTS, NOVELTY_WEIGHTS, type Novelty } from "./salience.ts";
+export { reviewQueue, type QueueGroup, type ReviewItem } from "./queue.ts";
 export { buildExtractionPrompt, buildReconcilePrompt, type Prompt } from "./prompts.ts";
 export {
   ExtractionSchema,
