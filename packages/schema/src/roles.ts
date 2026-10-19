@@ -17,6 +17,8 @@ export const ROLES = {
   attack: { tier: "medium", zone: "private", purpose: "Generate break-me attempts" },
   style: { tier: "large", zone: "private", purpose: "Rewrite the style card" },
   judge: { tier: "large", zone: "private", purpose: "Grade eval answers" },
+  // Large: its output is stored and reused as the tree's structure, so quality outweighs price.
+  map: { tier: "large", zone: "private", purpose: "Place topics in the knowledge tree, merge duplicates, and seed from background" },
 } as const satisfies Record<string, { tier: ModelTier; zone: Zone; purpose: string }>;
 
 export type Role = keyof typeof ROLES;

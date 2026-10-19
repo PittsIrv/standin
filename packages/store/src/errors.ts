@@ -21,3 +21,11 @@ export class InvalidTransitionError extends Error {
     this.name = "InvalidTransitionError";
   }
 }
+
+/** An edge that would close a loop; `path` lists topic names from the new edge's start back to itself. */
+export class CycleError extends Error {
+  constructor(public readonly path: string[]) {
+    super(`that edge would make a cycle: ${path.join(" → ")}`);
+    this.name = "CycleError";
+  }
+}
