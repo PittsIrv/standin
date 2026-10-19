@@ -1,6 +1,10 @@
 # SP2a: Knowledge map (a lit tree) and local review page
 
-Status: approved 2026-10-19 (decisions in §13). Revised 2026-10-18 after a decision-by-decision review, then made English-only. The implementation plan will be rewritten to match.
+Status: approved 2026-10-19 (decisions in §13). Revised 2026-10-18 after a decision-by-decision review, then made English-only.
+
+Delivered in two PRs:
+- **SP2a-1, the lit tree:** §2, §3 and §5, plus `standin map`.
+- **SP2a-2, probing and the review page:** §4, §6 and §7.
 Builds on: [architecture spec](2026-10-01-standin-architecture.md) §5 (memory model) and §7 (competence-gated knowledge), and the [model-routing spec](2026-10-03-model-routing.md) (roles, traces).
 
 ## 1. Goal
@@ -43,18 +47,31 @@ Why claims come first, and probes still matter:
   - 4–8 components, each with a one-line definition;
   - the node's prerequisites.
 - **Stored and reused.** An expansion is never regenerated, so model variability can't reshuffle the tree.
-- **Merging.** The `map` role also merges duplicates ("RL" = "reinforcement learning"), including a topic from the person's data and the same topic from an expansion.
+- **Merging and placing.**
+  - The `map` role merges duplicates ("RL" = "reinforcement learning"), including a topic from the person's data and the same topic from an expansion.
+  - It places each new topic from the person's data under the node it belongs to, with a `part_of` edge.
 
 ### 2.3 Background seeding
 
-- **A background claim** is an approved memory about the person's education or role, e.g. "I'm a CS student at CMU". The `map` role turns it into the core topics that background implies.
+- **A background claim** is an approved fact about the person's education or role, e.g. "I'm a CS student at CMU". Extraction tags such facts (`attrs.background: true`), whatever the source. The `map` role turns each one into the core topics that background implies.
 - **Lighting.** The core topics are lit at depth **2** (working knowledge). Electives stay dark until the person claims them or probes light them.
-- **Review.** Seeded lighting is a proposal, like any other lighting (§3.5).
+- **Review.** Seeded lighting is a proposal, like any other lighting (§3.6).
 
 ### 2.4 Structure is automatic
 
-- Expansions, prerequisites and merges join the tree without review. They are textbook structure, not claims about the person.
+- Expansions, prerequisites, placements and merges join the tree without review. They are textbook structure, not claims about the person.
 - On the review page, the person can rename, move or delete any node or edge at any time. A deleted node is not re-added by a later expansion.
+
+### 2.5 Refreshing
+
+- **`standin map refresh`** runs the model work:
+  - placing and merging new topics;
+  - seeding from new background claims;
+  - expansions that seeding needs.
+
+  It then proposes lighting changes, and prints what it did and what it cost.
+- **`standin map`** only displays the tree, with no model calls.
+- **A reminder:** after the person approves competence, background or negative memories, `standin queue` reminds them to refresh. SP2a-2's review page refreshes when a session starts.
 
 ## 3. Lighting
 
@@ -75,7 +92,7 @@ A dark node has no depth: it is not on record.
 | Source | Lights | Basis |
 |---|---|---|
 | **Claim:** an approved competence memory from the person's own words | The node at the claimed depth, with no cap | `claimed` |
-| **Inheritance:** a claimed node's branch | Every descendant at the claimed depth, except recorded gaps (§4.4) | `claimed` |
+| **Inheritance:** a node's approved lighting, of any basis | Every descendant at the same depth, except recorded gaps and descendants with their own lighting | the ancestor's basis |
 | **Background seeding** (§2.3) | Core topics at 2 | `predicted` |
 | **Upward inference:** a lit child | Parent at `min(child − 1, 3)`, taking the maximum over its children | `predicted` |
 | **Prerequisite inference:** a lit node `T` at depth `d` | Each prerequisite at `min(d − 1, 3)`, losing one level per hop | `predicted` |
@@ -88,23 +105,29 @@ A dark node has no depth: it is not on record.
   - Otherwise the highest of the claim and the inferred values wins.
   - Inference can raise a node above the person's own claim, as a proposal, e.g. "you claimed ML at 1, but RLHF at 4 implies 2". This catches under-claiming, and the person decides.
 
-### 3.3 Not modeled in SP2a
+### 3.3 Gaps the person states
+
+- **Stating a limit counts like a confirmed probe miss.** An approved negative memory ("I can't do Rust macros yet") whose topic sits under a lit node becomes a **gap note at depth 1** ("heard of it, haven't used it").
+- **The source doesn't matter:** the skills bank, the core interview, or `tell`.
+- **Its status is `kept`:** the claim stands, and the stated limit carves out an exception.
+
+### 3.4 Not modeled in SP2a
 
 - **Forgetting.** No time-based re-checks.
 - **Learning updates.** There is no "I learned X" entry. The tree changes only through the normal pipeline (interviews and check-ins become claims) and through probing.
 - **Authored work as evidence.** Projects and writing are decided in SP2b, with real scanned data.
 
-### 3.4 Boundaries ("wouldn't say")
+### 3.5 Boundaries ("wouldn't say")
 
 - **A boundary is not a gap.** "Wouldn't say" means "I know, but I don't discuss it".
 - **Applied at once.** Rating a probe "wouldn't say" puts a **tier-3 boundary** (deflect) on that node right away. The person can undo it in review.
 - **Covers the branch.** A boundary on "health" also covers its subtopics.
 - **Why no review first.** Every other change is proposed because a mistake could share something. This one can only withhold.
 
-### 3.5 Proposals and review
+### 3.6 Proposals and review
 
 - **Lighting changes need review.** Every change to how a node is lit is proposed as a competence memory that supersedes the approved one. Approved lighting is what the runtime uses.
-- **What is exempt.** Gap notes the person confirmed themselves (§4.4), and boundaries (§3.4).
+- **What is exempt.** Gap notes the person confirmed themselves (§4.4) or stated (§3.3), and boundaries (§3.5).
 - **Rejections.**
   - A rejected proposal (same node, same depth) is never proposed again.
   - A different depth, or new evidence (a new claim or a probe result), can propose again.
@@ -247,7 +270,7 @@ Both are reported separately for the `fixed` and `rotating` sets.
 - boundaries, with undo;
 - the tree: rename, move, or delete a node or edge.
 
-The memory review queue (weekly cap, ranking by importance) is the same one the CLI shows.
+The memory review queue (no cap, plain order) is the same one the CLI shows.
 
 **Keys**
 - `1`–`4` rate a probe.
@@ -344,7 +367,7 @@ Every topic node carries **two separate numbers**: a depth (how much the person 
   - A hypothesis must cite at least one known node.
   - It may reach at most **2 hops** from that node, losing confidence at each hop.
   - Hypotheses never serve as evidence for other hypotheses.
-- **Incremental, not rebuilt.** Each weekly run proposes changes to the existing graph instead of regenerating it, so model nondeterminism cannot reshuffle the map. Changes in lighting go to the review queue as in §3.5.
+- **Incremental, not rebuilt.** Each weekly run proposes changes to the existing graph instead of regenerating it, so model nondeterminism cannot reshuffle the map. Changes in lighting go to the review queue as in §3.6.
 
 ### 10.2 Calibration layer
 
@@ -447,7 +470,7 @@ The problem sits between four areas. We did not find work that models **one real
 | 15 | Calibration | A map score (excluding kept branches, public) plus a private presented score | One score over everything; the map score only |
 | 16 | Rejections | The same node and depth are never re-proposed; new evidence can re-propose | Snooze for 90 days; rejection keeps the node dark |
 | 17 | "Wouldn't say" | A tier-3 boundary applied at once, covering the branch, undoable | Suggest only; skip the probe only |
-| 18 | Wording | Casual first-person templates (§3.5) | Plain templates |
+| 18 | Wording | Casual first-person templates (§3.6) | Plain templates |
 | 19 | Tiers | `map` large, `quiz` medium, `grade` medium | `map` medium and `judge` large; all medium |
 | 20 | Language | English only (memory-core simplification). This replaces the earlier choice of each topic's own language. | Bilingual probes |
 | 21 | Scope | Representation only. Learning, forgetting, evidence and web search come later. | A learning loop in SP2a |
@@ -457,3 +480,8 @@ The problem sits between four areas. We did not find work that models **one real
 | 25 | Phase-2 model | A hybrid of hypothesis nodes and a calibration layer. It replaces the inference rules only if it beats them on the map score, and never replaces the person's claims or gap decisions. | IRT alone; the graph alone with raw confidence; a deep model on one person's data |
 | 26 | Open-question test | All in SP3, with its own question bank | Collecting held-out open answers in SP2a |
 | 27 | Inference above a claim | Allowed, as a proposal for review | Claims as ceilings; flagging the disagreement only |
+| 28 | Delivery | Two PRs: SP2a-1 (the lit tree) and SP2a-2 (probing and the review page) | One PR |
+| 29 | Recognizing background | Extraction tags background facts | The `map` role reviewing approved facts; the education bank only |
+| 30 | Stated limits | An approved negative under a lit node becomes a gap note at depth 1 | A gap at depth 0; keeping negatives off the tree |
+| 31 | Inheritance | Any approved lighting covers its branch, not only claims | Only claims inherit |
+| 32 | Refresh | An explicit `standin map refresh`, with a reminder from the queue | Refreshing after every approval; refreshing inside `compact` |
