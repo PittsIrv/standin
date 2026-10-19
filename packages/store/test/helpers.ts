@@ -51,6 +51,5 @@ export function seedMemory(store: Store, statement: string, overrides: Partial<N
     sourceObservationIds: [o.id],
     entityIds,
     actor: "compaction",
-    salience: 1,
   });
 }

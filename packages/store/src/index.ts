@@ -2,6 +2,6 @@ export { openStore, Store, type CompactionBatch, type QueueDecision, type StoreO
 export { systemClock, type Clock } from "./db.ts";
 export { AmbiguousIdError, InvalidTransitionError, NotFoundError } from "./errors.ts";
 export { bigrams, contentHash, dice, normalizeName, normalizeText } from "./text.ts";
-export { SHARED_ENTITY_BOOST, type InsertContext, type Neighbor, type NewMemory, type SourceSummary } from "./memories.ts";
+export { SHARED_ENTITY_BOOST, UNVERIFIED_SOURCES, type InsertContext, type Neighbor, type NewMemory, type SourceSummary } from "./memories.ts";
 export type { ConsolidationReport } from "./consolidate.ts";
 export type { RunSummary, UsageRow } from "./spans.ts";

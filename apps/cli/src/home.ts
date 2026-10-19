@@ -33,11 +33,11 @@ export function createInstance(home: string, config: ConfigInput, clock?: Clock)
   mkdirSync(home, { recursive: true, mode: 0o700 });
   const parsed = parseConfig(config);
   writeFileSync(configPath(home), `${JSON.stringify(parsed, null, 2)}\n`, { mode: 0o600 });
-  return { home, config: parsed, store: openStore({ path: dbPath(home), clock, currentStateHalfLifeDays: parsed.consolidation.currentStateHalfLifeDays }) };
+  return { home, config: parsed, store: openStore({ path: dbPath(home), clock }) };
 }
 
 export function loadInstance(home: string, clock?: Clock): Instance {
   if (!isInitialized(home)) throw new NotInitializedError(home);
   const config = parseConfig(JSON.parse(readFileSync(configPath(home), "utf8")));
-  return { home, config, store: openStore({ path: dbPath(home), clock, currentStateHalfLifeDays: config.consolidation.currentStateHalfLifeDays }) };
+  return { home, config, store: openStore({ path: dbPath(home), clock }) };
 }

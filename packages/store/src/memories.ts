@@ -45,7 +45,7 @@ export interface InsertContext {
 }
 
 /** Sources another AI remembered about the person: shown, but marked unverified. */
-const UNVERIFIED_SOURCES = new Set<SourceKind>(["claude-memory", "chatgpt-memory", "muse-paste"]);
+export const UNVERIFIED_SOURCES: ReadonlySet<SourceKind> = new Set<SourceKind>(["claude-memory", "chatgpt-memory", "muse-paste"]);
 
 export interface SourceSummary {
   counts: { sourceKind: SourceKind; count: number }[];

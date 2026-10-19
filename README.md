@@ -18,6 +18,8 @@ ingest (read-only) → L0 observations → compaction → L1 memories → airloc
 - **Knows what you don't know.** Competence-gated knowledge and explicit negative memories. Unknowns are answered "not on record" instead of guessed.
 - **Default-deny airlock.** Raw data stays local. Only approved memories are published.
 - **Bitemporal.** Every memory records when it was true and when it was recorded, so you can ask what the standin knew as of any date.
+- **No guessed weights.** The review queue follows plain rules you can read in one sentence, and each memory shows its sources instead of a made-up confidence score. Where a number does change outcomes (duplicate search), it is measured, not guessed.
+- **English only, for now.** People talk differently in different languages, so the standin learns one voice at a time.
 
 ## Try it (offline, fictional demo persona)
 
@@ -26,25 +28,39 @@ pnpm install
 export STANDIN_HOME=$(mktemp -d)/standin   # keep the demo away from ~/.standin
 pnpm standin init --demo                   # creates the instance and loads 10 observations
 pnpm standin compact --demo-llm            # observations → proposed memories (scripted model, no network)
-pnpm standin queue                         # review queue: contradictions first, then by salience
+pnpm standin queue                         # review queue: contradictions, still true?, updates, new
 pnpm standin approve <id> [--tier 1-4]     # or: reject <id>
 pnpm standin memories --as-of 2026-09-01   # what was true then, according to what we know now
-pnpm standin consolidate                   # expire stale memories, decay confidence, purge raw text
+pnpm standin consolidate                   # expire memories whose validity has ended
+pnpm standin eval dedup                    # how well duplicate search finds known duplicates (recall@k)
 ```
 
 On your own data, `standin compact` calls Claude (default `claude-opus-5-5`) through the official SDK. Credentials resolve the SDK's default way (`ANTHROPIC_API_KEY` or `ant auth login`).
 
 ## Start with an interview
 
-Interviews are the cleanest source: you decide exactly what goes in. The first question bank (`core-v1`) has about 30 bilingual questions, including what you *don't* know, which is what lets the standin say "I don't know" instead of guessing.
+Interviews are the cleanest source: you decide exactly what goes in. The first question bank (`core-v1`) has about 30 questions, including what you *don't* know, which is what lets the standin say "I don't know" instead of guessing.
 
 ```bash
-pnpm standin init --name "Your Name" --languages en,zh
+pnpm standin init --name "Your Name"
 pnpm standin interview template                 # writes $STANDIN_HOME/interviews/core-v1-<date>.md (owner-only)
-# answer in your editor, in whatever mix of languages you'd actually use; leave questions blank to skip
+# answer in your editor the way you'd actually talk; leave questions blank to skip
 pnpm standin interview import <that file>       # one observation per answer; re-importing is idempotent
 pnpm standin compact && pnpm standin queue
 ```
+
+## Reviewing
+
+Everything the standin learns waits for you in one queue, with no weekly cap. Stop whenever you like.
+
+1. **Contradictions:** a new memory conflicts with one you approved.
+2. **Still true?:** a "currently…" memory nobody has mentioned for 120 days. `standin keep <id>` renews it; `standin expire <id>` retires it. Nothing expires silently.
+3. **Updates:** a newer version of something you approved.
+4. **New** memories.
+
+Within each group, memories with more sources come first, then older ones. Sources from another AI's memory of you are marked *unverified*. Every decision is logged with where the item sat in the queue, so a smarter ordering can later be tested against this one.
+
+Raw observation text and trace text stay on your machine until you purge them: `standin purge --before <date>`.
 
 ## Choosing models: roles and tiers
 
@@ -98,7 +114,7 @@ To view traces in Jaeger, Arize Phoenix, or Langfuse, point standin at their OTL
 "tracing": { "otlp": { "endpoint": "http://localhost:4318/v1/traces", "headersEnv": "OTLP_HEADERS", "exportContent": false } }
 ```
 
-Prompts and outputs are stored apart from the trace structure. Locally they are deleted by `standin consolidate` on the same schedule as raw observation text (90 days by default). They leave your machine only if you set `exportContent: true`.
+Prompts and outputs are stored apart from the trace structure. Locally they are kept, like raw observation text, until you run `standin purge --before <date>` (or set `consolidation.purgeAfterDays`). They leave your machine only if you set `exportContent: true`.
 
 ## Your data stays out of this repo
 

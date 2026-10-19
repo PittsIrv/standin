@@ -8,7 +8,6 @@ export const observeCommand: Command = {
   options: {
     source: { type: "string" },
     role: { type: "string" },
-    lang: { type: "string" },
     ref: { type: "string" },
     occurred: { type: "string" },
     file: { type: "string" },
@@ -23,7 +22,6 @@ export const observeCommand: Command = {
     const parsed = ObservationInput.safeParse({
       sourceKind: str(ctx, "source"),
       authorRole: str(ctx, "role"),
-      lang: str(ctx, "lang"),
       sourceRef: str(ctx, "ref") ?? (file ? `file:${file}` : "stdin"),
       occurredAt: str(ctx, "occurred") ?? new Date().toISOString(),
       text,
@@ -35,7 +33,7 @@ export const observeCommand: Command = {
     const { store } = loadInstance(ctx.home, ctx.io.clock);
     try {
       const o = store.addObservation(parsed.data);
-      ctx.io.stdout(`${o.id}  ${o.sourceKind}/${o.authorRole}/${o.lang}  ${o.compactedAt ? "(already compacted)" : "pending compaction"}`);
+      ctx.io.stdout(`${o.id}  ${o.sourceKind}/${o.authorRole}  ${o.compactedAt ? "(already compacted)" : "pending compaction"}`);
     } finally {
       store.close();
     }
