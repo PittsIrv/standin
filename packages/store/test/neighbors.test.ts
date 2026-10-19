@@ -25,12 +25,20 @@ describe("findNeighbors", () => {
     expect(store.findNeighbors({ statement: "I hate poker.", entityIds: [] }).map((r) => r.memory.id)).toContain(rej.id);
   });
 
-  it("respects limit and threshold", () => {
+  it("respects limit and an explicit threshold", () => {
     const { store } = tempStore();
     for (let i = 0; i < 12; i++) seedMemory(store, `I like poker variant ${i}`);
     seedMemory(store, "Completely unrelated sentence about gardening.");
-    const res = store.findNeighbors({ statement: "I like poker variant", entityIds: [] }, { limit: 5 });
+    const res = store.findNeighbors({ statement: "I like poker variant", entityIds: [] }, { limit: 5, minSimilarity: 0.3 });
     expect(res).toHaveLength(5);
     expect(res.every((r) => r.score >= 0.3)).toBe(true);
+  });
+
+  it("by default returns the closest memories with no similarity cutoff (chosen by the dedup experiment)", () => {
+    const { store } = tempStore();
+    const small = seedMemory(store, "I prefer small teams.");
+    seedMemory(store, "I grew up in a small town.");
+    const res = store.findNeighbors({ statement: "I work best in tight groups.", entityIds: [] });
+    expect(res.map((r) => r.memory.id)).toContain(small.id);
   });
 });

@@ -21,10 +21,10 @@ export interface RetrievalMethod {
 const neighbors = (minSimilarity: number) => (store: Store, q: { statement: string; entityIds: string[] }, k: number) =>
   store.findNeighbors(q, { limit: k, minSimilarity }).map((n) => n.memory.id);
 
-/** The retrieval methods compared. The first is what compaction uses today. */
+/** The retrieval methods compared. `dice-topk+entity` is what compaction uses (chosen from this experiment). */
 export const METHODS: RetrievalMethod[] = [
-  { name: "dice≥0.3+entity", describe: "shared entity, or character-bigram similarity ≥ 0.3 (current)", retrieve: neighbors(0.3) },
-  { name: "dice-topk+entity", describe: "shared entity, plus the closest by similarity, no threshold", retrieve: neighbors(0) },
+  { name: "dice≥0.3+entity", describe: "shared entity, or character-bigram similarity ≥ 0.3 (the original method)", retrieve: neighbors(0.3) },
+  { name: "dice-topk+entity", describe: "shared entity, plus the closest by similarity, no threshold (current)", retrieve: neighbors(0) },
   { name: "entity-only", describe: "only memories sharing a named entity", retrieve: neighbors(Number.POSITIVE_INFINITY) },
 ];
 

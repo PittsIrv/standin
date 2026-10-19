@@ -305,7 +305,8 @@ export function findNeighbors(
   opts: { limit?: number; minSimilarity?: number } = {},
 ): Neighbor[] {
   const limit = opts.limit ?? 8;
-  const minSimilarity = opts.minSimilarity ?? 0.3;
+  // No cutoff by default: the dedup experiment (standin eval dedup) found the 0.3 cutoff dropped paraphrases.
+  const minSimilarity = opts.minSimilarity ?? 0;
   const rows = s.db.prepare("SELECT * FROM memories WHERE status IN ('proposed', 'approved', 'rejected')").all() as Row[];
   const shared = new Set<string>();
   if (query.entityIds.length > 0) {
