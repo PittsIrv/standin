@@ -1,3 +1,9 @@
+import { EDUCATION_V1 } from "./banks/education.ts";
+import { LIFE_V1 } from "./banks/life.ts";
+import { OPINIONS_V1 } from "./banks/opinions.ts";
+import { PROJECTS_V1 } from "./banks/projects.ts";
+import { SKILLS_V1 } from "./banks/skills.ts";
+
 /** What an answer is expected to produce once compacted. Shown to the person as a hint. */
 export type Feeds = "fact" | "current" | "competence" | "negative" | "stance" | "voice" | "guide";
 
@@ -249,7 +255,9 @@ export const CORE_V1: QuestionBank = {
   ],
 };
 
-export const BANKS: Record<string, QuestionBank> = { [CORE_V1.id]: CORE_V1 };
+export const BANKS: Record<string, QuestionBank> = Object.fromEntries(
+  [CORE_V1, PROJECTS_V1, SKILLS_V1, EDUCATION_V1, OPINIONS_V1, LIFE_V1].map((b) => [b.id, b]),
+);
 
 export function allQuestions(bank: QuestionBank): Question[] {
   return bank.sections.flatMap((s) => s.questions);
