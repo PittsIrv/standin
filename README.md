@@ -49,6 +49,13 @@ pnpm standin interview import <that file>       # one observation per answer; re
 pnpm standin compact && pnpm standin queue
 ```
 
+Want to say more? Five detailed banks repeat their questions for each project, skill, course, opinion or interest. Copy a block to add another one; each item becomes one observation.
+
+```bash
+pnpm standin interview template --bank projects-v1   # also: skills-v1, education-v1, opinions-v1, life-v1
+pnpm standin tell "I ran my first marathon in 2024."  # or --file F; goes through compaction and review like everything else
+```
+
 ## Reviewing
 
 Everything the standin learns waits for you in one queue, with no weekly cap. Stop whenever you like.

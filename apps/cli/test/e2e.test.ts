@@ -165,10 +165,10 @@ describe("standin CLI, end to end on the demo persona", () => {
     expect(dry.out).toContain("would add 2");
     const first = await run("interview", "import", sheetPath, "--occurred", "2026-10-02", "--json");
     expect(first.code).toBe(0);
-    const report = JSON.parse(first.out) as { answers: { questionId: string; status: string }[]; blank: string[] };
+    const report = JSON.parse(first.out) as { answers: { key: string; status: string }[]; blank: string[] };
     expect(report.answers).toEqual([
-      { questionId: "now.work", status: "added", observationId: expect.stringMatching(/^obs_/) },
-      { questionId: "competence.gaps", status: "added", observationId: expect.stringMatching(/^obs_/) },
+      { key: "now.work", status: "added", observationId: expect.stringMatching(/^obs_/) },
+      { key: "competence.gaps", status: "added", observationId: expect.stringMatching(/^obs_/) },
     ]);
     expect(report.blank.length).toBeGreaterThan(20);
 

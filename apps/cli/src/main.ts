@@ -19,9 +19,11 @@ export const USAGE = `Usage: standin <command> [options]
 
 Commands:
   init [--name N] [--demo]                       create an instance in $STANDIN_HOME (default ~/.standin)
+  tell "<text>" | --file F [--occurred ISO]      tell the standin something directly (goes through compaction and review)
   observe --source K --role R [--ref S] [--occurred ISO] [--file F]
                                                  add an observation (from a file or stdin)
   interview template [--bank B] [--out F | --stdout]
+                                                 banks: core-v1, projects-v1, skills-v1, education-v1, opinions-v1, life-v1
                                                  write a private answer sheet (default: $STANDIN_HOME/interviews/)
   interview import <file> [--occurred ISO] [--dry-run]
                                                  turn each answered question into an observation
