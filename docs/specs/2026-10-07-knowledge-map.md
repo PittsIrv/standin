@@ -128,6 +128,7 @@ A dark node has no depth: it is not on record.
 
 - **Lighting changes need review.** Every change to how a node is lit is proposed as a competence memory that supersedes the approved one. Approved lighting is what the runtime uses.
 - **What is exempt.** Gap notes the person confirmed themselves (§4.4) or stated (§3.3), and boundaries (§3.5).
+- **Branch note.** A proposal for a node with parts says how many it would light ("Approving lights its whole branch: N parts in the tree."), since approved lighting covers its branch.
 - **Rejections.**
   - A rejected proposal (same node, same depth) is never proposed again.
   - A different depth, or new evidence (a new claim or a probe result), can propose again.
@@ -486,3 +487,4 @@ The problem sits between four areas. We did not find work that models **one real
 | 31 | Inheritance | Any approved lighting covers its branch, not only claims | Only claims inherit |
 | 32 | Refresh | An explicit `standin map refresh`, with a reminder from the queue | Refreshing after every approval; refreshing inside `compact` |
 | 33 | Seeded field | The field itself is lit at 2, like its core | The upward rule's 1; 3 |
+| 34 | Branch note | A lighting proposal says how many parts approving it would light | Inferred lighting not inheriting; no note |
