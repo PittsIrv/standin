@@ -108,3 +108,25 @@ export const RECONCILIATIONS: Record<string, ["duplicate" | "update" | "contradi
   "I write most of my game engines in Rust rather than Python.": ["contradiction", "I prefer Python for all my projects."],
   "I'm currently working on a Go-variant engine called Kite.": ["update", "I'm currently working on a self-play trainer for Lantern."],
 };
+
+/** The `map` role's background seeding for Lin Qiao's master's program. */
+export const SEED = {
+  field: { name: "Computer science", definition: "The study of computation and its applications." },
+  core: [
+    { name: "Algorithms", definition: "Designing and analyzing step-by-step procedures." },
+    { name: "Systems", definition: "How computers, operating systems and networks work." },
+    { name: "Machine learning", definition: "Learning models from data." },
+    { name: "Theory of computation", definition: "What can be computed, and how efficiently." },
+    { name: "Software engineering", definition: "Building and maintaining software." },
+  ],
+};
+
+/** Demo topic → [parent, parent definition (null if it exists), topic definition]. */
+export const PLACEMENTS: Record<string, [string, string | null, string]> = {
+  Python: ["Programming languages", "Languages for writing software.", "A general-purpose programming language."],
+  Rust: ["Programming languages", "Languages for writing software.", "A systems programming language."],
+  "reinforcement learning theory": ["Machine learning", null, "The mathematics of learning from rewards."],
+  "chess engines": ["Game AI", "Programs that play games.", "Programs that play chess."],
+  Go: ["Board games", "Games played on a board.", "An abstract strategy board game."],
+  salary: ["Personal matters", "Private details about the person.", "Pay."],
+};
