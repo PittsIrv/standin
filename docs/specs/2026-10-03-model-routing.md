@@ -46,7 +46,7 @@ Default tiers: `small` = `claude-haiku-4-5-20251001`, `medium` = `claude-sonnet-
 |---|---|---|---|---|---|
 | `extract` | compaction | per observation | large | private | The hardest task. Its errors become review work, and review time is the bottleneck. |
 | `reconcile` | compaction | per candidate with neighbors | small | private | A short four-way classification. |
-| `screen` | airlock | per proposed memory | small | private | Runs after the regex scanners. It only flags; the person decides. Its prompt is biased toward recall. |
+| `screen` | airlock | per proposed memory | medium | private | Runs after the regex scanners. It only flags; the person decides. Its prompt is biased toward recall. Medium rather than small (decided 2026-10-07): it is the safety net, and a missed flag is the costliest error. |
 | `answer` | runtime | per visitor turn | small | public | Fits the $20 cap. Disclosure is enforced in tools. Stage 2 escalates it. |
 | `checkin` | scribe | weekly | medium | private | Writes follow-up interview questions from unanswered questions and stale memories. |
 | `quiz` | voice | rare | medium | private | Generates self-quiz questions. |
@@ -117,13 +117,11 @@ PR #3's `compaction.model` and `compaction.reconcileModel` move into `models` be
 | `turn` | one visitor turn (SP4) |
 | `eval` | one eval case (SP3) |
 
-**Model-call spans.** The span is named `chat {model}`. It carries the GenAI semantic-convention attributes (operation name, provider, request and response model, input and output tokens) plus:
+**Model-call spans.** The span is named `chat {model}`. It carries the GenAI semantic-convention attributes (operation name, provider, request and response model, input and output tokens, and `gen_ai.usage.cache_read.input_tokens` / `gen_ai.usage.cache_write.input_tokens`; per the Anthropic conventions, input tokens include cached tokens) plus:
 
 - `standin.role`
 - `standin.tier`
 - `standin.cost_usd`
-- `standin.cache_read_tokens`
-- `standin.cache_write_tokens`
 - `standin.batch`
 - `standin.outcome`: `ok`, `invalid`, `refusal`, `truncated`, `api_error`, or `unreachable`
 

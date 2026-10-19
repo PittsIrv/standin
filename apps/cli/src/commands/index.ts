@@ -6,6 +6,8 @@ import { interviewCommand } from "./interview.ts";
 import { memoriesCommand } from "./memories.ts";
 import { observeCommand } from "./observe.ts";
 import { queueCommand } from "./queue.ts";
+import { traceCommand, tracesCommand } from "./traces.ts";
+import { usageCommand } from "./usage.ts";
 import type { Command } from "./shared.ts";
 
 export type { Command, CommandContext } from "./shared.ts";
@@ -21,4 +23,7 @@ export const commands: Record<string, Command> = {
   retract: retractCommand,
   memories: memoriesCommand,
   consolidate: consolidateCommand,
+  usage: usageCommand,
+  traces: tracesCommand,
+  trace: traceCommand,
 };

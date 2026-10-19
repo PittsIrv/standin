@@ -10,3 +10,4 @@ coverage/
 *.sqlite-*
 .env
 .env.*
+.DS_Store
