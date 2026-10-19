@@ -14,6 +14,8 @@ export interface Section {
   id: string;
   title: string;
   questions: Question[];
+  /** A section answered once per item (each project, skill…): rendered as `copies` marked blocks. */
+  repeat?: { label: string; copies: number };
 }
 
 export interface QuestionBank {
