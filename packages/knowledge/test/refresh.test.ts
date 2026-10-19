@@ -74,15 +74,45 @@ describe("refresh", () => {
 
   it("refuses a placement that would make a cycle and keeps going", async () => {
     const t = setup((req) =>
-      req.purpose === "place" ? { merges: [], placements: [{ topic: "B", parent: "A", parentDefinition: null, definition: "B." }] } : SEED,
+      req.purpose === "place"
+        ? {
+            merges: [],
+            placements: [
+              { topic: "B", parent: "C", parentDefinition: null, definition: "B." },
+              { topic: "C", parent: "B", parentDefinition: null, definition: "C." },
+            ],
+          }
+        : SEED,
     );
-    const a = t.store.ensureTopic("A");
-    const b = t.store.ensureTopic("B");
-    t.store.addEdge({ from: a.id, to: b.id, kind: "part_of", source: "placement" });
     t.approve("competence", "I know B.", { domain: "B", depth: 2 }, ["B"]);
-    t.store.listEdges(); // B has a child, so it's placed only if the model says so; it does, under its own child
+    t.approve("competence", "I know C.", { domain: "C", depth: 2 }, ["C"]);
     const report = await t.run();
-    expect(report.refused).toEqual(["B"]);
+    expect(report).toMatchObject({ placed: 1, refused: ["C"] });
+  });
+
+  it("never re-places a root that has parts, even once its own lighting is approved", async () => {
+    const t = setup((req) => (req.purpose === "seed" ? SEED : { merges: [], placements: [{ topic: "Computer science", parent: "Other topics", parentDefinition: "x", definition: "x" }] }));
+    t.approve("fact", "I'm a CS student.", { background: true });
+    await t.run();
+    for (const m of t.store.listMemories({ status: "proposed" })) t.store.approve(m.id);
+    const report = await t.run();
+    expect(report.placed).toBe(0);
+    expect(t.store.listTopics().map((x) => x.name)).not.toContain("Other topics");
+  });
+
+  it("records a stated gap under a node the rules light, before that lighting is approved", async () => {
+    const t = setup(() => ({ merges: [], placements: [] }));
+    const gameAI = t.store.ensureTopic("Game AI");
+    const chess = t.store.ensureTopic("chess engines");
+    const play = t.store.ensureTopic("game-playing AI");
+    t.store.addEdge({ from: chess.id, to: gameAI.id, kind: "part_of", source: "placement" });
+    t.store.addEdge({ from: play.id, to: gameAI.id, kind: "part_of", source: "placement" });
+    t.approve("competence", "I build game-playing AI.", { domain: "game-playing AI", depth: 3 }, ["game-playing AI"]);
+    t.approve("negative", "I don't know much about chess engines.", {}, ["chess engines"]);
+    const report = await t.run();
+    expect(report.gaps).toBe(1);
+    for (const m of t.store.listMemories({ status: "proposed" })) t.store.approve(m.id);
+    expect(answerMode(loadSnapshot(t.store), chess.id)).toMatchObject({ mode: "decline", from: { via: "gap" } });
   });
 
   it("still finds gaps and proposes when the map model fails", async () => {
@@ -96,7 +126,8 @@ describe("refresh", () => {
     t.approve("competence", "I know Rust well.", { domain: "Rust", depth: 3 }, ["Rust"]);
     t.approve("negative", "I can't write Rust macros yet.", {}, ["Rust macros"]);
     const report = await t.run();
-    expect(report.warnings).toHaveLength(2);
+    // Only seeding needs the model here: every topic is already placed.
+    expect(report.warnings).toHaveLength(1);
     expect(report.warnings[0]).toContain("overloaded");
     expect(report.gaps).toBe(1);
   });

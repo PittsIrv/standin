@@ -1,5 +1,6 @@
 import type { Gap } from "@standin/schema";
 import type { Store } from "@standin/store";
+import type { RuleValue } from "./lighting.ts";
 import type { TreeSnapshot } from "./snapshot.ts";
 
 /** A stated limit sits at "heard of it, haven't used it". */
@@ -7,13 +8,15 @@ export const STATED_GAP_LEVEL = 1;
 
 /**
  * The person's own "I can't do X" counts like a confirmed probe miss: an approved negative whose topic sits
- * under a lit node becomes a kept gap at level 1. Negatives with no lit ancestor stay plain negatives.
+ * under a lit node becomes a kept gap at level 1. A node counts as lit once it is approved, or as soon as the
+ * rules light it (`values`), so the gap is in place before that lighting is approved. Negatives with no lit
+ * ancestor stay plain negatives.
  */
-export function syncStatedGaps(store: Store, t: TreeSnapshot): Gap[] {
+export function syncStatedGaps(store: Store, t: TreeSnapshot, values: Map<string, RuleValue> = new Map()): Gap[] {
   const created: Gap[] = [];
   for (const negative of t.negatives) {
     for (const nodeId of negative.topicIds) {
-      const litAncestor = ancestors(t, nodeId).find((a) => t.approved.has(a));
+      const litAncestor = ancestors(t, nodeId).find((a) => t.approved.has(a) || values.has(a));
       if (!litAncestor) continue;
       const gap = store.addGap({
         nodeId,

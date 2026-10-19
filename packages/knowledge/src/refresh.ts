@@ -40,7 +40,8 @@ export async function refresh(o: { store: Store; map: LLM; tracer: Tracer; perso
     await step("placing topics", async () => {
       Object.assign(report, await placeTopics(o.store, o.map, o.personaName));
     });
-    report.gaps = syncStatedGaps(o.store, loadSnapshot(o.store)).length;
+    const before = loadSnapshot(o.store);
+    report.gaps = syncStatedGaps(o.store, before, computeLighting(before)).length;
     const snapshot = loadSnapshot(o.store);
     const proposals = proposeLighting(o.store, snapshot, computeLighting(snapshot));
     report.proposed = proposals.proposed.length;

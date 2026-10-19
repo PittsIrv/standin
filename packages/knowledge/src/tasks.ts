@@ -3,12 +3,14 @@ import { CycleError, type Store } from "@standin/store";
 import { buildPlacePrompt, buildSeedPrompt, outline } from "./prompts.ts";
 import { PlaceSchema, SeedSchema } from "./schemas.ts";
 
-/** Topics from the person's data that have no place in the tree yet: no parent, linked to an approved memory. */
+/**
+ * Topics from the person's data that have no place in the tree yet: no parent and no parts, linked to an approved
+ * memory. A root with parts (a seeded field, a parent created by placement) is already placed.
+ */
 export function unplacedTopics(store: Store) {
-  const withParent = new Set(store.listEdges("part_of").map((e) => e.from));
-  return store
-    .listTopics()
-    .filter((t) => !withParent.has(t.id) && store.topicMemories(t.id, { status: "approved" }).length > 0);
+  const edges = store.listEdges("part_of");
+  const placed = new Set([...edges.map((e) => e.from), ...edges.map((e) => e.to)]);
+  return store.listTopics().filter((t) => !placed.has(t.id) && store.topicMemories(t.id, { status: "approved" }).length > 0);
 }
 
 /** One `map` call: merges duplicates into existing nodes and places the rest. Only requested topics are touched. */
