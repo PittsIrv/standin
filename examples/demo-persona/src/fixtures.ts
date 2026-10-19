@@ -7,7 +7,6 @@ type EntityKind = "project" | "org" | "place" | "person" | "work" | "topic";
 interface Candidate {
   kind?: Kind;
   statement: string;
-  lang?: "en" | "zh";
   entities?: { name: string; kind: EntityKind }[];
   suggestedTier?: 1 | 2 | 3;
   isCurrentState?: boolean;
@@ -20,7 +19,6 @@ function x(memories: Candidate[], exemplars: { text: string; register: "casual" 
     memories: memories.map((m) => ({
       kind: m.kind ?? "fact",
       statement: m.statement,
-      lang: m.lang ?? "en",
       entities: m.entities ?? [],
       suggestedTier: m.suggestedTier ?? 1,
       validFrom: null,
@@ -51,12 +49,16 @@ export const EXTRACTIONS: Record<string, ReturnType<typeof x>> = {
       ],
       [{ text: "I build AIs for board games — mostly Go variants and a card game called Lantern.", register: "casual" }],
     ),
-  "我从小跟外公下围棋，所以后来做游戏AI一点也不意外。说实话，我对强化学习的理论了解得不算深，更多是工程上的经验。": x(
+  "I grew up playing Go with my grandfather, so building game AI was no surprise. Honestly, my grasp of reinforcement learning theory isn't deep; it's mostly engineering experience.": x(
     [
-      { statement: "我从小跟外公下围棋。", lang: "zh", suggestedTier: 2, entities: [{ name: "围棋", kind: "topic" }] },
-      { kind: "competence", statement: "我对强化学习理论了解不算深，更多是工程经验。", lang: "zh", competence: { domain: "强化学习理论", depth: 2 } },
+      { statement: "I grew up playing Go with my grandfather.", suggestedTier: 2, entities: [{ name: "Go", kind: "topic" }] },
+      {
+        kind: "competence",
+        statement: "My grasp of reinforcement learning theory isn't deep; it's mostly engineering experience.",
+        competence: { domain: "reinforcement learning theory", depth: 2 },
+      },
     ],
-    [{ text: "说实话，我对强化学习的理论了解得不算深，更多是工程上的经验。", register: "casual" }],
+    [{ text: "Honestly, my grasp of reinforcement learning theory isn't deep; it's mostly engineering experience.", register: "casual" }],
   ),
   "I've never been to Japan, even though half my favorite games come from there. And I don't really know anything about chess engines — people assume I do.":
     x([
@@ -88,8 +90,8 @@ export const EXTRACTIONS: Record<string, ReturnType<typeof x>> = {
   "Update: the Lantern trainer is done. Now I'm working on a Go-variant engine called Kite.": x([
     { statement: "I'm currently working on a Go-variant engine called Kite.", isCurrentState: true, entities: [{ name: "Kite", kind: "project" }, lantern] },
   ]),
-  "工资的事情我不太想公开讨论，可以直接邮件问我。": x([
-    { statement: "我不想公开讨论工资，想了解可以直接邮件问我。", lang: "zh", suggestedTier: 3, entities: [{ name: "薪资", kind: "topic" }] },
+  "I'd rather not discuss my salary publicly; feel free to email me about it.": x([
+    { statement: "I'd rather not discuss my salary publicly; people can email me about it.", suggestedTier: 3, entities: [{ name: "salary", kind: "topic" }] },
   ]),
 };
 

@@ -5,7 +5,7 @@ import { EXTRACTIONS, RECONCILIATIONS } from "./fixtures.ts";
 
 export const DEMO_PERSONA_NAME = "Lin Qiao";
 
-/** Ten bilingual observations about a fictional person, Lin Qiao (乔林). */
+/** Ten observations about a fictional person, Lin Qiao. */
 export function demoObservations(): ObservationInput[] {
   const raw = readFileSync(new URL("../observations.jsonl", import.meta.url), "utf8");
   return raw
