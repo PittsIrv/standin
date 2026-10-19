@@ -244,8 +244,8 @@ export class Store {
   approve(id: string, edits?: { statement?: string; tier?: Tier }): Memory {
     return mem.approve(this, id, edits);
   }
-  reject(id: string, note?: string): Memory {
-    return mem.reject(this, id, note ?? null);
+  reject(id: string, note?: string, actor?: Actor): Memory {
+    return mem.reject(this, id, note ?? null, actor);
   }
   retract(id: string, note?: string): Memory {
     return mem.retract(this, id, note ?? null);
