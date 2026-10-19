@@ -14,7 +14,7 @@ function setup() {
 }
 
 describe("reviewQueue", () => {
-  it("orders contradictions, still-true cards, updates, then new; more sources first, then oldest", () => {
+  it("orders contradictions, still-true cards, updates, then new; more sources first, then oldest (recorded earlier)", () => {
     const { store, clock, seed, ins } = setup();
     const reading = ins("I'm currently reading Solaris.", { isCurrentState: true });
     store.approve(reading.id);
@@ -24,11 +24,15 @@ describe("reviewQueue", () => {
     store.approve(city.id);
     clock.current = new Date(clock.current.getTime() + 121 * 86_400_000);
 
+    const later = () => (clock.current = new Date(clock.current.getTime() + 60_000));
     const newOne = ins("I like poker.");
+    later();
     const newTwo = ins("I like chess.", {}, [seed("chess a"), seed("chess b")]);
+    later();
     const update = ins("I mostly code in Rust.", { supersedesId: city.id });
     const conflict = ins("I live in Boston.", { conflictsWithId: base.id });
-    const newOlder = ins("I like Go.");
+    later();
+    const newLater = ins("I like Go.");
 
     const items = reviewQueue(store, config);
     expect(items.map((i) => [i.group, i.memory.id])).toEqual([
@@ -37,7 +41,7 @@ describe("reviewQueue", () => {
       ["update", update.id],
       ["new", newTwo.id],
       ["new", newOne.id],
-      ["new", newOlder.id],
+      ["new", newLater.id],
     ]);
     expect(items[0]!.kind).toBe("memory");
     expect(items[1]!.kind).toBe("still-true");
