@@ -17,6 +17,8 @@ function describe(store: Store, item: ReviewItem): string {
   if (item.kind === "still-true") return `still true? "${m.statement}" (last mentioned ${m.lastCorroboratedAt.slice(0, 10)})`;
   if (m.conflictsWithId) return `${m.statement}  ⚡ conflicts with ${m.conflictsWithId}: "${store.getMemory(m.conflictsWithId).statement}"`;
   if (m.supersedesId) return `${m.statement}  ↻ replaces ${m.supersedesId}: "${store.getMemory(m.supersedesId).statement}"`;
+  // Lighting proposals from the knowledge map carry their reasons.
+  if (m.kind === "competence" && m.attrs.reasons?.length) return `${m.statement}  — why: ${m.attrs.reasons.join("; ")}`;
   return m.statement;
 }
 

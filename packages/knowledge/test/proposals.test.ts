@@ -91,6 +91,7 @@ describe("proposeLighting", () => {
     refresh(store);
     const mlProposal = proposals(store).find((p) => p.kind === "competence" && p.attrs.domain === "ML")!;
     expect(mlProposal).toMatchObject({ supersedesId: mlClaim.id, attrs: { depth: 3 } });
+    expect((mlProposal.attrs as { reasons: string[] }).reasons.at(-1)).toBe("Approving lights its whole branch: 1 part in the tree.");
     expect(proposals(store).filter((p) => p.kind === "competence" && p.attrs.domain === "RLHF")).toEqual([]);
     store.approve(mlProposal.id);
     expect(store.getMemory(mlClaim.id).status).toBe("superseded");

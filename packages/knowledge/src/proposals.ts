@@ -32,6 +32,9 @@ export function proposeLighting(store: Store, t: TreeSnapshot, values: Map<strin
         report.replaced.push(stale.memoryId);
       }
       const topic = t.topics.get(nodeId)!;
+      // Approved lighting covers the branch below it, so say how far before the person approves.
+      const parts = descendants(t, nodeId);
+      const reasons = parts > 0 ? [...value.reasons, `Approving lights its whole branch: ${parts} part${parts === 1 ? "" : "s"} in the tree.`] : value.reasons;
       const previous = approved ? store.getMemory(approved.memoryId) : null;
       const m = store.insertMemory(
         {
@@ -39,7 +42,7 @@ export function proposeLighting(store: Store, t: TreeSnapshot, values: Map<strin
           statement: statementFor(value.depth, topic.name),
           tier: previous?.tier ?? 1,
           isCurrentState: false,
-          attrs: { domain: topic.name, depth: value.depth, basis: "predicted", reasons: value.reasons },
+          attrs: { domain: topic.name, depth: value.depth, basis: "predicted", reasons },
           supersedesId: approved?.memoryId ?? null,
         },
         { sourceObservationIds: [], entityIds: [nodeId], actor: "map" },
@@ -48,4 +51,21 @@ export function proposeLighting(store: Store, t: TreeSnapshot, values: Map<strin
     }
   });
   return report;
+}
+
+/** How many nodes sit below `nodeId` in the part_of tree. */
+function descendants(t: TreeSnapshot, nodeId: string): number {
+  const children = new Map<string, string[]>();
+  for (const [child, parent] of t.parentOf) children.set(parent, [...(children.get(parent) ?? []), child]);
+  let count = 0;
+  const seen = new Set<string>([nodeId]);
+  const stack = [...(children.get(nodeId) ?? [])];
+  while (stack.length > 0) {
+    const n = stack.pop()!;
+    if (seen.has(n)) continue;
+    seen.add(n);
+    count++;
+    stack.push(...(children.get(n) ?? []));
+  }
+  return count;
 }

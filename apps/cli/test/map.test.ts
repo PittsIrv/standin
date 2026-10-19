@@ -35,6 +35,9 @@ describe("standin map", () => {
     expect(refreshed.out).toMatch(/proposed \d+ lighting change/);
     expect(refreshed.out).toContain("Next: standin queue");
 
+    const queueText = (await run("queue")).out;
+    expect(queueText).toContain("why: core of your background");
+    expect(queueText).toContain("Approving lights its whole branch: 6 parts in the tree.");
     const queue = JSON.parse((await run("queue", "--json")).out) as { memory: { id: string; statement: string } }[];
     expect(queue.map((i) => i.memory.statement)).toContain("I've used Algorithms and can get things done with it.");
     for (const i of queue) await run("approve", i.memory.id);
