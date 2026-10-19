@@ -8,6 +8,7 @@ import { memoriesCommand } from "./memories.ts";
 import { observeCommand } from "./observe.ts";
 import { purgeCommand } from "./purge.ts";
 import { queueCommand } from "./queue.ts";
+import { tellCommand } from "./tell.ts";
 import { traceCommand, tracesCommand } from "./traces.ts";
 import { usageCommand } from "./usage.ts";
 import type { Command } from "./shared.ts";
@@ -17,6 +18,7 @@ export type { Command, CommandContext } from "./shared.ts";
 export const commands: Record<string, Command> = {
   init: initCommand,
   observe: observeCommand,
+  tell: tellCommand,
   interview: interviewCommand,
   compact: compactCommand,
   queue: queueCommand,

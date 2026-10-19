@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  answerToObservation,
+  answersToObservations,
   AnswerSheetError,
   BANKS,
   CORE_V1,
@@ -59,21 +59,19 @@ async function importSheet(ctx: CommandContext): Promise<number> {
   const nonEnglish = sheet.answers.filter((a) => !isMostlyLatin(a.answer)).map((a) => a.questionId);
   if (nonEnglish.length > 0)
     throw new CliError(`${file}: standin is English-only for now; rewrite these answers in English: ${nonEnglish.join(", ")}. Nothing was imported.`);
-  const inputs = sheet.answers.map((a) => ({
-    questionId: a.questionId,
-    input: answerToObservation(a, { bankId: sheet.bankId, occurredAt }),
-  }));
+  const inputs = answersToObservations(sheet.answers, sheet.bankId ? BANKS[sheet.bankId]! : null, { bankId: sheet.bankId, occurredAt });
 
   const dryRun = flag(ctx, "dry-run");
   const { store, config } = loadInstance(ctx.home, ctx.io.clock);
-  const rows: { questionId: string; status: "added" | "unchanged" | "would add"; observationId: string | null }[] = [];
+  // One row per observation: a plain question, or a whole repeated item ("projects.2").
+  const rows: { key: string; status: "added" | "unchanged" | "would add"; observationId: string | null }[] = [];
   const importAll = () =>
     store.transaction(() => {
-      for (const { questionId, input } of inputs) {
+      for (const { key, input } of inputs) {
         const existing = store.findObservationByContent(input.sourceKind, input.text);
-        if (existing) rows.push({ questionId, status: "unchanged", observationId: existing.id });
-        else if (dryRun) rows.push({ questionId, status: "would add", observationId: null });
-        else rows.push({ questionId, status: "added", observationId: store.addObservation(input).id });
+        if (existing) rows.push({ key, status: "unchanged", observationId: existing.id });
+        else if (dryRun) rows.push({ key, status: "would add", observationId: null });
+        else rows.push({ key, status: "added", observationId: store.addObservation(input).id });
       }
     });
   try {
@@ -97,7 +95,7 @@ async function importSheet(ctx: CommandContext): Promise<number> {
     ctx.io.stdout(JSON.stringify({ bank: sheet.bankId, answers: rows, blank: sheet.skipped }, null, 2));
     return 0;
   }
-  for (const r of rows) ctx.io.stdout(`${(r.observationId ?? "-").padEnd(16)}  ${r.status.padEnd(9)}  ${r.questionId}`);
+  for (const r of rows) ctx.io.stdout(`${(r.observationId ?? "-").padEnd(16)}  ${r.status.padEnd(9)}  ${r.key}`);
   const summary = dryRun
     ? `would add ${count("would add")}, unchanged ${count("unchanged")}, blank ${sheet.skipped.length} (dry run; nothing written)`
     : `added ${count("added")}, unchanged ${count("unchanged")}, blank ${sheet.skipped.length}`;
