@@ -88,6 +88,27 @@ importers:
         specifier: workspace:*
         version: link:../schema
 
+  packages/knowledge:
+    dependencies:
+      '@standin/llm':
+        specifier: workspace:*
+        version: link:../llm
+      '@standin/models':
+        specifier: workspace:*
+        version: link:../models
+      '@standin/schema':
+        specifier: workspace:*
+        version: link:../schema
+      '@standin/store':
+        specifier: workspace:*
+        version: link:../store
+      '@standin/trace':
+        specifier: workspace:*
+        version: link:../trace
+      zod:
+        specifier: ^4.6.5
+        version: 4.6.5
+
   packages/llm:
     dependencies:
       '@anthropic-ai/sdk':
