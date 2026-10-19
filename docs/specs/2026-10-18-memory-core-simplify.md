@@ -1,6 +1,6 @@
 # Memory core, simplified: English only, plain rules, measured search
 
-Status: decisions approved in conversation on 2026-10-18 (logged in §8). Awaiting written-spec review.
+Status: approved 2026-10-19 (decisions in §8).
 Amends: [SP1 memory core](2026-10-01-sp1-memory-core.md) and the [architecture spec](2026-10-01-standin-architecture.md) (Languages). Lands as its own PR after PR #3 and before SP2a.
 
 ## 1. Goal
@@ -35,7 +35,7 @@ Both only ordered the review queue and showed a number.
 
 **What replaces them:**
 - **Sources instead of confidence.** A memory lists its sources, e.g. "interview ×2, slack". AI-memory sources (`claude-memory`, `chatgpt-memory`, `muse-paste`) are marked *unverified*.
-- **A plain queue order:** contradictions, then updates, then new. Within each group, more distinct sources first, then oldest first.
+- **A plain queue order:** contradictions, then "Still true?" cards (§5), then updates, then new. Within each group, more distinct sources first, then oldest first.
 - **Logging decisions for later.** Every approve or reject records the item's queue position and group at decision time. Once there are a few hundred decisions, a learned ranker may replace the plain order. It must beat the plain order on decisions held out from its training. The metric is decided when the ranker is built.
 
 ## 4. Finding duplicates
@@ -85,3 +85,4 @@ There is no text search and no reconcile call. Until SP2a lands, competence foll
 | 6 | Raw text retention | Kept until the person purges | 90 days; deleted right after compaction |
 | 7 | Review cap | None; an ordered queue the person stops whenever they like | 25 a week; a per-session cap |
 | 8 | Sequencing | Its own PR after PR #3, before SP2a | Folding it into SP2a; doing it after SP2a |
+| 9 | Still-true cards in the queue | Right after contradictions | First; last |

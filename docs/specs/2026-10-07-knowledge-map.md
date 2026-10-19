@@ -1,6 +1,6 @@
 # SP2a: Knowledge map (a lit tree) and local review page
 
-Status: revised 2026-10-18 after a decision-by-decision review (logged in §13), then made English-only. Awaiting written-spec review. The implementation plan will be rewritten to match.
+Status: approved 2026-10-19 (decisions in §13). Revised 2026-10-18 after a decision-by-decision review, then made English-only. The implementation plan will be rewritten to match.
 Builds on: [architecture spec](2026-10-01-standin-architecture.md) §5 (memory model) and §7 (competence-gated knowledge), and the [model-routing spec](2026-10-03-model-routing.md) (roles, traces).
 
 ## 1. Goal
