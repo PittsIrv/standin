@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { AnswerSheetError, parseAnswerSheet, renderTemplate, type QuestionBank } from "../src/index.ts";
+import {
+  answersToObservations,
+  answerToObservation,
+  AnswerSheetError,
+  BANKS as BANKS_ALL,
+  CORE_V1,
+  parseAnswerSheet,
+  renderTemplate,
+  type QuestionBank,
+} from "../src/index.ts";
 
 const BANK: QuestionBank = {
   id: "test-v1",
@@ -66,5 +75,43 @@ describe("repeating blocks", () => {
     ].join("\n");
     expect(() => parseAnswerSheet(md, BANKS)).toThrow(AnswerSheetError);
     expect(() => parseAnswerSheet(md, BANKS)).toThrow(/projects\.1\.role/);
+  });
+});
+
+describe("answersToObservations", () => {
+  const opts = { bankId: "test-v1", occurredAt: "2026-10-19T00:00:00.000Z" };
+
+  it("makes one observation per item, named by its first answer", () => {
+    let sheet = renderTemplate(BANK);
+    sheet = fillCopy(sheet, "projects.name", 2, "Kite, a Go-variant engine.");
+    sheet = fillCopy(sheet, "projects.role", 2, "Solo.");
+    sheet = fillCopy(sheet, "next.build", 1, "A poker trainer.");
+    const out = answersToObservations(parseAnswerSheet(sheet, BANKS).answers, BANK, opts);
+    expect(out.map((o) => o.key)).toEqual(["projects.2", "next.build"]);
+    expect(out[0]!.input).toEqual({
+      sourceKind: "interview",
+      sourceRef: "interview:test-v1#projects.2",
+      authorRole: "self",
+      occurredAt: opts.occurredAt,
+      text: "Project 2 (Kite, a Go-variant engine.):\n\nQ: What's the project called?\nA: Kite, a Go-variant engine.\n\nQ: What was your role?\nA: Solo.",
+      meta: { bank: "test-v1", item: "projects.2", questionIds: ["projects.2.name", "projects.2.role"] },
+    });
+    expect(out[1]!.input.text).toBe("Q: What next?\n\nA: A poker trainer.");
+  });
+
+  it("keeps two items with the same answer apart, and omits the name when it's blank", () => {
+    let sheet = renderTemplate(BANK);
+    sheet = fillCopy(sheet, "projects.role", 1, "Solo.");
+    sheet = fillCopy(sheet, "projects.role", 2, "Solo.");
+    const out = answersToObservations(parseAnswerSheet(sheet, BANKS).answers, BANK, opts);
+    expect(out.map((o) => o.input.text)).toEqual(["Project 1:\n\nQ: What was your role?\nA: Solo.", "Project 2:\n\nQ: What was your role?\nA: Solo."]);
+  });
+
+  it("leaves sheets without repeating blocks exactly as before", () => {
+    const sheet = fillCopy(renderTemplate(CORE_V1), "now.work", 1, "I'm building standin.");
+    const answers = parseAnswerSheet(sheet, BANKS_ALL).answers;
+    expect(answersToObservations(answers, CORE_V1, { bankId: "core-v1", occurredAt: opts.occurredAt }).map((o) => o.input)).toEqual(
+      answers.map((a) => answerToObservation(a, { bankId: "core-v1", occurredAt: opts.occurredAt })),
+    );
   });
 });
