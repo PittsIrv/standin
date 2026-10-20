@@ -12,3 +12,4 @@ export { expandNode } from "./probing/expand.ts";
 export { assignHoldout, FIXED_SHARE, ROTATING_SHARE, writeProbes } from "./probing/quiz.ts";
 export { ExpandSchema, GradeSchema, QuizSchema } from "./probing/schemas.ts";
 export { buildExpandPrompt, buildGradePrompt, buildQuizPrompt } from "./probing/prompts.ts";
+export { CLAIM_PROBES, DISCOVERY_START, nextTarget, type ProbeState, type Target } from "./probing/plan.ts";
