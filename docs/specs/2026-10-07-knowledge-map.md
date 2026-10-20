@@ -204,7 +204,7 @@ Every approved node lit by inference gets **one probe at its level**: seeded cor
 - **Where.** Dark nodes next to lit nodes at depth 3 or more: components, siblings and prerequisites.
 - **How it climbs.** A placement walk from difficulty **2**: step up on `know`, stop on a miss.
 - **What it proposes.** The highest level reached, as lighting.
-- **Depth 4** also needs **2** passed spot-checks at difficulty 4.
+- **Depth 4** also needs **2** passed spot-checks at difficulty 4. To make that reachable, a walk that reaches 4 asks a second question at 4, and both are always spot-checked.
 
 ### 4.7 Spot-checks
 
@@ -491,3 +491,4 @@ The problem sits between four areas. We did not find work that models **one real
 | 34 | Branch note | A lighting proposal says how many parts approving it would light | Inferred lighting not inheriting; no note |
 | 35 | SP2a-2 delivery | Two PRs: the probing engine, then the review page | One PR; a temporary terminal session first |
 | 36 | What foundations check | All approved inferred lighting (seeded, upward, prerequisite) gets one probe at its level | Treating inferred nodes as claims; not probing them |
+| 37 | Reaching 4 by discovery | A second question at 4, both always spot-checked | Capping discovery at 3; leaving it to the 1-in-3 chance |
