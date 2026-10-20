@@ -41,6 +41,7 @@ export type Candidate = {
   isCurrentState?: boolean;
   competence?: { domain: string; depth: number } | null;
   stance?: { topic: string; strength: number } | null;
+  background?: boolean;
 };
 
 export function extraction(memories: Candidate[], exemplars: { text: string; register: "casual" | "formal" }[] = []) {
@@ -54,6 +55,7 @@ export function extraction(memories: Candidate[], exemplars: { text: string; reg
       isCurrentState: false,
       competence: null,
       stance: null,
+      background: false,
       ...m,
     })),
     exemplars,

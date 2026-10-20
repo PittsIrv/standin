@@ -156,6 +156,38 @@ const MIGRATIONS: string[] = [
     at TEXT NOT NULL
   );
   `,
+  `
+  -- The knowledge tree: topic nodes (entities of kind topic), their edges, and gaps carved out of lit branches.
+  CREATE TABLE topics (
+    entity_id TEXT PRIMARY KEY REFERENCES entities(id),
+    definition TEXT,
+    expanded_at TEXT,
+    seed_memory_id TEXT REFERENCES memories(id),
+    boundary_tier INTEGER,
+    deleted_at TEXT
+  );
+  CREATE TABLE topic_edges (
+    id TEXT PRIMARY KEY,
+    from_topic TEXT NOT NULL REFERENCES entities(id),
+    to_topic TEXT NOT NULL REFERENCES entities(id),
+    kind TEXT NOT NULL,
+    source TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    deleted_at TEXT,
+    UNIQUE (from_topic, to_topic, kind)
+  );
+  CREATE TABLE gaps (
+    id TEXT PRIMARY KEY,
+    node_id TEXT NOT NULL REFERENCES entities(id),
+    claim_node_id TEXT REFERENCES entities(id),
+    level INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    source TEXT NOT NULL,
+    memory_id TEXT REFERENCES memories(id),
+    created_at TEXT NOT NULL,
+    UNIQUE (node_id, memory_id)
+  );
+  `,
 ];
 
 /** Applies pending migrations up to `target` (default: all of them). */

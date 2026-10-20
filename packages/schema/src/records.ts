@@ -87,7 +87,20 @@ export type MemoryKind = z.infer<typeof MemoryKind>;
 export const MemoryStatus = z.enum(["proposed", "approved", "rejected", "superseded", "expired", "retracted"]);
 export type MemoryStatus = z.infer<typeof MemoryStatus>;
 
-export const CompetenceAttrs = z.object({ domain: z.string().min(1), depth: z.number().int().min(0).max(4) });
+export const Depth = z.number().int().min(0).max(4);
+/** Where a node's lighting came from: the person's own words, a rule's inference, or probes. */
+export const DepthBasis = z.enum(["claimed", "predicted", "probed"]);
+export type DepthBasis = z.infer<typeof DepthBasis>;
+
+/** A competence memory lights a topic node. `basis` is set on proposals the knowledge map writes; a claim has none. */
+export const CompetenceAttrs = z.object({
+  domain: z.string().min(1),
+  depth: Depth,
+  basis: DepthBasis.optional(),
+  reasons: z.array(z.string()).optional(),
+});
+/** `background`: a fact stating the person's degree program, school, or job role; it seeds the knowledge tree. */
+export const FactAttrs = z.object({ background: z.boolean().optional() });
 export const StanceAttrs = z.object({ topic: z.string().min(1), strength: z.number().int().min(1).max(5) });
 export const EmptyAttrs = z.object({});
 
@@ -110,7 +123,7 @@ const memoryBase = {
 };
 
 export const Memory = z.discriminatedUnion("kind", [
-  z.object({ ...memoryBase, kind: z.literal("fact"), attrs: EmptyAttrs }),
+  z.object({ ...memoryBase, kind: z.literal("fact"), attrs: FactAttrs }),
   z.object({ ...memoryBase, kind: z.literal("negative"), attrs: EmptyAttrs }),
   z.object({ ...memoryBase, kind: z.literal("competence"), attrs: CompetenceAttrs }),
   z.object({ ...memoryBase, kind: z.literal("stance"), attrs: StanceAttrs }),
@@ -136,7 +149,7 @@ export const Exemplar = z.object({
 });
 export type Exemplar = z.infer<typeof Exemplar>;
 
-export const Actor = z.enum(["compaction", "person", "consolidation"]);
+export const Actor = z.enum(["compaction", "person", "consolidation", "map"]);
 export type Actor = z.infer<typeof Actor>;
 
 export const MemoryEvent = z.object({
@@ -170,3 +183,45 @@ export const ALLOWED_TRANSITIONS: Record<MemoryStatus, readonly MemoryStatus[]> 
   expired: [],
   retracted: [],
 };
+
+/** A node of the knowledge tree: a topic entity plus its tree-only fields. */
+export const Topic = z.object({
+  id: z.string(),
+  name: z.string(),
+  aliases: z.array(z.string()),
+  definition: z.string().nullable(),
+  expandedAt: IsoTime.nullable(),
+  /** The background fact that seeded this topic, if any. */
+  seedMemoryId: z.string().nullable(),
+  /** A tier-3 boundary: the standin deflects on this node and its branch. */
+  boundaryTier: Tier.nullable(),
+  deletedAt: IsoTime.nullable(),
+});
+export type Topic = z.infer<typeof Topic>;
+
+export const EdgeKind = z.enum(["part_of", "requires"]);
+export type EdgeKind = z.infer<typeof EdgeKind>;
+
+export const TopicEdge = z.object({
+  id: z.string(),
+  from: z.string(),
+  to: z.string(),
+  kind: EdgeKind,
+  source: z.enum(["expansion", "placement", "seeding", "person"]),
+  createdAt: IsoTime,
+  deletedAt: IsoTime.nullable(),
+});
+export type TopicEdge = z.infer<typeof TopicEdge>;
+
+/** A part of a lit branch the person doesn't know as deeply: answered at `level` instead. */
+export const Gap = z.object({
+  id: z.string(),
+  nodeId: z.string(),
+  claimNodeId: z.string().nullable(),
+  level: Depth,
+  status: z.enum(["open", "kept", "lowered"]),
+  source: z.enum(["stated", "probe"]),
+  memoryId: z.string().nullable(),
+  createdAt: IsoTime,
+});
+export type Gap = z.infer<typeof Gap>;

@@ -12,6 +12,7 @@ interface Candidate {
   isCurrentState?: boolean;
   competence?: { domain: string; depth: number };
   stance?: { topic: string; strength: number };
+  background?: boolean;
 }
 
 function x(memories: Candidate[], exemplars: { text: string; register: "casual" | "formal" }[] = []) {
@@ -26,6 +27,7 @@ function x(memories: Candidate[], exemplars: { text: string; register: "casual" 
       isCurrentState: m.isCurrentState ?? false,
       competence: m.competence ?? null,
       stance: m.stance ?? null,
+      background: m.background ?? false,
     })),
     exemplars,
   };
@@ -42,7 +44,12 @@ export const EXTRACTIONS: Record<string, ReturnType<typeof x>> = {
   "I'm Lin Qiao, a second-year master's student at Riverside Institute of Technology. I build AIs for board games — mostly Go variants and a card game called Lantern. I'm currently working on a self-play trainer for Lantern.":
     x(
       [
-        { statement: "I'm a second-year master's student at Riverside Institute of Technology.", isCurrentState: true, entities: [{ name: "Riverside Institute of Technology", kind: "org" }] },
+        {
+          statement: "I'm a second-year master's student at Riverside Institute of Technology.",
+          isCurrentState: true,
+          background: true,
+          entities: [{ name: "Riverside Institute of Technology", kind: "org" }],
+        },
         { statement: "I build AIs for board games." },
         { kind: "competence", statement: "I'm strong at building game-playing AI.", competence: { domain: "game-playing AI", depth: 3 } },
         { statement: "I'm currently working on a self-play trainer for Lantern.", isCurrentState: true, entities: [lantern] },
@@ -100,4 +107,28 @@ export const RECONCILIATIONS: Record<string, ["duplicate" | "update" | "contradi
   "I build AIs for board games.": ["duplicate", "I build AIs for board games."],
   "I write most of my game engines in Rust rather than Python.": ["contradiction", "I prefer Python for all my projects."],
   "I'm currently working on a Go-variant engine called Kite.": ["update", "I'm currently working on a self-play trainer for Lantern."],
+};
+
+/** The `map` role's background seeding for Lin Qiao's master's program. */
+export const SEED = {
+  field: { name: "Computer science", definition: "The study of computation and its applications." },
+  core: [
+    { name: "Algorithms", definition: "Designing and analyzing step-by-step procedures." },
+    { name: "Systems", definition: "How computers, operating systems and networks work." },
+    { name: "Machine learning", definition: "Learning models from data." },
+    { name: "Theory of computation", definition: "What can be computed, and how efficiently." },
+    { name: "Software engineering", definition: "Building and maintaining software." },
+  ],
+};
+
+/** Demo topic → [parent, parent definition (null if it exists), topic definition]. */
+export const PLACEMENTS: Record<string, [string, string | null, string]> = {
+  Python: ["Programming languages", "Languages for writing software.", "A general-purpose programming language."],
+  Rust: ["Programming languages", "Languages for writing software.", "A systems programming language."],
+  "reinforcement learning theory": ["Machine learning", null, "The mathematics of learning from rewards."],
+  "chess engines": ["Game AI", "Programs that play games.", "Programs that play chess."],
+  "game-playing AI": ["Game AI", "Programs that play games.", "AI that plays games."],
+  Japanese: ["Languages", "Human languages.", "The language of Japan."],
+  Go: ["Board games", "Games played on a board.", "An abstract strategy board game."],
+  salary: ["Personal matters", "Private details about the person.", "Pay."],
 };

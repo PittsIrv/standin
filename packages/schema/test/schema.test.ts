@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  Actor,
   ALLOWED_TRANSITIONS,
+  Gap,
+  TopicEdge,
   Memory,
   ObservationInput,
   TERMINAL_STATUSES,
@@ -152,5 +155,31 @@ describe("lifecycle tables", () => {
     expect(ALLOWED_TRANSITIONS.proposed).toEqual(["approved", "rejected"]);
     expect(ALLOWED_TRANSITIONS.approved).toEqual(["superseded", "expired", "retracted"]);
     for (const s of TERMINAL_STATUSES) expect(ALLOWED_TRANSITIONS[s]).toEqual([]);
+  });
+});
+
+describe("knowledge tree records", () => {
+  it("tags background facts and carries a basis on competence lighting", () => {
+    expect(Memory.parse({ ...baseMemory, attrs: { background: true } }).attrs).toEqual({ background: true });
+    const lit = { ...baseMemory, kind: "competence", attrs: { domain: "Algorithms", depth: 2, basis: "predicted", reasons: ["core of your background"] } };
+    expect(Memory.parse(lit).attrs).toMatchObject({ basis: "predicted" });
+    expect(Memory.parse({ ...baseMemory, kind: "competence", attrs: { domain: "Rust", depth: 3 } }).attrs).toEqual({ domain: "Rust", depth: 3 });
+    expect(() => Memory.parse({ ...lit, attrs: { ...lit.attrs, basis: "guessed" } })).toThrow();
+  });
+
+  it("only knows part_of and requires edges", () => {
+    const edge = { id: "edg_0123456789ab", from: "ent_a", to: "ent_b", kind: "part_of", source: "placement", createdAt: "2026-10-01T00:00:00.000Z", deletedAt: null };
+    expect(TopicEdge.parse(edge).kind).toBe("part_of");
+    expect(() => TopicEdge.parse({ ...edge, kind: "parent" })).toThrow();
+  });
+
+  it("parses a stated gap", () => {
+    expect(
+      Gap.parse({ id: "gap_0123456789ab", nodeId: "ent_a", claimNodeId: "ent_b", level: 1, status: "kept", source: "stated", memoryId: "mem_0123456789ab", createdAt: "2026-10-01T00:00:00.000Z" }).level,
+    ).toBe(1);
+  });
+
+  it("accepts the map actor", () => {
+    expect(Actor.parse("map")).toBe("map");
   });
 });

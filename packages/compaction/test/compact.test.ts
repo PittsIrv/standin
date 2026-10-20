@@ -192,3 +192,57 @@ describe("compact", () => {
     expect(store.memorySourceSummary(m.id).unverified).toBe(true);
   });
 });
+
+describe("knowledge tree inputs", () => {
+  it("tags background facts", async () => {
+    const { store } = tempStore();
+    const o = store.addObservation(obs("I'm a CS master's student at CMU."));
+    await compact({ store, llm: script({ [o.text!]: extraction([{ statement: "I'm a CS master's student at CMU.", background: true }]) }), config });
+    expect(store.listMemories()[0]!.attrs).toEqual({ background: true });
+  });
+
+  it("matches competence claims by tree node, without text search or a reconcile call", async () => {
+    const { store } = tempStore();
+    const a = store.addObservation(obs("I know Rust well."));
+    const b = store.addObservation(obs("Rust is my strongest language.", { occurredAt: "2026-09-02T00:00:00.000Z" }));
+    const rust = (statement: string, depth: number) =>
+      extraction([{ kind: "competence", statement, competence: { domain: "Rust", depth }, entities: [{ name: "Rust", kind: "topic" }] }]);
+    const reconcile = vi.fn(() => ({ action: "new" as const, targetId: null, reason: "" }));
+    const llm = script({ [a.text!]: rust("I know Rust well.", 3), [b.text!]: rust("Rust is my strongest language.", 3) }, reconcile);
+    const report = await compact({ store, llm, config });
+    expect(report).toMatchObject({ created: 1, corroborated: 1 });
+    expect(reconcile).not.toHaveBeenCalled();
+    const [m] = store.listMemories();
+    const topic = store.listTopics().find((t) => t.name === "Rust")!;
+    expect(store.topicMemories(topic.id).map((x) => x.id)).toEqual([m!.id]);
+  });
+
+  it("proposes a new depth that supersedes the approved claim", async () => {
+    const { store } = tempStore();
+    const a = store.addObservation(obs("I know Rust well."));
+    const rust = (statement: string, depth: number) => extraction([{ kind: "competence", statement, competence: { domain: "Rust", depth } }]);
+    await compact({ store, llm: script({ [a.text!]: rust("I know Rust well.", 3) }), config });
+    const first = store.listMemories()[0]!;
+    store.approve(first.id);
+    const b = store.addObservation(obs("Honestly I'm an expert in Rust now.", { occurredAt: "2026-09-02T00:00:00.000Z" }));
+    const report = await compact({ store, llm: script({ [b.text!]: rust("I'm an expert in Rust.", 4) }), config });
+    expect(report.updates).toBe(1);
+    const proposed = store.listMemories({ status: "proposed" })[0]!;
+    expect(proposed).toMatchObject({ supersedesId: first.id, attrs: { domain: "Rust", depth: 4 } });
+  });
+});
+
+describe("claims and map proposals", () => {
+  it("keeps the person's claim separate from a map proposal at the same depth", async () => {
+    const { store } = tempStore();
+    const node = store.ensureTopic("Algorithms");
+    store.insertMemory(
+      { kind: "competence", statement: "I've used Algorithms and can get things done with it.", tier: 1, isCurrentState: false, attrs: { domain: "Algorithms", depth: 2, basis: "predicted", reasons: [] } },
+      { sourceObservationIds: [], entityIds: [node.id], actor: "map" },
+    );
+    const o = store.addObservation(obs("I'm decent at algorithms."));
+    await compact({ store, llm: script({ [o.text!]: extraction([{ kind: "competence", statement: "I'm decent at algorithms.", competence: { domain: "Algorithms", depth: 2 } }]) }), config });
+    const claims = store.listMemories({ kind: "competence" }).filter((m) => m.kind === "competence" && !m.attrs.basis);
+    expect(claims.map((m) => m.statement)).toEqual(["I'm decent at algorithms."]);
+  });
+});

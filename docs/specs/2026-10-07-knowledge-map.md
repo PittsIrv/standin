@@ -54,7 +54,7 @@ Why claims come first, and probes still matter:
 ### 2.3 Background seeding
 
 - **A background claim** is an approved fact about the person's education or role, e.g. "I'm a CS student at CMU". Extraction tags such facts (`attrs.background: true`), whatever the source. The `map` role turns each one into the core topics that background implies.
-- **Lighting.** The core topics are lit at depth **2** (working knowledge). Electives stay dark until the person claims them or probes light them.
+- **Lighting.** The field and its core topics are lit at depth **2** (working knowledge). Electives stay dark until the person claims them or probes light them.
 - **Review.** Seeded lighting is a proposal, like any other lighting (§3.6).
 
 ### 2.4 Structure is automatic
@@ -93,7 +93,7 @@ A dark node has no depth: it is not on record.
 |---|---|---|
 | **Claim:** an approved competence memory from the person's own words | The node at the claimed depth, with no cap | `claimed` |
 | **Inheritance:** a node's approved lighting, of any basis | Every descendant at the same depth, except recorded gaps and descendants with their own lighting | the ancestor's basis |
-| **Background seeding** (§2.3) | Core topics at 2 | `predicted` |
+| **Background seeding** (§2.3) | The field and its core topics at 2 | `predicted` |
 | **Upward inference:** a lit child | Parent at `min(child − 1, 3)`, taking the maximum over its children | `predicted` |
 | **Prerequisite inference:** a lit node `T` at depth `d` | Each prerequisite at `min(d − 1, 3)`, losing one level per hop | `predicted` |
 | **Probes:** foundations and discovery (§4.5, §4.6) | The level the probes found | `probed` |
@@ -128,6 +128,7 @@ A dark node has no depth: it is not on record.
 
 - **Lighting changes need review.** Every change to how a node is lit is proposed as a competence memory that supersedes the approved one. Approved lighting is what the runtime uses.
 - **What is exempt.** Gap notes the person confirmed themselves (§4.4) or stated (§3.3), and boundaries (§3.5).
+- **Branch note.** A proposal for a node with parts says how many it would light ("Approving lights its whole branch: N parts in the tree."), since approved lighting covers its branch.
 - **Rejections.**
   - A rejected proposal (same node, same depth) is never proposed again.
   - A different depth, or new evidence (a new claim or a probe result), can propose again.
@@ -485,3 +486,5 @@ The problem sits between four areas. We did not find work that models **one real
 | 30 | Stated limits | An approved negative under a lit node becomes a gap note at depth 1 | A gap at depth 0; keeping negatives off the tree |
 | 31 | Inheritance | Any approved lighting covers its branch, not only claims | Only claims inherit |
 | 32 | Refresh | An explicit `standin map refresh`, with a reminder from the queue | Refreshing after every approval; refreshing inside `compact` |
+| 33 | Seeded field | The field itself is lit at 2, like its core | The upward rule's 1; 3 |
+| 34 | Branch note | A lighting proposal says how many parts approving it would light | Inferred lighting not inheriting; no note |

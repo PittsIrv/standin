@@ -264,7 +264,8 @@ function simpleTransition(s: Store, id: string, to: MemoryStatus, actor: Actor, 
   });
 }
 
-export const reject = (s: Store, id: string, note: string | null = null) => simpleTransition(s, id, "rejected", "person", note);
+export const reject = (s: Store, id: string, note: string | null = null, actor: Actor = "person") =>
+  simpleTransition(s, id, "rejected", actor, note);
 export const retract = (s: Store, id: string, note: string | null = null) => simpleTransition(s, id, "retracted", "person", note);
 export const expire = (s: Store, id: string, note: string | null = null, actor: Actor = "consolidation") =>
   simpleTransition(s, id, "expired", actor, note);

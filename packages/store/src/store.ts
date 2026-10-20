@@ -15,6 +15,7 @@ import { contentHash, normalizeName, normalizeText } from "./text.ts";
 import * as mem from "./memories.ts";
 import * as exm from "./exemplars.ts";
 import * as spans from "./spans.ts";
+import * as tree from "./tree.ts";
 import type { SpanContent, SpanData, SpanSink } from "@standin/trace";
 import { consolidate, purge, type ConsolidationReport } from "./consolidate.ts";
 
@@ -37,6 +38,10 @@ import type {
   Register,
   Tier,
   Actor,
+  EdgeKind,
+  Gap,
+  Topic,
+  TopicEdge,
 } from "@standin/schema";
 
 export interface CompactionBatch {
@@ -239,8 +244,8 @@ export class Store {
   approve(id: string, edits?: { statement?: string; tier?: Tier }): Memory {
     return mem.approve(this, id, edits);
   }
-  reject(id: string, note?: string): Memory {
-    return mem.reject(this, id, note ?? null);
+  reject(id: string, note?: string, actor?: Actor): Memory {
+    return mem.reject(this, id, note ?? null, actor);
   }
   retract(id: string, note?: string): Memory {
     return mem.retract(this, id, note ?? null);
@@ -296,6 +301,39 @@ export class Store {
     this.db
       .prepare("INSERT INTO queue_decisions (id, item_id, item_kind, queue_group, position, decision, at) VALUES (?, ?, ?, ?, ?, ?, ?)")
       .run(newId("qdc"), d.itemId, d.itemKind, d.group, d.position, d.decision, this.nowIso());
+  }
+
+  // ---- knowledge tree -----------------------------------------------------
+
+  ensureTopic(name: string, definition?: string | null): Topic {
+    return tree.ensureTopic(this, name, definition ?? null);
+  }
+  getTopic(id: string): Topic {
+    return tree.getTopic(this, id);
+  }
+  listTopics(opts?: { includeDeleted?: boolean }): Topic[] {
+    return tree.listTopics(this, opts);
+  }
+  setTopic(id: string, patch: Parameters<typeof tree.setTopic>[2]): Topic {
+    return tree.setTopic(this, id, patch);
+  }
+  addEdge(e: { from: string; to: string; kind: EdgeKind; source: TopicEdge["source"] }): TopicEdge | null {
+    return tree.addEdge(this, e);
+  }
+  listEdges(kind?: EdgeKind): TopicEdge[] {
+    return tree.listEdges(this, kind);
+  }
+  mergeTopics(fromId: string, intoId: string): void {
+    tree.mergeTopics(this, fromId, intoId);
+  }
+  addGap(g: Omit<Gap, "id" | "createdAt">): Gap | null {
+    return tree.addGap(this, g);
+  }
+  listGaps(): Gap[] {
+    return tree.listGaps(this);
+  }
+  topicMemories(topicId: string, filter?: { kind?: MemoryKind; status?: MemoryStatus }): Memory[] {
+    return tree.topicMemories(this, topicId, filter);
   }
 
   // ---- traces -------------------------------------------------------------

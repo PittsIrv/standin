@@ -14,6 +14,7 @@
     "@standin/compaction": "workspace:*",
     "@standin/demo-persona": "workspace:*",
     "@standin/interview": "workspace:*",
+    "@standin/knowledge": "workspace:*",
     "@standin/llm": "workspace:*",
     "@standin/models": "workspace:*",
     "@standin/schema": "workspace:*",

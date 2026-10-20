@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { ScriptedLLM, type GenerateObjectRequest } from "@standin/llm";
 import type { ObservationInput } from "@standin/schema";
-import { EXTRACTIONS, RECONCILIATIONS } from "./fixtures.ts";
+import { EXTRACTIONS, PLACEMENTS, RECONCILIATIONS, SEED } from "./fixtures.ts";
 
 export const DEMO_PERSONA_NAME = "Lin Qiao";
 
@@ -24,12 +24,26 @@ function neighbors(prompt: string): Map<string, string> {
   return out;
 }
 
+/** The demo's placement answer: each new topic listed in the prompt, under its fixture parent. */
+function placements(prompt: string) {
+  const topics = [...(prompt.split("New topics:\n")[1] ?? "").matchAll(/^- (.+)$/gm)].map((m) => m[1]!.trim());
+  return {
+    merges: [],
+    placements: topics.map((topic) => {
+      const [parent, parentDefinition, definition] = PLACEMENTS[topic] ?? ["Other topics", "Topics outside the main tree.", topic];
+      return { topic, parent, parentDefinition, definition };
+    }),
+  };
+}
+
 /** A ScriptedLLM that answers with the demo persona's hand-written fixtures. */
 export function demoLLM(): ScriptedLLM {
   return new ScriptedLLM((req: GenerateObjectRequest<unknown>) => {
     if (req.purpose === "extract") {
       return EXTRACTIONS[observationText(req.prompt)] ?? { memories: [], exemplars: [] };
     }
+    if (req.purpose === "seed") return SEED;
+    if (req.purpose === "place") return placements(req.prompt);
     const rule = RECONCILIATIONS[candidateStatement(req.prompt)];
     if (rule) {
       const [action, targetStatement] = rule;

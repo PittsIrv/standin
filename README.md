@@ -69,6 +69,30 @@ Within each group, memories with more sources come first, then older ones. Sourc
 
 Raw observation text and trace text stay on your machine until you purge them: `standin purge --before <date>`.
 
+## Your knowledge tree
+
+The standin answers general-knowledge questions only where you'd be able to. `standin map` shows where that is:
+
+```
+Computer science  lit 1 (predicted)
+  Algorithms  lit 2 (predicted)
+  Machine learning  lit 2 (predicted)
+    reinforcement learning theory  lit 2 (claimed)
+Board games  dark
+```
+
+- **The structure is general knowledge.** Topics are placed under what they are part of. A dark node is declined: "not something I know".
+- **You light it.** Your claims ("I know Rust well") light a node at your depth (0–4), and the whole branch below it. Your background ("I'm a CS student at CMU") lights the core of your field at 2.
+- **Inference proposes, you decide.** A parent is predicted at least one below its strongest part, and a prerequisite one below what needs it. Each inference is a proposal in your queue, with its reasons.
+- **Your limits count.** "I can't write Rust macros yet" carves a gap out of a lit Rust branch, so the standin won't explain what you said you don't know.
+- **Depth decides the answer:** 3–4 explain, 2 brief, 0–1 or dark decline.
+
+```bash
+pnpm standin map refresh   # place new topics, seed from your background, propose lighting (calls the map model)
+pnpm standin queue         # approve or reject the proposals
+pnpm standin map           # see the tree (no model calls)
+```
+
 ## Choosing models: roles and tiers
 
 Every model call belongs to a **role**, and each role defaults to a **tier**. The cheapest thing that does the job well wins: code first, then a cache, then small, medium, and large models.
