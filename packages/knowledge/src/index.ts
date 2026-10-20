@@ -13,3 +13,14 @@ export { assignHoldout, FIXED_SHARE, ROTATING_SHARE, writeProbes } from "./probi
 export { ExpandSchema, GradeSchema, QuizSchema } from "./probing/schemas.ts";
 export { buildExpandPrompt, buildGradePrompt, buildQuizPrompt } from "./probing/prompts.ts";
 export { CLAIM_PROBES, DISCOVERY_START, nextTarget, type ProbeState, type Target } from "./probing/plan.ts";
+export { collectGrades, submitGrades } from "./probing/grade.ts";
+export {
+  FIRST_SESSION_SIZE,
+  ProbeSession,
+  SESSION_SIZE,
+  SPOT_CHECK_RATE,
+  usable,
+  type FinishReport,
+  type SessionDeps,
+  type ShownProbe,
+} from "./probing/session.ts";

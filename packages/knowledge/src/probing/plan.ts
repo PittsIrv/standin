@@ -64,7 +64,7 @@ export function nextTarget(t: TreeSnapshot, s: ProbeState, skip: Set<string>): T
     const asked = shown.filter((r) => r.probe.kind === "claim" && r.probe.checkOf === claimNode);
     if (asked.length >= CLAIM_PROBES) continue;
     const parts = (s.children.get(claimNode) ?? []).filter(live);
-    if (parts.length < CLAIM_PROBES && !t.topics.get(claimNode)!.expandedAt) return `expand:${claimNode}`;
+    if (parts.length < CLAIM_PROBES && !t.topics.get(claimNode)!.expandedAt && !skip.has(targetKey("expand", claimNode))) return `expand:${claimNode}`;
     const used = new Set(asked.map((r) => r.probe.nodeId));
     const pool = parts.length > 0 ? parts : [claimNode];
     const next = pool.sort(byName(t)).find((p) => !used.has(p) && ok("claim", p));
