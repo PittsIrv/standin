@@ -27,3 +27,4 @@ export {
   type ShownProbe,
 } from "./probing/session.ts";
 export { discoveryProposals, EXPERT_PASSES } from "./probing/discovery.ts";
+export { calibration, type Calibration, type SetScore } from "./probing/calibration.ts";
