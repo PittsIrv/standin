@@ -38,6 +38,7 @@ const rowToGap = (r: Row): Gap =>
     status: r.status,
     source: r.source,
     memoryId: r.memory_id ?? null,
+    responseId: r.response_id ?? null,
     createdAt: r.created_at,
   });
 
@@ -145,6 +146,8 @@ export function mergeTopics(s: Store, fromId: string, intoId: string): void {
     s.db.prepare("UPDATE OR IGNORE gaps SET node_id = ? WHERE node_id = ?").run(into.id, from.id);
     s.db.prepare("UPDATE gaps SET claim_node_id = ? WHERE claim_node_id = ?").run(into.id, from.id);
     s.db.prepare("DELETE FROM gaps WHERE node_id = ?").run(from.id);
+    s.db.prepare("UPDATE probes SET node_id = ? WHERE node_id = ?").run(into.id, from.id);
+    s.db.prepare("UPDATE probes SET check_of = ? WHERE check_of = ?").run(into.id, from.id);
     for (const kind of ["part_of", "requires"] as const) {
       for (const e of listEdges(s, kind)) {
         const loop = pathBetween(s, kind, e.to, e.from);
@@ -156,13 +159,28 @@ export function mergeTopics(s: Store, fromId: string, intoId: string): void {
   });
 }
 
-export function addGap(s: Store, g: Omit<Gap, "id" | "createdAt">): Gap | null {
-  if (s.db.prepare("SELECT 1 FROM gaps WHERE node_id = ? AND memory_id IS ?").get(g.nodeId, g.memoryId)) return null;
+export type NewGap = Omit<Gap, "id" | "createdAt" | "responseId"> & { responseId?: string | null };
+
+/** Null if this gap already exists: per stated memory, or per judged response. */
+export function addGap(s: Store, g: NewGap): Gap | null {
+  const responseId = g.responseId ?? null;
+  const exists = responseId
+    ? s.db.prepare("SELECT 1 FROM gaps WHERE response_id = ?").get(responseId)
+    : s.db.prepare("SELECT 1 FROM gaps WHERE node_id = ? AND memory_id IS ? AND response_id IS NULL").get(g.nodeId, g.memoryId);
+  if (exists) return null;
   const id = newId("gap");
   s.db
-    .prepare("INSERT INTO gaps (id, node_id, claim_node_id, level, status, source, memory_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-    .run(id, g.nodeId, g.claimNodeId, g.level, g.status, g.source, g.memoryId, s.nowIso());
+    .prepare("INSERT INTO gaps (id, node_id, claim_node_id, level, status, source, memory_id, response_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    .run(id, g.nodeId, g.claimNodeId, g.level, g.status, g.source, g.memoryId, responseId, s.nowIso());
   return rowToGap(s.db.prepare("SELECT * FROM gaps WHERE id = ?").get(id) as Row);
+}
+
+export function setGap(s: Store, id: string, patch: { status?: Gap["status"]; level?: number }): Gap {
+  if (patch.status !== undefined) s.db.prepare("UPDATE gaps SET status = ? WHERE id = ?").run(patch.status, id);
+  if (patch.level !== undefined) s.db.prepare("UPDATE gaps SET level = ? WHERE id = ?").run(patch.level, id);
+  const r = s.db.prepare("SELECT * FROM gaps WHERE id = ?").get(id) as Row | undefined;
+  if (!r) throw new NotFoundError("gap", id);
+  return rowToGap(r);
 }
 
 export function listGaps(s: Store): Gap[] {

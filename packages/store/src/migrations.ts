@@ -188,6 +188,44 @@ const MIGRATIONS: string[] = [
     UNIQUE (node_id, memory_id)
   );
   `,
+  `
+  -- Probing: review sessions, probes (with their holdout set), and responses with the prediction recorded first.
+  CREATE TABLE review_sessions (
+    id TEXT PRIMARY KEY,
+    started_at TEXT NOT NULL,
+    ended_at TEXT,
+    size INTEGER NOT NULL
+  );
+  CREATE TABLE probes (
+    id TEXT PRIMARY KEY,
+    node_id TEXT NOT NULL REFERENCES entities(id),
+    check_of TEXT REFERENCES entities(id),
+    kind TEXT NOT NULL,
+    difficulty INTEGER NOT NULL CHECK (difficulty BETWEEN 1 AND 4),
+    question TEXT NOT NULL,
+    holdout TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    released_at TEXT
+  );
+  CREATE INDEX probes_node ON probes (node_id);
+  CREATE TABLE probe_responses (
+    id TEXT PRIMARY KEY,
+    probe_id TEXT NOT NULL UNIQUE REFERENCES probes(id),
+    session_id TEXT NOT NULL REFERENCES review_sessions(id),
+    shown_at TEXT NOT NULL,
+    predicted_mode TEXT NOT NULL,
+    rating TEXT,
+    answered_at TEXT,
+    spot_check TEXT NOT NULL,
+    spot_check_answer TEXT,
+    observation_id TEXT REFERENCES observations(id),
+    grade TEXT,
+    grade_reason TEXT,
+    grade_batch_id TEXT,
+    judged TEXT
+  );
+  ALTER TABLE gaps ADD COLUMN response_id TEXT REFERENCES probe_responses(id);
+  `,
 ];
 
 /** Applies pending migrations up to `target` (default: all of them). */

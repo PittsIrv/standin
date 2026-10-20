@@ -16,6 +16,7 @@ import * as mem from "./memories.ts";
 import * as exm from "./exemplars.ts";
 import * as spans from "./spans.ts";
 import * as tree from "./tree.ts";
+import * as probes from "./probes.ts";
 import type { SpanContent, SpanData, SpanSink } from "@standin/trace";
 import { consolidate, purge, type ConsolidationReport } from "./consolidate.ts";
 
@@ -42,6 +43,12 @@ import type {
   Gap,
   Topic,
   TopicEdge,
+  AnswerModeName,
+  Probe,
+  ProbeKind,
+  ProbeResponse,
+  Rating,
+  ReviewSession,
 } from "@standin/schema";
 
 export interface CompactionBatch {
@@ -326,8 +333,59 @@ export class Store {
   mergeTopics(fromId: string, intoId: string): void {
     tree.mergeTopics(this, fromId, intoId);
   }
-  addGap(g: Omit<Gap, "id" | "createdAt">): Gap | null {
+  addGap(g: tree.NewGap): Gap | null {
     return tree.addGap(this, g);
+  }
+  setGap(id: string, patch: { status?: Gap["status"]; level?: number }): Gap {
+    return tree.setGap(this, id, patch);
+  }
+
+  // ---- probing ------------------------------------------------------------
+
+  startSession(size: number): ReviewSession {
+    return probes.startSession(this, size);
+  }
+  endSession(id: string): ReviewSession {
+    return probes.endSession(this, id);
+  }
+  listSessions(): ReviewSession[] {
+    return probes.listSessions(this);
+  }
+  insertProbe(p: Omit<Probe, "id" | "createdAt" | "releasedAt">): Probe {
+    return probes.insertProbe(this, p);
+  }
+  getProbe(id: string): Probe {
+    return probes.getProbe(this, id);
+  }
+  listProbes(f?: { nodeId?: string; kind?: ProbeKind }): Probe[] {
+    return probes.listProbes(this, f);
+  }
+  showProbe(probeId: string, sessionId: string, predictedMode: AnswerModeName): ProbeResponse {
+    return probes.showProbe(this, probeId, sessionId, predictedMode);
+  }
+  getResponse(id: string): ProbeResponse {
+    return probes.getResponse(this, id);
+  }
+  rateResponse(id: string, rating: Rating, spotCheck: boolean): ProbeResponse {
+    return probes.rateResponse(this, id, rating, spotCheck);
+  }
+  answerSpotCheck(id: string, answer: string, observationId: string): ProbeResponse {
+    return probes.answerSpotCheck(this, id, answer, observationId);
+  }
+  judgeResponse(id: string, judged: "gap" | "not_gap"): ProbeResponse {
+    return probes.judgeResponse(this, id, judged);
+  }
+  recordGrade(id: string, grade: "pass" | "fail", reason: string): ProbeResponse {
+    return probes.recordGrade(this, id, grade, reason);
+  }
+  setGradeBatch(ids: string[], batchId: string | null): void {
+    probes.setGradeBatch(this, ids, batchId);
+  }
+  listResponses(f?: { sessionId?: string; rated?: boolean; ungraded?: boolean }): (ProbeResponse & { probe: Probe })[] {
+    return probes.listResponses(this, f);
+  }
+  releaseRotating(sessionIds: string[]): Probe[] {
+    return probes.releaseRotating(this, sessionIds);
   }
   listGaps(): Gap[] {
     return tree.listGaps(this);
