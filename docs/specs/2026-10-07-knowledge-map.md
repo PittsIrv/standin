@@ -4,7 +4,7 @@ Status: approved 2026-10-19 (decisions in §13). Revised 2026-10-18 after a deci
 
 Delivered in two PRs:
 - **SP2a-1, the lit tree:** §2, §3 and §5, plus `standin map`.
-- **SP2a-2, probing and the review page:** §4, §6 and §7.
+- **SP2a-2, probing and the review page:** §4, §6 and §7. This ships as two PRs: SP2a-2a, the probing engine (§4 and §6), then SP2a-2b, the page (§7).
 Builds on: [architecture spec](2026-10-01-standin-architecture.md) §5 (memory model) and §7 (competence-gated knowledge), and the [model-routing spec](2026-10-03-model-routing.md) (roles, traces).
 
 ## 1. Goal
@@ -178,6 +178,7 @@ A dark node has no depth: it is not on record.
 
 **A claim check:**
 - 3 probes at the claimed level, each on a **different component** of the claimed node. The node is expanded first if needed.
+- A claim at depth 0 ("I don't know X") is not probed, since there is nothing to check.
 - A claim passes with no confirmed gap. It is then checked: never re-checked in SP2a, and its branch stays lit by inheritance.
 
 **Misses**, which the person judges:
@@ -192,9 +193,9 @@ A dark node has no depth: it is not on record.
 
 **Gap statuses:** `open` (awaiting keep or lower), `kept`, or `lowered`. A later learning sub-project plugs into these.
 
-### 4.5 Foundations
+### 4.5 Foundations (inferred lighting)
 
-Each inferred prerequisite (§3.2) gets **one probe at its predicted level**:
+Every approved node lit by inference gets **one probe at its level**: seeded core topics, upward-inferred parents and prerequisites (§3.2).
 - `know` confirms the inference, and the node becomes `probed`;
 - a miss is shown to the person, as in §4.4.
 
@@ -488,3 +489,5 @@ The problem sits between four areas. We did not find work that models **one real
 | 32 | Refresh | An explicit `standin map refresh`, with a reminder from the queue | Refreshing after every approval; refreshing inside `compact` |
 | 33 | Seeded field | The field itself is lit at 2, like its core | The upward rule's 1; 3 |
 | 34 | Branch note | A lighting proposal says how many parts approving it would light | Inferred lighting not inheriting; no note |
+| 35 | SP2a-2 delivery | Two PRs: the probing engine, then the review page | One PR; a temporary terminal session first |
+| 36 | What foundations check | All approved inferred lighting (seeded, upward, prerequisite) gets one probe at its level | Treating inferred nodes as claims; not probing them |
