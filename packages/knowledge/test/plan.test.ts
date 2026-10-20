@@ -60,7 +60,7 @@ describe("nextTarget", () => {
     expect(nextTarget(t, state(t, [resp("foundation", "Algorithms", 2, "know")]), new Set())).toBeNull();
   });
 
-  it("walks discovery up from 2, stopping on a miss or at 4", () => {
+  it("walks discovery up from 2, stopping on a miss, and asks twice at 4", () => {
     // Raft is lit at 3 under a dark parent; its sibling Paxos is dark, so it is the discovery candidate.
     const t2 = expanded(tree({ partOf: [["Raft", "consensus"], ["Paxos", "consensus"]], approved: { Raft: { depth: 3, basis: "probed" } } }), "Raft");
     expect(nextTarget(t2, state(t2), new Set())).toEqual({ kind: "discovery", nodeId: "Paxos", difficulty: 2 });
@@ -68,7 +68,10 @@ describe("nextTarget", () => {
     expect(nextTarget(t2, state(t2, up), new Set())).toEqual({ kind: "discovery", nodeId: "Paxos", difficulty: 3 });
     up.push(resp("discovery", "Paxos", 3, "no_idea"));
     expect(nextTarget(t2, state(t2, up), new Set())).toBeNull();
+    // Expert needs two passed spot-checks at 4, so a known 4 is asked once more, then the walk ends.
     const top = [resp("discovery", "Paxos", 2, "know"), resp("discovery", "Paxos", 3, "know"), resp("discovery", "Paxos", 4, "know")];
+    expect(nextTarget(t2, state(t2, top), new Set())).toEqual({ kind: "discovery", nodeId: "Paxos", difficulty: 4 });
+    top.push(resp("discovery", "Paxos", 4, "know"));
     expect(nextTarget(t2, state(t2, top), new Set())).toBeNull();
   });
 

@@ -83,8 +83,10 @@ export function nextTarget(t: TreeSnapshot, s: ProbeState, skip: Set<string>): T
   for (const r of shown.filter((x) => x.probe.kind === "discovery")) walks.set(r.probe.nodeId, [...(walks.get(r.probe.nodeId) ?? []), r]);
   for (const [nodeId, steps] of walks) {
     const last = steps.at(-1)!;
-    if (last.rating === "know" && last.probe.difficulty < MAX_DIFFICULTY && ok("discovery", nodeId))
-      return { kind: "discovery", nodeId, difficulty: last.probe.difficulty + 1 };
+    if (last.rating !== "know" || !ok("discovery", nodeId)) continue;
+    if (last.probe.difficulty < MAX_DIFFICULTY) return { kind: "discovery", nodeId, difficulty: last.probe.difficulty + 1 };
+    // Expert needs two passed spot-checks at 4, so the walk asks twice there.
+    if (steps.filter((s) => s.probe.difficulty === MAX_DIFFICULTY).length < 2) return { kind: "discovery", nodeId, difficulty: MAX_DIFFICULTY };
   }
   // Strong = the node's own lighting is at least 3. Inherited lighting doesn't count: everything under a lit node
   // inherits it, so its parts are never dark and expanding them would never end.

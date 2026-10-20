@@ -54,5 +54,6 @@ export function tree(spec: {
     })),
     negatives: [],
     proposals: [],
+    confirmed: new Set(),
   };
 }

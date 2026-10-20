@@ -4,9 +4,10 @@ import type { Store } from "@standin/store";
 import type { Tracer } from "@standin/trace";
 import { answerMode } from "../answer.ts";
 import { refresh } from "../refresh.ts";
-import { loadSnapshot } from "../snapshot.ts";
+import { loadSnapshot, usableProbe } from "../snapshot.ts";
 import { statementFor } from "../wording.ts";
 import { expandNode } from "./expand.ts";
+import { discoveryProposals } from "./discovery.ts";
 import { collectGrades, submitGrades } from "./grade.ts";
 import { nextTarget, type ProbeState, type Target } from "./plan.ts";
 import { writeProbes } from "./quiz.ts";
@@ -62,7 +63,7 @@ export const SESSION_SIZE = 10;
 export const SPOT_CHECK_RATE = 1 / 3;
 
 /** A held-out probe may feed the map, exemplars and discovery only once released; a fixed one never. */
-export const usable = (p: Probe): boolean => p.holdout === "none" || (p.holdout === "rotating" && p.releasedAt !== null);
+export const usable = usableProbe;
 
 /**
  * One review session: the stateful API the review page drives. It owns the holdout rules: predictions are
@@ -88,6 +89,7 @@ export class ProbeSession {
       session.releaseAndDefer(unfinished.map((s) => s.id));
       for (const s of unfinished) store.endSession(s.id);
       await session.attempt("collecting grades", () => collectGrades(store, deps.grade));
+      discoveryProposals(store, loadSnapshot(store));
       await session.attempt("refreshing the tree", async () => {
         const report = await refresh({ store, map: deps.map, tracer: deps.tracer, personaName: deps.personaName });
         session.warnings.push(...report.warnings);
@@ -140,7 +142,9 @@ export class ProbeSession {
   rate(responseId: string, rating: Rating): { spotCheck: boolean } {
     const { store, rng } = this.deps;
     const probe = store.getProbe(store.getResponse(responseId).probeId);
-    const spotCheck = (rating === "know" || rating === "roughly") && rng() < SPOT_CHECK_RATE;
+    // Discovery at 4 always asks: expert needs two passed spot-checks there.
+    const expertCheck = probe.kind === "discovery" && probe.difficulty === 4;
+    const spotCheck = (rating === "know" || rating === "roughly") && (expertCheck || rng() < SPOT_CHECK_RATE);
     store.rateResponse(responseId, rating, spotCheck);
     if (rating === "wouldnt_say") store.setTopic(probe.nodeId, { boundaryTier: 3 });
     if (probe.kind === "followup") this.settleGap(probe, rating);
@@ -257,8 +261,9 @@ export class ProbeSession {
         const g = await submitGrades(store, this.deps.grade, this.deps.personaName);
         gradingSubmitted = g.submitted + g.gradedLive;
       });
+      const proposals = discoveryProposals(store, loadSnapshot(store)).length;
       store.endSession(this.sessionId);
-      return { released, exemplars, discoveryProposals: 0, gradingSubmitted };
+      return { released, exemplars, discoveryProposals: proposals, gradingSubmitted };
     });
   }
 
