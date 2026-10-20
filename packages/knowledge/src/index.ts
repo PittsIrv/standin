@@ -8,3 +8,7 @@ export { buildPlacePrompt, buildSeedPrompt, outline } from "./prompts.ts";
 export { PlaceSchema, SeedSchema, type Place, type Seed } from "./schemas.ts";
 export { placeTopics, seedBackground, unplacedTopics } from "./tasks.ts";
 export { refresh, type RefreshReport } from "./refresh.ts";
+export { expandNode } from "./probing/expand.ts";
+export { assignHoldout, FIXED_SHARE, ROTATING_SHARE, writeProbes } from "./probing/quiz.ts";
+export { ExpandSchema, GradeSchema, QuizSchema } from "./probing/schemas.ts";
+export { buildExpandPrompt, buildGradePrompt, buildQuizPrompt } from "./probing/prompts.ts";
