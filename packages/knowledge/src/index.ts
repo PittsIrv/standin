@@ -20,7 +20,9 @@ export {
   SESSION_SIZE,
   SPOT_CHECK_RATE,
   usable,
+  type ClaimDecision,
   type FinishReport,
+  type Miss,
   type SessionDeps,
   type ShownProbe,
 } from "./probing/session.ts";

@@ -5,6 +5,7 @@ import type { Tracer } from "@standin/trace";
 import { answerMode } from "../answer.ts";
 import { refresh } from "../refresh.ts";
 import { loadSnapshot } from "../snapshot.ts";
+import { statementFor } from "../wording.ts";
 import { expandNode } from "./expand.ts";
 import { collectGrades, submitGrades } from "./grade.ts";
 import { nextTarget, type ProbeState, type Target } from "./plan.ts";
@@ -39,6 +40,21 @@ export interface FinishReport {
   exemplars: number;
   discoveryProposals: number;
   gradingSubmitted: number;
+}
+
+export interface Miss {
+  responseId: string;
+  topic: string;
+  question: string;
+  difficulty: number;
+  reason: "no_idea" | "failed_check";
+}
+
+export interface ClaimDecision {
+  claimNodeId: string;
+  topic: string;
+  claimed: number;
+  gaps: { topic: string; level: number }[];
 }
 
 export const FIRST_SESSION_SIZE = 40;
@@ -127,7 +143,89 @@ export class ProbeSession {
     const spotCheck = (rating === "know" || rating === "roughly") && rng() < SPOT_CHECK_RATE;
     store.rateResponse(responseId, rating, spotCheck);
     if (rating === "wouldnt_say") store.setTopic(probe.nodeId, { boundaryTier: 3 });
+    if (probe.kind === "followup") this.settleGap(probe, rating);
     return { spotCheck };
+  }
+
+  /** Misses the person may judge: `no_idea`, or `know` with a failed spot-check, on claim and foundation probes. */
+  pendingMisses(): Miss[] {
+    const { store } = this.deps;
+    return store
+      .listResponses({ rated: true })
+      .filter((r) => r.judged === null && (r.probe.kind === "claim" || r.probe.kind === "foundation") && usable(r.probe))
+      .filter((r) => r.rating === "no_idea" || (r.rating === "know" && r.grade === "fail"))
+      .map((r) => ({
+        responseId: r.id,
+        topic: store.getTopic(r.probe.nodeId).name,
+        question: r.probe.question,
+        difficulty: r.probe.difficulty,
+        reason: r.rating === "no_idea" ? ("no_idea" as const) : ("failed_check" as const),
+      }));
+  }
+
+  /**
+   * The person's verdict on a miss. A gap is recorded at one level below the missed probe for now; the follow-up
+   * probe a level lower settles it. A miss at level 1 has nothing below it, so its gap is recorded at 0.
+   */
+  judgeMiss(responseId: string, isGap: boolean): void {
+    const { store } = this.deps;
+    const probe = store.getProbe(store.getResponse(responseId).probeId);
+    store.judgeResponse(responseId, isGap ? "gap" : "not_gap");
+    if (!isGap) return;
+    store.addGap({
+      nodeId: probe.nodeId,
+      claimNodeId: probe.kind === "claim" ? probe.checkOf : null,
+      level: Math.max(probe.difficulty - 1, 0),
+      status: probe.kind === "claim" ? "open" : "kept",
+      source: "probe",
+      memoryId: null,
+      responseId,
+    });
+  }
+
+  /** Claims whose confirmed gaps are settled and waiting for the person to keep or lower them. */
+  pendingClaimDecisions(): ClaimDecision[] {
+    const { store } = this.deps;
+    const t = loadSnapshot(store);
+    const open = t.gaps.filter((g) => g.status === "open" && g.claimNodeId && g.source === "probe");
+    const decisions: ClaimDecision[] = [];
+    for (const claimNodeId of new Set(open.map((g) => g.claimNodeId!))) {
+      const gaps = open.filter((g) => g.claimNodeId === claimNodeId);
+      if (!gaps.every((g) => this.settled(g.responseId))) continue;
+      decisions.push({
+        claimNodeId,
+        topic: t.topics.get(claimNodeId)?.name ?? claimNodeId,
+        claimed: t.approved.get(claimNodeId)?.depth ?? 0,
+        gaps: gaps.map((g) => ({ topic: t.topics.get(g.nodeId)?.name ?? g.nodeId, level: g.level })),
+      });
+    }
+    return decisions;
+  }
+
+  /** Keep: the claim stands except its gaps. Lower: the claim drops to its lowest gap level (the person's own decision). */
+  decideClaim(claimNodeId: string, choice: "keep" | "lower"): void {
+    const { store } = this.deps;
+    store.transaction(() => {
+      const t = loadSnapshot(store);
+      const gaps = t.gaps.filter((g) => g.status === "open" && g.claimNodeId === claimNodeId);
+      for (const g of gaps) store.setGap(g.id, { status: choice === "keep" ? "kept" : "lowered" });
+      if (choice === "keep" || gaps.length === 0) return;
+      const topic = t.topics.get(claimNodeId)!;
+      const previous = t.approved.get(claimNodeId);
+      const depth = Math.min(...gaps.map((g) => g.level));
+      const lowered = store.insertMemory(
+        {
+          kind: "competence",
+          statement: statementFor(depth, topic.name),
+          tier: previous ? store.getMemory(previous.memoryId).tier : 1,
+          isCurrentState: false,
+          attrs: { domain: topic.name, depth, basis: "probed", reasons: [`you lowered your claim after gaps in ${gaps.map((g) => t.topics.get(g.nodeId)?.name).join(", ")}`] },
+          supersedesId: previous?.memoryId ?? null,
+        },
+        { sourceObservationIds: [], entityIds: [claimNodeId], actor: "person" },
+      );
+      store.approve(lowered.id);
+    });
   }
 
   /** A spot-check answer: kept as a probe observation; a voice sample now only if the probe isn't held out. */
@@ -165,6 +263,32 @@ export class ProbeSession {
   }
 
   // ---- internals ------------------------------------------------------------
+
+  /** The follow-up for a gap sets its level: one below the miss if known, two below if missed too. */
+  private settleGap(followup: Probe, rating: Rating): void {
+    const { store } = this.deps;
+    const gap = store
+      .listGaps()
+      .find((g) => g.responseId && g.nodeId === followup.nodeId && store.getProbe(store.getResponse(g.responseId).probeId).difficulty === followup.difficulty + 1);
+    if (!gap) return;
+    const level = rating === "know" || rating === "roughly" ? followup.difficulty : Math.max(followup.difficulty - 1, 0);
+    store.setGap(gap.id, { level });
+  }
+
+  /** A gap is settled once its follow-up is rated, or immediately when the miss was at level 1. */
+  private settled(responseId: string | null): boolean {
+    if (!responseId) return true;
+    const { store } = this.deps;
+    const missed = store.getResponse(responseId);
+    const probe = store.getProbe(missed.probeId);
+    if (probe.difficulty < 2) return true;
+    // In show order; timestamps can tie within a second.
+    const all = store.listResponses();
+    const after = all.slice(all.findIndex((r) => r.id === responseId) + 1);
+    return after.some(
+      (r) => r.rating !== null && r.probe.kind === "followup" && r.probe.nodeId === probe.nodeId && r.probe.difficulty === probe.difficulty - 1,
+    );
+  }
 
   private state(): ProbeState {
     const { store } = this.deps;

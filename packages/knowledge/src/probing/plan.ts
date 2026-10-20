@@ -49,11 +49,12 @@ export function nextTarget(t: TreeSnapshot, s: ProbeState, skip: Set<string>): T
   const ok = (kind: string, nodeId: string) => live(nodeId) && !skip.has(targetKey(kind, nodeId));
 
   // 1. Follow-ups: a miss the person judged a gap gets one probe a level lower on the same node.
-  for (const r of shown) {
+  // `responses` is in show order, so "after" is by position: timestamps can tie within a second.
+  for (const [i, r] of shown.entries()) {
     if (r.judged !== "gap" || r.probe.difficulty < 2 || !ok("followup", r.probe.nodeId)) continue;
-    const followed = shown.some(
-      (f) => f.probe.kind === "followup" && f.probe.nodeId === r.probe.nodeId && f.probe.difficulty === r.probe.difficulty - 1 && f.shownAt > r.shownAt,
-    );
+    const followed = shown
+      .slice(i + 1)
+      .some((f) => f.probe.kind === "followup" && f.probe.nodeId === r.probe.nodeId && f.probe.difficulty === r.probe.difficulty - 1);
     if (!followed) return { kind: "followup", nodeId: r.probe.nodeId, difficulty: r.probe.difficulty - 1, checkOf: r.probe.checkOf, gapOf: r.id };
   }
 
