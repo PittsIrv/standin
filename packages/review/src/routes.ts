@@ -1,6 +1,7 @@
 import { queuePlace, reviewQueue } from "@standin/compaction";
-import type { FinishReport } from "@standin/knowledge";
-import { Rating } from "@standin/schema";
+import { loadSnapshot, nodeDetail, treeNodes, type FinishReport } from "@standin/knowledge";
+import { EntityKind, ROOTS, Rating } from "@standin/schema";
+import { NameTakenError } from "@standin/store";
 import { z } from "zod";
 import { nextCard, queueCard } from "./cards.ts";
 import type { Route, ReviewServerOptions } from "./server.ts";
@@ -48,4 +49,55 @@ export function registerRoutes(o: ReviewServerOptions, route: Route, _finish: ()
     return m;
   });
   route("GET", "/api/queue", () => ({ items: reviewQueue(store, config).map((i) => queueCard(store, i)) }));
+
+  // ---- the forest: see it, and edit it directly ---------------------------------
+  const snapshot = () => loadSnapshot(store, { brierWindow: config.hypotheses.brierWindow });
+  route("GET", "/api/forest", () => ({
+    roots: ROOTS.map((r) => ({ key: r.key, name: r.name, id: store.root(r.key).id })),
+    nodes: treeNodes(snapshot(), { all: true }),
+    links: store.listEdges().filter((e) => e.kind !== "part_of"),
+  }));
+  route("GET", "/api/node/:id", ({ id }) => {
+    store.getTopic(id);
+    return nodeDetail(store, snapshot(), id);
+  });
+  const Name = z.string().trim().min(1).max(120);
+  route("POST", "/api/tree/rename", ({ body }) => {
+    const b = z.object({ nodeId: Id, name: Name }).parse(body);
+    return store.renameTopic(b.nodeId, b.name);
+  });
+  route("POST", "/api/tree/move", ({ body }) => {
+    const b = z.object({ nodeId: Id, parentId: Id.nullable() }).parse(body);
+    return store.moveTopic(b.nodeId, b.parentId) ?? { ok: true };
+  });
+  route("POST", "/api/tree/add", ({ body }) => {
+    const b = z.object({ parentId: Id, name: Name, label: EntityKind }).parse(body);
+    store.getTopic(b.parentId);
+    if (store.findEntity({ name: b.name, kind: b.label })) throw new NameTakenError(b.name);
+    return store.transaction(() => {
+      const node = store.ensureNode(b.name, b.label);
+      store.moveTopic(node.id, b.parentId);
+      return store.getTopic(node.id);
+    });
+  });
+  route("POST", "/api/tree/delete-node", ({ body }) => {
+    const b = z.object({ nodeId: Id }).parse(body);
+    return store.deleteTopic(b.nodeId);
+  });
+  route("POST", "/api/tree/delete-edge", ({ body }) => {
+    const b = z.object({ edgeId: Id }).parse(body);
+    store.deleteEdge(b.edgeId);
+  });
+  route("POST", "/api/fact/move", ({ body }) => {
+    const b = z.object({ memoryId: Id, nodeId: Id }).parse(body);
+    store.getTopic(b.nodeId);
+    return store.setHome(b.memoryId, b.nodeId);
+  });
+
+  // ---- boundaries ("wouldn't say"), with undo ------------------------------------
+  route("GET", "/api/boundaries", () => ({ boundaries: session.boundaries() }));
+  route("POST", "/api/boundaries/undo", ({ body }) => {
+    const b = z.object({ nodeId: Id }).parse(body);
+    session.undoBoundary(b.nodeId);
+  });
 }
