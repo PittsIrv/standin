@@ -22,3 +22,21 @@ export const SeedSchema = z.object({
   core: z.array(z.object({ name: z.string(), definition: z.string() })),
 });
 export type Seed = z.infer<typeof SeedSchema>;
+
+export const HomeSchema = z.object({
+  homes: z.array(
+    z.object({
+      memoryId: z.string(),
+      /** An existing node's name, or the name of the node to create. */
+      node: z.string(),
+      /** Set only to create the node: under which existing node or root, with what label. */
+      newNode: z.object({ parent: z.string(), label: EntityKind, definition: z.string() }).nullable(),
+    }),
+  ),
+});
+export type Home = z.infer<typeof HomeSchema>;
+
+export const SplitSchema = z.object({
+  children: z.array(z.object({ name: z.string(), label: EntityKind, definition: z.string(), memoryIds: z.array(z.string()) })),
+});
+export type Split = z.infer<typeof SplitSchema>;

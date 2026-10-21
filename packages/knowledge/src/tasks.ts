@@ -17,7 +17,7 @@ export function unplacedNodes(store: Store): Topic[] {
 }
 
 /** A live node (roots included) by name or alias, preferring one with the given label. */
-function findNode(store: Store, name: string, label?: EntityKind): Topic | null {
+export function findNode(store: Store, name: string, label?: EntityKind): Topic | null {
   const key = normalizeName(name);
   const matches = [...store.roots(), ...store.listTopics()].filter((t) => [t.name, ...t.aliases].some((n) => normalizeName(n) === key));
   return matches.find((t) => t.label === label) ?? matches[0] ?? null;

@@ -44,3 +44,33 @@ export function buildSeedPrompt(background: string, personaName: string): Prompt
   const system = `You seed the knowledge tree of ${personaName}'s "standin" from their background. Given one statement about their degree program, school, or job role, name the field and the core topics a person with this background would have covered: required for everyone with it, not electives (about 5–10). Give each a one-line definition. Use broad, standard names ("Algorithms", "Operating systems").`;
   return { system, prompt: `Background: ${background}` };
 }
+
+const ROOTS_TEXT = `The tree has six fixed roots: Knowledge (fields and topics), Work (projects, roles, organizations, things built), Background (education, origin, path), People (people in their life, by role), Views (opinions, values, how they think), and Life (pets, places, hobbies, routines).`;
+
+export function buildHomePrompt(memories: { id: string; statement: string }[], tree: string, personaName: string): Prompt {
+  const system = `You file ${personaName}'s memories into the world tree of their "standin", an AI that talks as them. ${ROOTS_TEXT}
+
+Give each memory a home: the most specific node it is about.
+- If an existing node fits, set node to its exact name and newNode to null.
+- Otherwise name a new node and set newNode: its parent (an existing node or a root, by exact name), its label (topic for a field of knowledge, otherwise the closest of project, org, place, person, work, pet, other) and a one-line definition.
+- Start coarse: one node for a group of things until a part has its own name ("Pets", not one node per pet, unless a pet is named).
+Use each memory id exactly as given.`;
+  const prompt = `Existing tree:
+${tree || "(empty)"}
+
+Memories:
+${memories.map((m) => `[${m.id}] ${m.statement}`).join("\n")}`;
+  return { system, prompt };
+}
+
+export function buildSplitPrompt(node: string, children: string[], memories: { id: string; statement: string }[], personaName: string): Prompt {
+  const system = `You keep ${personaName}'s world tree tidy. A node holds memories; when parts of it have their own identity (a name, or clearly separate sub-subjects), they become child nodes. ${ROOTS_TEXT}
+
+For the node below, propose children only for parts that have their own identity. List under each child the ids of the memories only about that part. Memories about the whole group stay on the node: leave them out. Reuse an existing child's exact name when it fits. If nothing should split, return no children.`;
+  const prompt = `Node: ${node}
+Existing children: ${children.length > 0 ? children.join(", ") : "(none)"}
+
+Memories:
+${memories.map((m) => `[${m.id}] ${m.statement}`).join("\n")}`;
+  return { system, prompt };
+}

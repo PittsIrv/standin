@@ -38,6 +38,18 @@ function placements(prompt: string) {
   };
 }
 
+/** The demo's homes: school talk goes to Background, everything else to Life (the demo's linked memories already have homes). */
+function homes(prompt: string) {
+  const memories = [...(prompt.split("Memories:\n")[1] ?? "").matchAll(/^\[(mem_[0-9a-f]{12})\] (.*)$/gm)];
+  return {
+    homes: memories.map(([, memoryId, statement]) => ({
+      memoryId,
+      node: /school|university|student|degree|studied/i.test(statement!) ? "Background" : "Life",
+      newNode: null,
+    })),
+  };
+}
+
 const topicOf = (prompt: string) => /^Topic: ([^(\n]+)/m.exec(prompt)?.[1]?.trim() ?? "the topic";
 
 /** The demo's expansion: four generic parts per topic, no prerequisites. */
@@ -70,6 +82,8 @@ export function demoLLM(): ScriptedLLM {
     if (req.purpose === "quiz") return probes(topicOf(req.prompt), req.prompt);
     if (req.purpose === "grade") return grade(req.prompt);
     if (req.purpose === "place") return placements(req.prompt);
+    if (req.purpose === "home") return homes(req.prompt);
+    if (req.purpose === "split") return { children: [] };
     const rule = RECONCILIATIONS[candidateStatement(req.prompt)];
     if (rule) {
       const [action, targetStatement] = rule;
