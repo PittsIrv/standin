@@ -1,5 +1,6 @@
 import { EntityKind, EvidenceKind, RawScore, RootKey } from "@standin/schema";
 import { z } from "zod";
+import { SEED_DEPTH } from "./lighting.ts";
 
 export const PlaceSchema = z.object({
   merges: z.array(z.object({ from: z.string(), into: z.string() })),
@@ -17,10 +18,23 @@ export const PlaceSchema = z.object({
 });
 export type Place = z.infer<typeof PlaceSchema>;
 
-export const SeedSchema = z.object({
-  field: z.object({ name: z.string(), definition: z.string() }),
-  core: z.array(z.object({ name: z.string(), definition: z.string() })),
+/** A seeded concept: what it includes, and the guess about it (depth 1–4, clamped in code) with its reason. */
+const SeedConcept = z.object({
+  name: z.string(),
+  definition: z.string(),
+  examples: z.array(z.string()).default([]),
+  depth: z.number().default(SEED_DEPTH),
+  reason: z.string().default(""),
 });
+export const SeedSchema = z.object({
+  /** Null when the statement implies no field of knowledge (having two cats). */
+  field: SeedConcept.nullable(),
+  core: z.array(SeedConcept).default([]),
+  /** `work` for jobs, research and projects; `background` for education and everything else. */
+  evidence: z.enum(["background", "work"]).default("background"),
+});
+
+export const IntroSchema = z.object({ statements: z.array(z.string()) });
 export type Seed = z.infer<typeof SeedSchema>;
 
 export const HomeSchema = z.object({

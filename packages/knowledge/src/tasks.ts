@@ -2,7 +2,9 @@ import type { LLM } from "@standin/llm";
 import type { EntityKind, Topic } from "@standin/schema";
 import { CycleError, normalizeName, type Store } from "@standin/store";
 import { buildPlacePrompt, buildSeedPrompt, outline } from "./prompts.ts";
-import { SEED_DEPTH } from "./lighting.ts";
+import { spokenFor } from "./hypotheses/guards.ts";
+import { isSensitive } from "./hypotheses/sensitive.ts";
+import { loadSnapshot } from "./snapshot.ts";
 import { PlaceSchema, SeedSchema } from "./schemas.ts";
 
 /**
@@ -66,35 +68,51 @@ export async function placeNodes(store: Store, model: LLM, personaName: string):
   return report;
 }
 
-/** One `map` call per approved background fact not yet seeded: the field plus its core topics. */
+const SEEDED = (memoryId: string) => `seeded:${memoryId}`;
+
+/**
+ * One `map` call per approved background fact not yet seeded: the field it implies (if any) and the concepts that
+ * come with it, each a guess at the depth the model picked, with its reason (concept-cards spec §6a). Nothing the
+ * person already spoke to, and nothing sensitive, is guessed.
+ */
 export async function seedBackground(store: Store, model: LLM, personaName: string): Promise<{ seeded: string[] }> {
   const seededFrom = new Set(store.listTopics({ includeDeleted: true }).map((t) => t.seedMemoryId).filter(Boolean));
   const facts = store
     .listMemories({ status: "approved", kind: "fact" })
-    .filter((m) => m.kind === "fact" && m.attrs.background === true && !seededFrom.has(m.id));
+    .filter((m) => m.kind === "fact" && m.attrs.background === true && !seededFrom.has(m.id) && store.getKv(SEEDED(m.id)) === null);
   const seeded: string[] = [];
   for (const fact of facts) {
     const seed = await model.generateObject({ ...buildSeedPrompt(fact.statement, personaName), schema: SeedSchema, purpose: "seed" });
     store.transaction(() => {
-      // The field itself is seeded too: background means working knowledge of the field as a whole.
-      const field = store.ensureTopic(seed.field.name, seed.field.definition);
-      if (!field.seedMemoryId && !field.deletedAt) store.setTopic(field.id, { seedMemoryId: fact.id });
-      store.addEdge({ from: field.id, to: store.root("knowledge").id, kind: "part_of", source: "seeding" });
-      // Background means probably working knowledge of the field and its core: guesses, until probes say so.
-      const guess = (nodeId: string, path: string[]) => {
-        if (store.listHypotheses({ nodeId }).some((h) => h.status !== "withdrawn")) return;
-        store.insertHypothesis({ nodeId, depth: SEED_DEPTH, rawScore: "medium", kind: "background", path, reason: `core of your background: ${fact.statement}` });
+      store.setKv(SEEDED(fact.id), store.nowIso());
+      if (!seed.field || isSensitive(seed.field.name)) return;
+      type Concept = NonNullable<typeof seed.field>;
+      const place = (c: Concept, parentId: string): string | null => {
+        const node = store.ensureTopic(c.name, c.definition);
+        if (node.deletedAt || node.id === parentId) return null;
+        if (!node.seedMemoryId) store.setTopic(node.id, { seedMemoryId: fact.id });
+        if (node.examples.length === 0 && c.examples.length > 0) store.setTopic(node.id, { examples: c.examples.map((e) => e.trim()).filter(Boolean).slice(0, 5) });
+        store.addEdge({ from: node.id, to: parentId, kind: "part_of", source: "seeding" });
+        return node.id;
       };
-      if (!field.deletedAt) guess(field.id, [field.id]);
+      const fieldId = place(seed.field, store.root("knowledge").id);
+      if (!fieldId) return;
+      const placed: [Concept, string][] = [[seed.field, fieldId]];
       for (const c of seed.core) {
-        const core = store.ensureTopic(c.name, c.definition);
-        if (core.deletedAt || core.id === field.id) continue;
-        if (!core.seedMemoryId) store.setTopic(core.id, { seedMemoryId: fact.id });
-        store.addEdge({ from: core.id, to: field.id, kind: "part_of", source: "seeding" });
-        guess(core.id, [field.id, core.id]);
+        if (isSensitive(c.name)) continue;
+        const id = place(c, fieldId);
+        if (id) placed.push([c, id]);
+      }
+      // Guesses, until a card says so; never about something the person already spoke to.
+      const t = loadSnapshot(store);
+      for (const [c, nodeId] of placed) {
+        if (spokenFor(t, nodeId) || store.listHypotheses({ nodeId }).some((h) => h.status !== "withdrawn")) continue;
+        const depth = Math.min(4, Math.max(1, Math.round(c.depth)));
+        const reason = c.reason.trim() || `from your background: ${fact.statement}`;
+        store.insertHypothesis({ nodeId, depth, rawScore: "medium", kind: seed.evidence, path: nodeId === fieldId ? [fieldId] : [fieldId, nodeId], reason });
       }
     });
-    seeded.push(seed.field.name);
+    if (seed.field) seeded.push(seed.field.name);
   }
   return { seeded };
 }

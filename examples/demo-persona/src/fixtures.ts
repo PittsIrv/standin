@@ -110,16 +110,41 @@ export const RECONCILIATIONS: Record<string, ["duplicate" | "update" | "contradi
   "I'm currently working on a Go-variant engine called Kite.": ["update", "I'm currently working on a self-play trainer for Lantern."],
 };
 
-/** The `map` role's background seeding for Lin Qiao's master's program. */
+const core = (name: string, definition: string, examples: string[], depth: number, reason: string) => ({ name, definition, examples, depth, reason });
+
+/** The `map` role's background seeding for Lin Qiao's master's program (and any degree, in the demo). */
 export const SEED = {
-  field: { name: "Computer science", definition: "The study of computation and its applications." },
+  field: core("Computer science", "The study of computation and its applications.", ["algorithms", "systems", "machine learning", "theory"], 2, "a CS master's degree covers the field"),
   core: [
-    { name: "Algorithms", definition: "Designing and analyzing step-by-step procedures." },
-    { name: "Systems", definition: "How computers, operating systems and networks work." },
-    { name: "Machine learning", definition: "Learning models from data." },
-    { name: "Theory of computation", definition: "What can be computed, and how efficiently." },
-    { name: "Software engineering", definition: "Building and maintaining software." },
+    core("Algorithms", "Designing and analyzing step-by-step procedures.", ["sorting", "graph algorithms", "dynamic programming"], 2, "a required course in a CS master's"),
+    core("Systems", "How computers, operating systems and networks work.", ["operating systems", "networking", "concurrency"], 2, "a required course in a CS master's"),
+    core("Machine learning", "Learning models from data.", ["supervised learning", "neural networks", "reinforcement learning"], 2, "a core area of a CS master's"),
+    core("Theory of computation", "What can be computed, and how efficiently.", ["automata", "computability", "complexity classes"], 2, "a required course in a CS master's"),
+    core("Software engineering", "Building and maintaining software.", ["version control", "testing", "software design"], 2, "a required course in a CS master's"),
   ],
+  evidence: "background" as const,
+};
+
+/** The demo's seeding for game-AI work. */
+export const GAME_SEED = {
+  field: core("Game AI", "Programs that play games.", ["game-tree search", "Monte Carlo tree search", "self-play"], 3, "you build AIs for games"),
+  core: [
+    core("Monte Carlo tree search", "Search guided by random playouts.", ["UCT", "rollouts", "progressive widening"], 3, "the search behind most modern game engines"),
+    core("Self-play training", "Agents that learn by playing themselves.", ["AlphaZero", "policy iteration", "replay buffers"], 3, "how game engines like yours are trained"),
+    core("Reinforcement learning", "Learning to act from rewards.", ["Markov decision processes", "Q-learning", "policy gradients"], 2, "self-play training is reinforcement learning"),
+  ],
+  evidence: "work" as const,
+};
+
+/** The demo's seeding for research in reinforcement learning or robotics. */
+export const RL_SEED = {
+  field: core("Machine learning", "Learning models from data.", ["supervised learning", "neural networks", "reinforcement learning"], 3, "your research is in machine learning"),
+  core: [
+    core("Reinforcement learning", "Learning to act from rewards.", ["Markov decision processes", "Q-learning", "policy gradients"], 3, "you research reinforcement learning"),
+    core("Neural networks", "Models built from layers of learned functions.", ["backpropagation", "transformers", "SGD and Adam"], 3, "modern RL research runs on neural networks"),
+    core("Probability and statistics", "Reasoning about uncertainty and data.", ["random variables", "expectation", "Bayes' rule"], 2, "RL is built on probability"),
+  ],
+  evidence: "work" as const,
 };
 
 /**
@@ -152,7 +177,7 @@ export const HYPOTHESES = {
 };
 
 type Part = [name: string, definition: string, level: number, examples: string[]];
-/** The demo's splits: concrete parts, named by content, each with what it includes. Anything else gets `fallbackSplit`. */
+/** The demo's splits: concrete parts, named by content, each with what it includes. Other concepts have no parts in the demo. */
 export const SPLITS: Record<string, Part[]> = {
   Algorithms: [
     ["Sorting and searching", "Putting data in order and finding things in it.", 1, ["quicksort", "mergesort", "binary search", "heaps"]],
@@ -214,13 +239,3 @@ export const SPLITS: Record<string, Part[]> = {
     ["Language semantics", "What programs mean, precisely.", 4, ["operational semantics", "lambda calculus", "type soundness"]],
   ],
 };
-
-/** A demo split for a topic with no hand-written one: generic, but named by content. */
-export function fallbackSplit(topic: string): Part[] {
-  return [
-    [`Core ideas of ${topic}`, `The ideas everyone who has met ${topic} knows.`, 1, [`what ${topic} is for`, `the standard vocabulary of ${topic}`, `a first worked example`]],
-    [`Everyday ${topic} techniques`, `What people who use ${topic} do day to day.`, 2, [`the common techniques`, `the usual tools`, `typical pitfalls`]],
-    [`The theory behind ${topic}`, `Why ${topic} works.`, 3, [`the main results`, `their proofs`, `known limits`]],
-    [`Research questions in ${topic}`, `What is still open in ${topic}.`, 4, [`recent papers`, `open problems`, `competing approaches`]],
-  ];
-}

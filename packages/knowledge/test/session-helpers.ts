@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { ScriptedLLM, type GenerateObjectRequest } from "@standin/llm";
 import { openStore, type Store } from "@standin/store";
 import { MemorySink, Tracer } from "@standin/trace";
-import { CardSession, type CardSessionDeps } from "../src/index.ts";
+import { CardSession, skipIntro, type CardSessionDeps } from "../src/index.ts";
 
 export class FakeClock {
   constructor(public current = new Date("2026-10-01T12:00:00.000Z")) {}
@@ -22,16 +22,19 @@ export function models() {
   const handler = (req: GenerateObjectRequest<unknown>) => {
     if (req.purpose === "expand")
       return { components: ["one", "two", "three", "four"].map((n, i) => ({ name: `${topic(req.prompt)} ${n}`, definition: ".", level: i + 1, examples: ["a", "b", "c"].map((e) => `${n} ${e}`) })), prerequisites: [] };
-    if (req.purpose === "seed") return { field: { name: "F", definition: "." }, core: [] };
+    if (req.purpose === "seed") return { field: { name: "F", definition: ".", depth: 3, reason: "your introduction says so" }, core: [], evidence: "work" };
+    if (req.purpose === "intro") return { statements: (/<introduction>\n([\s\S]*)\n<\/introduction>/.exec(req.prompt)?.[1] ?? "").split(/(?<=\.)\s+/) };
     if (req.purpose === "home") return { homes: [] };
     return { merges: [], placements: [] };
   };
   return { map: new ScriptedLLM(handler) };
 }
 
-export function world(o: { failing?: boolean } = {}) {
+/** A temp instance; it has skipped the introduction unless `intro` is set. */
+export function world(o: { failing?: boolean; intro?: boolean } = {}) {
   const clock = new FakeClock();
   const store = openStore({ path: join(mkdtempSync(join(tmpdir(), "standin-session-")), "db"), clock });
+  if (!o.intro) skipIntro(store);
   const sink = new MemorySink();
   const tracer = new Tracer({ sinks: [sink], clock });
   const m = models();

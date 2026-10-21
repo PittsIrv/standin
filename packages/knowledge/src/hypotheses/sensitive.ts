@@ -12,7 +12,7 @@ export const SENSITIVE_CATEGORIES: Record<string, string[]> = {
   religion: [
     "torah", "talmud", "bible study", "quran", "koran", "islamic", "muslim", "christian", "catholic", "protestant", "evangelical",
     "jewish", "judaism", "hindu", "hinduism", "buddhist", "buddhism", "sikh", "mormon", "church", "mosque", "synagogue",
-    "prayer", "worship", "religious", "religion", "scripture",
+    "pray", "prays", "praying", "prayer", "prayers", "worship", "religious", "religion", "scripture",
   ],
   sexuality: ["lgbtq", "lgbt", "gay", "lesbian", "bisexual", "queer", "homosexual", "sexual orientation", "coming out"],
   "gender identity": ["transgender", "gender identity", "nonbinary", "non-binary", "gender transition"],

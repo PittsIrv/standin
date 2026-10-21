@@ -24,6 +24,7 @@ export const SourceKind = z.enum([
   "claude-export",
   "demo",
   "probe",
+  "intro",
 ]);
 export type SourceKind = z.infer<typeof SourceKind>;
 

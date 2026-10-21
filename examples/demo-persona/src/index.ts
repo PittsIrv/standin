@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { ScriptedLLM, type GenerateObjectRequest } from "@standin/llm";
 import { defaultRoot, type EntityKind, type ObservationInput } from "@standin/schema";
-import { EXTRACTIONS, fallbackSplit, HYPOTHESES, PLACEMENTS, RECONCILIATIONS, SEED, SPLITS } from "./fixtures.ts";
+import { EXTRACTIONS, GAME_SEED, HYPOTHESES, PLACEMENTS, RECONCILIATIONS, RL_SEED, SEED, SPLITS } from "./fixtures.ts";
 
 export const DEMO_PERSONA_NAME = "Lin Qiao";
 
@@ -52,9 +52,9 @@ function homes(prompt: string) {
 
 const topicOf = (prompt: string) => /^Topic: ([^(\n]+)/m.exec(prompt)?.[1]?.trim() ?? "the topic";
 
-/** The demo's expansion: a hand-written split when there is one, else a generic one; no prerequisites. */
+/** The demo's expansion: its hand-written split, or no parts (so the walk stops there); no prerequisites. */
 function expansion(topic: string) {
-  const parts = SPLITS[topic] ?? fallbackSplit(topic);
+  const parts = SPLITS[topic] ?? [];
   return { components: parts.map(([name, definition, level, examples]) => ({ name, definition, level, examples })), prerequisites: [] };
 }
 
@@ -71,13 +71,29 @@ function grade(prompt: string) {
   return answer.trim().split(/\s+/).length >= 4 ? { grade: "pass", reason: "demo: substantive answer" } : { grade: "fail", reason: "demo: too short" };
 }
 
+/** The demo's reading of an introduction: one statement per sentence. */
+function intro(prompt: string) {
+  const text = /<introduction>\n([\s\S]*)\n<\/introduction>/.exec(prompt)?.[1] ?? "";
+  return { statements: text.split(/(?<=[.!?])\s+|\n+/).map((s) => s.trim()).filter(Boolean) };
+}
+
+/** The demo's seeding, by keyword: a degree, game AI, RL or robotics research; anything else implies no field. */
+function seed(prompt: string) {
+  const statement = /^Background: (.*)$/m.exec(prompt)?.[1] ?? "";
+  if (/reinforcement|\bRL\b|robot/i.test(statement)) return RL_SEED;
+  if (/\bgames?\b|\bGo\b|chess|poker|board/i.test(statement)) return GAME_SEED;
+  if (/master|degree|student|bachelor|PhD|computer science|\bCS\b/i.test(statement)) return SEED;
+  return { field: null, core: [], evidence: "background" };
+}
+
 /** A ScriptedLLM that answers with the demo persona's hand-written fixtures. */
 export function demoLLM(): ScriptedLLM {
   return new ScriptedLLM((req: GenerateObjectRequest<unknown>) => {
     if (req.purpose === "extract") {
       return EXTRACTIONS[observationText(req.prompt)] ?? { memories: [], exemplars: [] };
     }
-    if (req.purpose === "seed") return SEED;
+    if (req.purpose === "seed") return seed(req.prompt);
+    if (req.purpose === "intro") return intro(req.prompt);
     if (req.purpose === "expand") return expansion(topicOf(req.prompt));
     if (req.purpose === "quiz") return probes(topicOf(req.prompt), req.prompt);
     if (req.purpose === "grade") return grade(req.prompt);

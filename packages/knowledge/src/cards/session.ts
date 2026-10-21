@@ -6,6 +6,7 @@ import { cells, loadPriors, outcomeOf, probabilityOf } from "../hypotheses/calib
 import { expandNode } from "../probing/expand.ts";
 import { syncStatedGaps } from "../gaps.ts";
 import { computeLighting } from "../lighting.ts";
+import { needsIntro, readIntro, saveIntro, skipIntro } from "../intro.ts";
 import { refresh } from "../refresh.ts";
 import { loadSnapshot, type TreeSnapshot } from "../snapshot.ts";
 import { statementFor } from "../wording.ts";
@@ -82,23 +83,50 @@ export class CardSession {
     const { store } = deps;
     for (const s of store.listSessions()) if (s.endedAt === null) store.endSession(s.id);
     const session = new CardSession(deps, store.startSession(0).id);
-    await session.traced("start", async () => {
-      try {
-        const report = await refresh({
-          store,
-          map: deps.map,
-          tracer: deps.tracer,
-          personaName: deps.personaName,
-          splitAt: deps.splitAt,
-          hypothesize: deps.hypothesize,
-          hypotheses: deps.hypotheses,
-        });
-        session.warnings.push(...report.warnings);
-      } catch (err) {
-        session.warnings.push(`refreshing the tree failed: ${err instanceof Error ? err.message : String(err)}`);
-      }
-    });
+    await session.traced("start", () => session.refreshTree());
     return session;
+  }
+
+  /** Seed, place, home, split, record gaps and guess: a failure is a warning, never the end of the session. */
+  private async refreshTree(): Promise<void> {
+    const d = this.deps;
+    try {
+      const report = await refresh({
+        store: d.store,
+        map: d.map,
+        tracer: d.tracer,
+        personaName: d.personaName,
+        splitAt: d.splitAt,
+        hypothesize: d.hypothesize,
+        hypotheses: d.hypotheses,
+      });
+      this.warnings.push(...report.warnings);
+    } catch (err) {
+      this.warnings.push(`refreshing the tree failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  /** True while the session should open with the introduction (spec §6a). */
+  needsIntro(): boolean {
+    return needsIntro(this.deps.store);
+  }
+
+  /** The introduction read into statements for the person to confirm; nothing is stored. */
+  readIntro(text: string): Promise<string[]> {
+    return this.traced("intro.read", () => readIntro(this.deps.map, text, this.deps.personaName));
+  }
+
+  /** Stores the confirmed statements as background, then refreshes the tree so their guesses come next. */
+  async introduce(text: string, statements: string[]): Promise<{ saved: number; dropped: string[] }> {
+    return this.traced("intro.save", async () => {
+      const { saved, dropped } = saveIntro(this.deps.store, text, statements);
+      if (saved.length > 0) await this.refreshTree();
+      return { saved: saved.length, dropped };
+    });
+  }
+
+  skipIntro(): void {
+    skipIntro(this.deps.store);
   }
 
   private snapshot(): TreeSnapshot {

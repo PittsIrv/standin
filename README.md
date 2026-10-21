@@ -108,13 +108,14 @@ pnpm standin review        # the review page: rate concepts, then look at and ed
 
 `standin review` opens a private page on your machine (`--lan` adds a QR code for your phone). There are no quizzes: you tell the standin how well you know each concept, one click per card.
 
-- **A card is a concept** with its definition and its place in the tree. Answer **Expert / Know well / Used it / Heard of it / No** (keys `4`–`0`), or **Wouldn't say** (`w`), which puts a boundary on it.
+- **It starts with you.** Until the standin knows your background, the page opens with one box: introduce yourself in a few sentences. The `map` model reads it into short statements; you fix or remove any, then approve them. Each becomes a background fact, and each fact becomes **guesses** (never lighting) at the depth the model thinks fits, with its reason: "I research RL" guesses RL at "Know well". Sensitive subjects are never read out or guessed. Skip it if you like, or add to it any time.
+- **A card is a concept** with its definition, **what it includes** (the concrete things it covers), its place in the tree, and, for a guess, why the standin guessed it. Answer **Expert / Know well / Used it / Heard of it / No** (keys `4`–`0`), or **Wouldn't say** (`w`), which puts a boundary on it.
 - **Your answer lights its whole branch.** Expert and No settle it. A middle answer opens the concept's parts, but only parts up to one level above your answer: "Heard of it" on RL asks about rewards and policies, never async RL. "Skip the rest" (`s`) stops there.
 - **What comes first:** the standin's guesses (the ones it's least sure of), then the parts your answers opened, then areas you haven't talked about. Your claims are never asked again. If you rate parts of a claim lower than the claim, you choose to **keep** it or **lower** it.
-- **Splits are made once, on demand,** by the `map` model: 3–7 non-overlapping parts, each with a definition and a level, checked in code. Your edits in the forest always win.
+- **Splits are made once, on demand,** by the `map` model: 3–7 non-overlapping parts, each with a definition, a level and 3–5 examples. Parts are named by content ("Network flow and matching"), never by difficulty ("Advanced algorithms"); code refuses names like that. Your edits in the forest always win.
 - **Predict, then learn.** Before each card the standin records what it expected you to say. `standin map` reports how often that matched; each answer then teaches the guesses.
 
-The **Forest** tab draws the whole tree: lit nodes glow brighter the deeper they go, guesses are dashed and filled by their probability, dark ones are gray. Click a node for its facts, its guess and evidence, and what you've said about it; rename, move, add a child, delete, unlink, or refile a fact from there, or drag a node onto another to move it.
+The **Forest** tab draws the whole tree: lit nodes glow brighter the deeper they go, guesses are dashed and filled by their probability, dark ones are gray. Click a node for its facts, its guess and evidence, and what you've said about it; rename, describe (definition and what it includes), move, add a child, delete, unlink, or refile a fact from there, or drag a node onto another to move it.
 
 ## Choosing models: roles and tiers
 

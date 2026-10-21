@@ -20,6 +20,7 @@ export interface QueueCard {
 }
 
 export type Card =
+  | { type: "intro" }
   | { type: "card"; card: ShownCard }
   | { type: "keep-lower"; decision: ClaimDecision }
   | { type: "proposal"; item: QueueCard }
@@ -42,12 +43,13 @@ export function queueCard(store: Store, i: ReviewItem): QueueCard {
 }
 
 /**
- * The one card to show now, first match wins (concept-cards spec §4): the card on screen (so a reload shows it
- * again), a keep-or-lower decision, the next concept card, the review queue, then done.
+ * The one card to show now, first match wins (concept-cards spec §4, §6a): the card on screen (so a reload shows it
+ * again), the introduction, a keep-or-lower decision, the next concept card, the review queue, then done.
  */
 export async function nextCard(session: CardSession, store: Store, config: Config): Promise<Card> {
   const current = session.current();
   if (current) return { type: "card", card: current };
+  if (session.needsIntro()) return { type: "intro" };
   const decision = session.keepLowerDue();
   if (decision) return { type: "keep-lower", decision };
   const card = await session.next();
