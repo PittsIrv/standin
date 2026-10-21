@@ -2,7 +2,6 @@ export { loadSnapshot, usableProbe, type TreeSnapshot } from "./snapshot.ts";
 export { computeLighting, SEED_DEPTH, type RuleValue } from "./lighting.ts";
 export { answerMode, modeFor, type AnswerDecision, type AnswerMode } from "./answer.ts";
 export { STATED_GAP_LEVEL, syncStatedGaps } from "./gaps.ts";
-export { proposeLighting, proposeNode, type ProposalReport } from "./proposals.ts";
 export { gapStatement, statementFor } from "./wording.ts";
 export { buildHomePrompt, buildPlacePrompt, buildSeedPrompt, buildSplitPrompt, outline } from "./prompts.ts";
 export { HomeSchema, PlaceSchema, SeedSchema, SplitSchema, type Home, type Place, type Seed, type Split } from "./schemas.ts";
@@ -27,7 +26,6 @@ export {
   type SessionDeps,
   type ShownProbe,
 } from "./probing/session.ts";
-export { discoveryProposals, EXPERT_PASSES } from "./probing/discovery.ts";
 export { calibration, type Calibration, type SetScore } from "./probing/calibration.ts";
 export { nodeStatus, renderForest, treeNodes, type TreeNode } from "./tree-view.ts";
 export { isSensitive, SENSITIVE_CATEGORIES } from "./hypotheses/sensitive.ts";

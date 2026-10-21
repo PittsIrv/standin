@@ -33,17 +33,16 @@ function setup(handler: (req: GenerateObjectRequest<unknown>) => unknown) {
 }
 
 describe("refresh", () => {
-  it("seeds from a background fact and proposes its core topics at 2", async () => {
+  it("seeds from a background fact: its field and core topics become probable at 2, once", async () => {
     const t = setup((req) => (req.purpose === "seed" ? SEED : { merges: [], placements: [] }));
     t.approve("fact", "I'm a CS master's student at CMU.", { background: true });
     const report = await t.run();
     expect(report.seeded).toEqual(["Computer science"]);
-    // The field and its 5 core topics, all at 2: background means working knowledge of the field as a whole.
-    expect(report.proposed).toBe(6);
-    expect(t.store.listMemories({ status: "proposed" }).map((m) => m.statement)).toContain("I've used Computer science and can get things done with it.");
-    const names = t.store.listMemories({ status: "proposed" }).map((m) => m.statement);
-    expect(names).toContain("I've used Algorithms and can get things done with it.");
-    expect((await t.run()).proposed).toBe(0);
+    // The field and its 5 core topics, all guessed at 2: background means working knowledge of the field as a whole.
+    expect(t.store.listHypotheses().map((h) => [t.store.getTopic(h.nodeId).name, h.depth, h.kind])).toContainEqual(["Algorithms", 2, "background"]);
+    expect(t.store.listHypotheses()).toHaveLength(6);
+    await t.run();
+    expect(t.store.listHypotheses()).toHaveLength(6);
     expect(t.llm.calls.filter((c) => c.purpose === "seed")).toHaveLength(1);
   });
 
@@ -100,14 +99,14 @@ describe("refresh", () => {
     expect(t.store.listTopics().map((x) => x.name)).not.toContain("Other topics");
   });
 
-  it("records a stated gap under a node the rules light, before that lighting is approved", async () => {
+  it("records a stated gap under a lit node", async () => {
     const t = setup(() => ({ merges: [], placements: [] }));
     const gameAI = t.store.ensureTopic("Game AI");
     const chess = t.store.ensureTopic("chess engines");
     const play = t.store.ensureTopic("game-playing AI");
     t.store.addEdge({ from: chess.id, to: gameAI.id, kind: "part_of", source: "placement" });
     t.store.addEdge({ from: play.id, to: gameAI.id, kind: "part_of", source: "placement" });
-    t.approve("competence", "I build game-playing AI.", { domain: "game-playing AI", depth: 3 }, ["game-playing AI"]);
+    t.approve("competence", "I know game AI well.", { domain: "Game AI", depth: 3 }, ["Game AI"]);
     t.approve("negative", "I don't know much about chess engines.", {}, ["chess engines"]);
     const report = await t.run();
     expect(report.gaps).toBe(1);
@@ -115,7 +114,7 @@ describe("refresh", () => {
     expect(answerMode(loadSnapshot(t.store), chess.id)).toMatchObject({ mode: "decline", from: { via: "gap" } });
   });
 
-  it("still finds gaps and proposes when the map model fails", async () => {
+  it("still finds gaps when the map model fails", async () => {
     const t = setup(() => {
       throw new Error("overloaded");
     });

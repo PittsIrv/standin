@@ -2,6 +2,7 @@ import type { LLM } from "@standin/llm";
 import type { EntityKind, Topic } from "@standin/schema";
 import { CycleError, normalizeName, type Store } from "@standin/store";
 import { buildPlacePrompt, buildSeedPrompt, outline } from "./prompts.ts";
+import { SEED_DEPTH } from "./lighting.ts";
 import { PlaceSchema, SeedSchema } from "./schemas.ts";
 
 /**
@@ -79,11 +80,18 @@ export async function seedBackground(store: Store, model: LLM, personaName: stri
       const field = store.ensureTopic(seed.field.name, seed.field.definition);
       if (!field.seedMemoryId && !field.deletedAt) store.setTopic(field.id, { seedMemoryId: fact.id });
       store.addEdge({ from: field.id, to: store.root("knowledge").id, kind: "part_of", source: "seeding" });
+      // Background means probably working knowledge of the field and its core: guesses, until probes say so.
+      const guess = (nodeId: string, path: string[]) => {
+        if (store.listHypotheses({ nodeId }).some((h) => h.status !== "withdrawn")) return;
+        store.insertHypothesis({ nodeId, depth: SEED_DEPTH, rawScore: "medium", kind: "background", path, reason: `core of your background: ${fact.statement}` });
+      };
+      if (!field.deletedAt) guess(field.id, [field.id]);
       for (const c of seed.core) {
         const core = store.ensureTopic(c.name, c.definition);
         if (core.deletedAt || core.id === field.id) continue;
         if (!core.seedMemoryId) store.setTopic(core.id, { seedMemoryId: fact.id });
         store.addEdge({ from: core.id, to: field.id, kind: "part_of", source: "seeding" });
+        guess(core.id, [field.id, core.id]);
       }
     });
     seeded.push(seed.field.name);

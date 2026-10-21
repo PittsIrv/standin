@@ -46,7 +46,8 @@ async function refreshTree(ctx: CommandContext): Promise<number> {
       `placed ${report.placed} node${report.placed === 1 ? "" : "s"}, merged ${report.merged}${report.refused.length > 0 ? `, refused (would make a cycle): ${report.refused.join(", ")}` : ""}`,
       `homed ${report.homed} memor${report.homed === 1 ? "y" : "ies"}${report.split.length > 0 ? `, split ${report.split.join(", ")}` : ""}`,
       `recorded ${report.gaps} stated gap${report.gaps === 1 ? "" : "s"}`,
-      `proposed ${report.proposed} lighting change${report.proposed === 1 ? "" : "s"}${report.replaced > 0 ? ` (replacing ${report.replaced})` : ""}`,
+      `hypotheses: +${report.hypotheses.added}, withdrawn ${report.hypotheses.withdrawn}, rejected ${report.hypotheses.rejected.length}`,
+      ...report.hypotheses.rejected.map((r) => `  rejected ${r}`),
       ...report.warnings.map((w) => `warning: ${w}`),
     ];
     if (run) lines.push(`cost ${fmtUsd(run.costUsd)}${run.unpricedCalls > 0 ? ` (+${run.unpricedCalls} unpriced calls)` : ""}`);

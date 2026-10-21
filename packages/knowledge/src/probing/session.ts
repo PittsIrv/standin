@@ -7,7 +7,6 @@ import { refresh } from "../refresh.ts";
 import { loadSnapshot, usableProbe } from "../snapshot.ts";
 import { statementFor } from "../wording.ts";
 import { expandNode } from "./expand.ts";
-import { discoveryProposals } from "./discovery.ts";
 import { collectGrades, submitGrades } from "./grade.ts";
 import { nextTarget, type ProbeState, type Target } from "./plan.ts";
 import { writeProbes } from "./quiz.ts";
@@ -39,7 +38,8 @@ export interface ShownProbe {
 export interface FinishReport {
   released: number;
   exemplars: number;
-  discoveryProposals: number;
+  /** Hypotheses this session's answers settled. */
+  settled: number;
   gradingSubmitted: number;
 }
 
@@ -89,7 +89,6 @@ export class ProbeSession {
       session.releaseAndDefer(unfinished.map((s) => s.id));
       for (const s of unfinished) store.endSession(s.id);
       await session.attempt("collecting grades", () => collectGrades(store, deps.grade));
-      discoveryProposals(store, loadSnapshot(store));
       await session.attempt("refreshing the tree", async () => {
         const report = await refresh({ store, map: deps.map, tracer: deps.tracer, personaName: deps.personaName });
         session.warnings.push(...report.warnings);
@@ -261,9 +260,8 @@ export class ProbeSession {
         const g = await submitGrades(store, this.deps.grade, this.deps.personaName);
         gradingSubmitted = g.submitted + g.gradedLive;
       });
-      const proposals = discoveryProposals(store, loadSnapshot(store)).length;
       store.endSession(this.sessionId);
-      return { released, exemplars, discoveryProposals: proposals, gradingSubmitted };
+      return { released, exemplars, settled: 0, gradingSubmitted };
     });
   }
 
