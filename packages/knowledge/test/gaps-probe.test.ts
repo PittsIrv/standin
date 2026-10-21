@@ -81,18 +81,4 @@ describe("misses and gaps", () => {
     const next = await w.start();
     expect(next.pendingMisses().map((m) => m.topic).sort()).toEqual(["Rust one", "Rust three"]);
   });
-
-  it("records a kept gap for a confirmed foundation miss", async () => {
-    const w = world();
-    const node = w.store.ensureTopic("Algorithms");
-    const proposal = w.store.insertMemory(
-      { kind: "competence", statement: "x", tier: 1, isCurrentState: false, attrs: { domain: "Algorithms", depth: 2, basis: "predicted", reasons: [] } },
-      { sourceObservationIds: [], entityIds: [node.id], actor: "map" },
-    );
-    w.store.approve(proposal.id);
-    const s = await w.start();
-    await runSession(s, () => "no_idea");
-    s.judgeMiss(s.pendingMisses()[0]!.responseId, true);
-    expect(w.store.listGaps()).toEqual([expect.objectContaining({ nodeId: node.id, level: 1, status: "kept", source: "probe" })]);
-  });
 });

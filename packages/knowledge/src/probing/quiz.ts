@@ -17,7 +17,16 @@ export function assignHoldout(rng: () => number): Holdout {
 export async function writeProbes(
   store: Store,
   quiz: LLM,
-  o: { nodeId: string; difficulty: number; kind: ProbeKind; checkOf: string | null; count: number; rng: () => number; personaName?: string },
+  o: {
+    nodeId: string;
+    difficulty: number;
+    kind: ProbeKind;
+    checkOf: string | null;
+    count: number;
+    rng: () => number;
+    personaName?: string;
+    hypothesisId?: string | null;
+  },
 ): Promise<Probe[]> {
   const node = store.getTopic(o.nodeId);
   const parentEdge = store.listEdges("part_of").find((e) => e.from === o.nodeId);
@@ -32,6 +41,14 @@ export async function writeProbes(
     .filter((q) => q.length > 0)
     .slice(0, o.count)
     .map((question) =>
-      store.insertProbe({ nodeId: o.nodeId, checkOf: o.checkOf, kind: o.kind, difficulty: o.difficulty, question, holdout: assignHoldout(o.rng) }),
+      store.insertProbe({
+        nodeId: o.nodeId,
+        checkOf: o.checkOf,
+        kind: o.kind,
+        difficulty: o.difficulty,
+        question,
+        holdout: assignHoldout(o.rng),
+        hypothesisId: o.hypothesisId ?? null,
+      }),
     );
 }

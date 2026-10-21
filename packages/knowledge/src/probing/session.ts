@@ -7,6 +7,7 @@ import { refresh } from "../refresh.ts";
 import { loadSnapshot, usableProbe } from "../snapshot.ts";
 import { statementFor } from "../wording.ts";
 import { expandNode } from "./expand.ts";
+import { cells, loadPriors, outcomeOf, probabilityOf } from "../hypotheses/calibrate.ts";
 import { collectGrades, submitGrades } from "./grade.ts";
 import { nextTarget, type ProbeState, type Target } from "./plan.ts";
 import { writeProbes } from "./quiz.ts";
@@ -77,6 +78,8 @@ export const usable = usableProbe;
 export class ProbeSession {
   readonly warnings: string[] = [];
   private readonly skip = new Set<string>();
+  /** Hypotheses this session's answers settled. */
+  private settledHere = 0;
 
   private constructor(
     private readonly deps: SessionDeps,
@@ -133,8 +136,11 @@ export class ProbeSession {
           this.skip.add(`${target.kind}:${target.nodeId}`);
           continue;
         }
-        const mode = answerMode(t, target.nodeId).mode;
-        const response = store.showProbe(probe.id, this.sessionId, mode);
+        const mode = answerMode(t, target.nodeId, { speakAt: this.deps.hypotheses?.speakAt }).mode;
+        // A guess's probability is stored before the rating, so the Brier safeguard scores what was believed then.
+        const guess = target.kind === "hypothesis" ? t.hypotheses.get(target.nodeId) : undefined;
+        const priorP = guess ? probabilityOf({ kind: guess.kind as never, rawScore: guess.rawScore as never }, cells(store, loadPriors(store)), { safeguard: true }) : null;
+        const response = store.showProbe(probe.id, this.sessionId, mode, guess && priorP !== null ? { predictedP: guess.p, priorP } : undefined);
         return {
           responseId: response.id,
           nodeId: target.nodeId,
@@ -154,12 +160,13 @@ export class ProbeSession {
   rate(responseId: string, rating: Rating): { spotCheck: boolean } {
     const { store, rng } = this.deps;
     const probe = store.getProbe(store.getResponse(responseId).probeId);
-    // Discovery at 4 always asks: expert needs two passed spot-checks there.
-    const expertCheck = probe.kind === "discovery" && probe.difficulty === 4;
+    // A guess at 4 always asks: expert needs two passed spot-checks there.
+    const expertCheck = (probe.kind === "hypothesis" || probe.kind === "discovery") && probe.difficulty === 4;
     const spotCheck = (rating === "know" || rating === "roughly") && (expertCheck || rng() < SPOT_CHECK_RATE);
     store.rateResponse(responseId, rating, spotCheck);
     if (rating === "wouldnt_say") store.setTopic(probe.nodeId, { boundaryTier: 3 });
     if (probe.kind === "followup") this.settleGap(probe, rating);
+    if (probe.hypothesisId) this.settleHypothesis(probe.hypothesisId, rating === "wouldnt_say");
     return { spotCheck };
   }
 
@@ -274,11 +281,25 @@ export class ProbeSession {
         gradingSubmitted = g.submitted + g.gradedLive;
       });
       store.endSession(this.sessionId);
-      return { released, exemplars, settled: 0, gradingSubmitted };
+      return { released, exemplars, settled: this.settledHere, gradingSubmitted };
     });
   }
 
   // ---- internals ------------------------------------------------------------
+
+  /** Settles a guess once its usable answers decide it; "wouldn't say" withdraws it (the boundary already applies). */
+  private settleHypothesis(hypothesisId: string, withdraw: boolean): void {
+    const { store } = this.deps;
+    const h = store.getHypothesis(hypothesisId);
+    if (h.status !== "open") return;
+    if (withdraw) {
+      store.withdrawHypothesis(h.id);
+      return;
+    }
+    if (outcomeOf(h, store.listResponses({ rated: true })) === null) return;
+    store.settleHypothesis(h.id);
+    this.settledHere++;
+  }
 
   /** The follow-up for a gap sets its level: one below the miss if known, two below if missed too. */
   private settleGap(followup: Probe, rating: Rating): void {
@@ -317,8 +338,10 @@ export class ProbeSession {
   private async probeFor(target: Target): Promise<Probe | null> {
     const { store } = this.deps;
     const checkOf = target.kind === "claim" || target.kind === "followup" ? target.checkOf : null;
+    const hypothesisId = target.kind === "hypothesis" ? target.hypothesisId : null;
     const shown = new Set(store.listResponses().map((r) => r.probeId));
-    const fits = (p: Probe) => p.kind === target.kind && p.difficulty === target.difficulty && p.checkOf === checkOf && !shown.has(p.id);
+    const fits = (p: Probe) =>
+      p.kind === target.kind && p.difficulty === target.difficulty && p.checkOf === checkOf && p.hypothesisId === hypothesisId && !shown.has(p.id);
     const existing = store.listProbes({ nodeId: target.nodeId }).find(fits);
     if (existing) return existing;
     const written = await this.attempt(`writing a probe for ${store.getTopic(target.nodeId).name}`, () =>
@@ -330,6 +353,7 @@ export class ProbeSession {
         count: 1,
         rng: this.deps.rng,
         personaName: this.deps.personaName,
+        hypothesisId,
       }),
     );
     return written?.[0] ?? null;
@@ -340,6 +364,8 @@ export class ProbeSession {
     const { store } = this.deps;
     const released = store.releaseRotating(sessionIds);
     const ids = new Set(released.map((p) => p.id));
+    // Released held-out answers may now decide their guesses.
+    for (const p of released) if (p.hypothesisId) this.settleHypothesis(p.hypothesisId, false);
     let exemplars = 0;
     for (const r of store.listResponses().filter((x) => ids.has(x.probeId) && x.spotCheckAnswer && x.observationId)) {
       if (store.insertExemplar({ observationId: r.observationId!, text: r.spotCheckAnswer!, register: "casual" })) exemplars++;
