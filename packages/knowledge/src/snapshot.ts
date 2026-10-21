@@ -13,6 +13,8 @@ export interface TreeSnapshot {
   rootOf: Map<string, RootKey | null>;
   /** Ids of `topics`: nodes under Knowledge, plus unplaced nodes labeled `topic`. */
   knowledge: Set<string>;
+  /** Approved memories living in each node. */
+  homeFacts: Map<string, number>;
   /** part_of: child → parent. */
   parentOf: Map<string, string>;
   /** requires: [advanced, foundation]. */
@@ -74,9 +76,13 @@ export function loadSnapshot(store: Store): TreeSnapshot {
     topicIds: store.memoryEntities(m.id).filter((e) => e.kind === "topic" && topics.has(e.id)).map((e) => e.id),
   }));
 
+  const homeFacts = new Map<string, number>();
+  for (const m of store.listMemories({ status: "approved" })) if (m.homeNodeId) homeFacts.set(m.homeNodeId, (homeFacts.get(m.homeNodeId) ?? 0) + 1);
+
   return {
     topics,
     all,
+    homeFacts,
     roots,
     rootOf,
     knowledge,
