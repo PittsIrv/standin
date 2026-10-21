@@ -16,6 +16,28 @@ describe("a concept-card session", () => {
     expect(s.current()).toBeNull();
   });
 
+  it("says what a card includes: its examples, else its parts, and why a guess was made", async () => {
+    const w = world();
+    w.guess("Algorithms", 2);
+    const s = await w.start();
+    const guessCard = (await s.next())!;
+    expect(guessCard.why).toMatch(/.+/);
+    expect(guessCard.examples).toEqual([]);
+    s.answer(guessCard.responseId, 2);
+    const part = (await s.next())!;
+    expect(part).toMatchObject({ topic: "Algorithms one", examples: ["one a", "one b", "one c"], why: null });
+    // A concept with no examples of its own lists its parts instead.
+    w.node("Graphs");
+    for (const n of ["Shortest paths", "Spanning trees"]) w.store.addEdge({ from: w.store.ensureTopic(n).id, to: w.store.ensureTopic("Graphs").id, kind: "part_of", source: "person" });
+    s.answer(part.responseId, 0);
+    let card = await s.next();
+    while (card && card.topic !== "Graphs") {
+      s.answer(card.responseId, 0);
+      card = await s.next();
+    }
+    expect(card?.examples).toEqual(["Shortest paths", "Spanning trees"]);
+  });
+
   it("walks the parts a middle answer opens up, depth-first, and stops when told", async () => {
     const w = world();
     w.guess("Algorithms", 2);

@@ -1,6 +1,6 @@
 # Concept Cards
 
-**Status:** design, approved in conversation (decisions 56–64)
+**Status:** design, approved in conversation (decisions 56–68)
 
 **Replaces** probing by quiz. This covers:
 - knowledge-map §4.1–§4.8 (probes, claim checks, misses, follow-ups, spot-checks, held-out sets);
@@ -17,7 +17,7 @@ There is no honesty check, by design. The person's word is what the standin uses
 
 ## 2. The card
 
-A card shows one Knowledge concept: its name, its one-line definition, and its place in the tree. The answer is one click or key:
+A card shows one Knowledge concept: its name, its one-line definition, **what it includes**, and its place in the tree. "Includes" lists the concept's examples; a concept without stored examples (an older split, or a node placed from a memory) lists up to 5 of its parts instead. A guess also shows why it was guessed. The answer is one click or key:
 
 | Key | Answer | Lights the concept and its branch at |
 |---|---|---|
@@ -72,11 +72,22 @@ The quality of the cards is the quality of the splits.
 - **On demand, once.** The `map` role splits a concept the first time §3 needs its parts. The split is stored, reused and never regenerated.
 - **Strict shape.** A split has:
   - **3–7 parts** that don't overlap and together cover the concept;
-  - each part with a one-line definition and a **level** (1 basic to 4 expert);
+  - each part with a one-line definition, a **level** (1 basic to 4 expert), and **3–5 examples**: the concrete things it covers;
   - prerequisites where they matter.
-- **Checked in code.** The checks are the part count, duplicate names, missing or out-of-range levels, and a part equal to (or an alias of) its parent. A split that fails gets one retry, then is used as far as it is valid.
+- **Names say what, not how hard.** A part is named by its content ("Network flow and matching"), never by its difficulty or as a bucket ("Advanced algorithms", "Algorithm fundamentals", "Other topics"). The level carries difficulty.
+- **Checked in code.** The checks are the part count, duplicate names, missing or out-of-range levels, a part equal to (or an alias of) its parent, a name with a level or bucket word (advanced, basic, fundamentals, foundations, introduction, elementary, intermediate, beginner, other, miscellaneous, general), and fewer than 3 distinct examples (beyond 5 are cut). A split that fails gets one retry, then is used as far as it is valid.
 - **The person's edits win.** Renames, moves, deletions and added children in the forest editor are never undone by a split.
 - **Later, as their own sub-projects:** anchoring top levels on standard taxonomies (ACM CCS, CS2023, MSC), and a shared, privacy-free concept library.
+
+## 6a. The introduction
+
+The standin asks well only once it knows where to look. So before the first card, it asks for a short introduction.
+
+- **When.** The session opens with the introduction when nothing tells the standin about the person's background yet: no approved background fact and no seeded field. "Skip for now" goes straight to the cards. "Add to your introduction" stays on the Session tab, any time.
+- **One box.** "Introduce yourself in a few sentences: what you study or work on, and what you've done before." Up to 4,000 characters.
+- **Read, then confirm.** The `map` role reads the text into short statements (up to 12): education, roles, current work, things built, skills and interests. Sensitive categories are never read out, and statements that touch one are dropped in code. The person sees the statements on the same screen, edits or removes any, and approves them with "Looks right". Nothing is stored before that: the text then becomes an observation, and each statement an approved background fact.
+- **Into the tree as guesses.** Each confirmed statement seeds a field (or nothing, for a statement with no field of knowledge, such as having two cats) and the concepts it implies. Every one is a **guess**, never lighting: the first cards confirm them, one click each. The model picks each guess's **depth (1–4)** from what the statement says (current research → 3, a past course → 2, mentioned in passing → 1), with a one-line reason shown on the card. Evidence kind is `background` for education and `work` for work, so reliability counts calibrate each separately.
+- **Direction.** New areas (§4 step 4) start with seeded fields, then the rest by name.
 
 ## 7. Learning and scoring: predict, then learn
 
@@ -112,3 +123,7 @@ Continues from world-tree decision 55.
 | 62 | Session length | Until nothing is left | A fixed size |
 | 63 | Keep or lower | Kept, for parts rated below a claim; lower = the lowest part level | Dropping it |
 | 64 | Splits | The model on demand, in a strict shape checked in code, cached, with the person's edits winning | Taxonomy anchors now; a shared library now |
+| 65 | Concrete parts | 3–5 examples per part, shown as "Includes"; names by content, with level and bucket words refused in code | Examples only; listing the sibling parts |
+| 66 | Background first | A short introduction before the first card when no background is known; skippable, extendable later | Background only through the approval queue |
+| 67 | What the introduction becomes | Confirmed statements → background facts → guesses that the first cards confirm | Claims at a level read from wording; direction only |
+| 68 | Introduction trust and depth | Statements confirmed on the same screen; the model picks each guess's depth 1–4, with a reason | Automatic approval; the approval queue; always depth 2 |

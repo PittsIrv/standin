@@ -150,3 +150,77 @@ export const HYPOTHESES = {
   ],
   withdraw: [],
 };
+
+type Part = [name: string, definition: string, level: number, examples: string[]];
+/** The demo's splits: concrete parts, named by content, each with what it includes. Anything else gets `fallbackSplit`. */
+export const SPLITS: Record<string, Part[]> = {
+  Algorithms: [
+    ["Sorting and searching", "Putting data in order and finding things in it.", 1, ["quicksort", "mergesort", "binary search", "heaps"]],
+    ["Graph algorithms", "Exploring and optimizing over graphs.", 2, ["BFS and DFS", "Dijkstra's algorithm", "minimum spanning trees", "topological sort"]],
+    ["Dynamic programming", "Solving problems by combining answers to overlapping subproblems.", 2, ["knapsack", "edit distance", "longest common subsequence", "memoization"]],
+    ["Network flow and matching", "Maximum flows and matchings in graphs.", 3, ["max-flow/min-cut", "Ford–Fulkerson", "bipartite matching", "Hungarian algorithm"]],
+    ["Randomized and approximation algorithms", "Algorithms that use chance, or settle for near-optimal answers.", 4, ["randomized quicksort", "Karger's min cut", "set cover approximation", "PTAS"]],
+  ],
+  "Graph algorithms": [
+    ["Graph traversal", "Visiting every node of a graph in a systematic order.", 1, ["breadth-first search", "depth-first search", "connected components"]],
+    ["Shortest paths", "Finding the cheapest route between nodes.", 2, ["Dijkstra's algorithm", "Bellman–Ford", "A* search", "Floyd–Warshall"]],
+    ["Spanning trees", "Connecting all nodes at the lowest total cost.", 2, ["Kruskal's algorithm", "Prim's algorithm", "union–find"]],
+    ["Strongly connected components", "Groups of nodes that can all reach each other.", 3, ["Tarjan's algorithm", "Kosaraju's algorithm", "condensation graphs"]],
+  ],
+  Systems: [
+    ["Processes and threads", "How an operating system runs many programs at once.", 1, ["scheduling", "context switches", "fork and exec"]],
+    ["Memory management", "How programs get and share memory.", 2, ["virtual memory", "paging", "caches", "garbage collection"]],
+    ["Concurrency control", "Keeping shared data correct under parallel access.", 2, ["locks", "race conditions", "deadlock", "atomics"]],
+    ["Networking", "How computers talk to each other.", 2, ["TCP/IP", "sockets", "HTTP", "DNS"]],
+    ["Distributed systems", "Many machines acting as one system.", 4, ["consensus (Raft, Paxos)", "replication", "CAP theorem", "clock synchronization"]],
+  ],
+  "Machine learning": [
+    ["Supervised learning", "Learning to predict labels from examples.", 1, ["linear regression", "logistic regression", "decision trees", "train/test split"]],
+    ["Neural networks", "Models built from layers of learned functions.", 2, ["backpropagation", "convolutional networks", "transformers", "SGD and Adam"]],
+    ["Reinforcement learning", "Learning to act from rewards.", 2, ["Markov decision processes", "Q-learning", "policy gradients", "exploration vs. exploitation"]],
+    ["Probabilistic models", "Models that reason with uncertainty.", 3, ["Bayesian inference", "Gaussian mixtures", "hidden Markov models", "variational inference"]],
+    ["Learning theory", "When and why learning works.", 4, ["PAC learning", "VC dimension", "generalization bounds", "bias–variance tradeoff"]],
+  ],
+  "Reinforcement learning": [
+    ["Rewards and returns", "What the agent is trying to maximize.", 1, ["reward signals", "discounting", "episodes"]],
+    ["Value-based methods", "Learning how good states and actions are.", 2, ["Q-learning", "DQN", "temporal-difference learning"]],
+    ["Policy-gradient methods", "Learning the policy directly.", 3, ["REINFORCE", "actor–critic", "PPO"]],
+    ["Model-based RL and planning", "Learning a model of the world and planning with it.", 3, ["Dyna", "MuZero", "Monte Carlo tree search"]],
+    ["Distributed and asynchronous RL", "Training agents across many workers at once.", 4, ["A3C", "IMPALA", "Ape-X"]],
+  ],
+  "Theory of computation": [
+    ["Automata and regular languages", "Simple machines and the patterns they recognize.", 1, ["finite automata", "regular expressions", "pumping lemma"]],
+    ["Computability", "What computers can and cannot solve at all.", 2, ["Turing machines", "the halting problem", "reductions"]],
+    ["Complexity classes", "How hard problems are to solve.", 3, ["P vs NP", "NP-completeness", "PSPACE"]],
+    ["Approximation hardness", "How close to optimal we can hope to get.", 4, ["PCP theorem", "inapproximability", "unique games conjecture"]],
+  ],
+  "Software engineering": [
+    ["Version control", "Tracking and sharing changes to code.", 1, ["git", "branches", "pull requests"]],
+    ["Testing", "Checking that software does what it should.", 2, ["unit tests", "integration tests", "test-driven development"]],
+    ["Software design", "Structuring code so it can grow.", 2, ["modules and interfaces", "design patterns", "refactoring"]],
+    ["Reliability in production", "Keeping software running for real users.", 3, ["monitoring", "incident response", "continuous deployment"]],
+  ],
+  "Game AI": [
+    ["Game-tree search", "Looking ahead through possible moves.", 1, ["minimax", "alpha–beta pruning", "iterative deepening"]],
+    ["Monte Carlo tree search", "Search guided by random playouts.", 2, ["UCT", "rollouts", "progressive widening"]],
+    ["Evaluation functions", "Scoring a position without searching further.", 2, ["handcrafted features", "value networks", "endgame tables"]],
+    ["Self-play training", "Agents that learn by playing themselves.", 3, ["AlphaZero", "policy iteration", "replay buffers"]],
+    ["Imperfect-information games", "Games where players hide information.", 4, ["counterfactual regret minimization", "poker bots", "information sets"]],
+  ],
+  "Programming languages": [
+    ["Types", "Classifying values to catch mistakes.", 1, ["static vs. dynamic typing", "generics", "type inference"]],
+    ["Memory and ownership", "Who owns data, and when it is freed.", 2, ["garbage collection", "Rust's borrow checker", "reference counting"]],
+    ["Compilers", "Turning source code into running programs.", 3, ["parsing", "intermediate representations", "optimization passes"]],
+    ["Language semantics", "What programs mean, precisely.", 4, ["operational semantics", "lambda calculus", "type soundness"]],
+  ],
+};
+
+/** A demo split for a topic with no hand-written one: generic, but named by content. */
+export function fallbackSplit(topic: string): Part[] {
+  return [
+    [`Core ideas of ${topic}`, `The ideas everyone who has met ${topic} knows.`, 1, [`what ${topic} is for`, `the standard vocabulary of ${topic}`, `a first worked example`]],
+    [`Everyday ${topic} techniques`, `What people who use ${topic} do day to day.`, 2, [`the common techniques`, `the usual tools`, `typical pitfalls`]],
+    [`The theory behind ${topic}`, `Why ${topic} works.`, 3, [`the main results`, `their proofs`, `known limits`]],
+    [`Research questions in ${topic}`, `What is still open in ${topic}.`, 4, [`recent papers`, `open problems`, `competing approaches`]],
+  ];
+}

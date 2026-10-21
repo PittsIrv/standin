@@ -7,11 +7,30 @@ import { ExpandSchema } from "./schemas.ts";
 export const MIN_SPLIT = 3;
 export const MAX_SPLIT = 7;
 
-type Component = { name: string; definition: string; level: number };
+type Component = { name: string; definition: string; level: number; examples: string[] };
+
+export const MIN_EXAMPLES = 3;
+export const MAX_EXAMPLES = 5;
+/** Words that name a part by its difficulty or as a bucket, not by its content (spec §6). */
+const LEVEL_WORDS =
+  /(?<![\w-])(advanced|basics?|fundamentals?|foundations?|introduction|introductory|intro|elementary|intermediate|beginners?|other|misc|miscellaneous|general)(?![\w-])/i;
+
+/** A part's distinct examples (ignoring case, and its own name), at most 5. */
+const examplesOf = (c: Component): string[] => {
+  const seen = new Set([normalizeName(c.name)]);
+  const out: string[] = [];
+  for (const e of c.examples ?? []) {
+    const key = normalizeName(e);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(e.trim());
+  }
+  return out.slice(0, MAX_EXAMPLES);
+};
 
 /**
- * A split's shape, checked in code (concept-cards spec §6): 3–7 parts, each named once, none the concept itself (or
- * one of its names), each with a level 1–4. Returns the valid parts and what was wrong.
+ * A split's shape, checked in code (concept-cards spec §6): 3–7 parts, each named once by its content, none the
+ * concept itself (or one of its names), each with a level 1–4 and 3–5 examples. Returns the valid parts and what was wrong.
  */
 export function checkSplit(parent: Topic, components: Component[]): { ok: Component[]; problems: string[] } {
   const problems: string[] = [];
@@ -23,8 +42,10 @@ export function checkSplit(parent: Topic, components: Component[]): { ok: Compon
     if (!key) continue;
     if (own.has(key)) problems.push(`"${c.name}" is the concept itself`);
     else if (seen.has(key)) problems.push(`"${c.name}" is a duplicate`);
+    else if (LEVEL_WORDS.test(c.name)) problems.push(`"${c.name}" gives a level or a bucket: name the part so it describes its content`);
     else if (!Number.isInteger(c.level) || c.level < 1 || c.level > 4) problems.push(`"${c.name}" needs a level from 1 to 4`);
-    else ok.push(c);
+    else if (examplesOf(c).length < MIN_EXAMPLES) problems.push(`"${c.name}" needs ${MIN_EXAMPLES}–${MAX_EXAMPLES} concrete examples of what it covers`);
+    else ok.push({ ...c, examples: examplesOf(c) });
     seen.add(key);
   }
   if (ok.length < MIN_SPLIT || ok.length > MAX_SPLIT) problems.push(`a split needs ${MIN_SPLIT}–${MAX_SPLIT} parts (got ${ok.length} usable)`);
@@ -49,7 +70,7 @@ export async function expandNode(store: Store, map: LLM, nodeId: string, persona
   }
   const added = { components: [] as string[], prerequisites: [] as string[] };
   store.transaction(() => {
-    const link = (name: string, definition: string, kind: "part_of" | "requires", level?: number) => {
+    const link = (name: string, definition: string, kind: "part_of" | "requires", level?: number, examples: string[] = []) => {
       const isNew = store.findEntity({ name, kind: "topic" }) === null;
       const other = store.ensureTopic(name, definition);
       if (other.deletedAt || other.id === nodeId) return false;
@@ -61,10 +82,15 @@ export async function expandNode(store: Store, map: LLM, nodeId: string, persona
         throw err;
       }
       // Parts nobody has talked about yet wait on the frontier, hidden until a claim, card or edit touches them.
-      if (kind === "part_of") store.setTopic(other.id, { ...(isNew ? { frontier: true } : {}), ...(other.partLevel === null && level ? { partLevel: level } : {}) });
+      if (kind === "part_of")
+        store.setTopic(other.id, {
+          ...(isNew ? { frontier: true } : {}),
+          ...(other.partLevel === null && level ? { partLevel: level } : {}),
+          ...(other.examples.length === 0 && examples.length > 0 ? { examples } : {}),
+        });
       return true;
     };
-    for (const c of checked.ok) if (link(c.name, c.definition, "part_of", c.level)) added.components.push(c.name);
+    for (const c of checked.ok) if (link(c.name, c.definition, "part_of", c.level, c.examples)) added.components.push(c.name);
     for (const p of out.prerequisites) if (link(p.name, p.definition, "requires")) added.prerequisites.push(p.name);
     store.setTopic(nodeId, { expandedAt: store.nowIso() });
   });

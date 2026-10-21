@@ -21,7 +21,7 @@ export function models() {
   const topic = (p: string) => /^Topic: ([^(\n]+)/m.exec(p)?.[1]?.trim() ?? "x";
   const handler = (req: GenerateObjectRequest<unknown>) => {
     if (req.purpose === "expand")
-      return { components: ["one", "two", "three", "four"].map((n, i) => ({ name: `${topic(req.prompt)} ${n}`, definition: ".", level: i + 1 })), prerequisites: [] };
+      return { components: ["one", "two", "three", "four"].map((n, i) => ({ name: `${topic(req.prompt)} ${n}`, definition: ".", level: i + 1, examples: ["a", "b", "c"].map((e) => `${n} ${e}`) })), prerequisites: [] };
     if (req.purpose === "seed") return { field: { name: "F", definition: "." }, core: [] };
     if (req.purpose === "home") return { homes: [] };
     return { merges: [], placements: [] };

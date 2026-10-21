@@ -387,6 +387,10 @@ const MIGRATIONS: Migration[] = [
   ALTER TABLE topics ADD COLUMN part_level INTEGER;
   ALTER TABLE topics ADD COLUMN walk_stopped INTEGER NOT NULL DEFAULT 0;
   `,
+  `
+  -- Concrete parts: what each concept includes, as a JSON array of strings.
+  ALTER TABLE topics ADD COLUMN examples TEXT NOT NULL DEFAULT '[]';
+  `,
 ];
 
 /** Applies pending migrations up to `target` (default: all of them). */

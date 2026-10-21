@@ -232,6 +232,8 @@ export const Topic = z.object({
   /** The person said "that's enough here": no more of its parts are asked. */
   walkStopped: z.boolean().default(false),
   definition: z.string().nullable(),
+  /** The concrete things the concept covers, shown on its card as "Includes". */
+  examples: z.array(z.string()).default([]),
   expandedAt: IsoTime.nullable(),
   /** The background fact that seeded this topic, if any. */
   seedMemoryId: z.string().nullable(),

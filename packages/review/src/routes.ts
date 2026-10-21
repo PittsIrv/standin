@@ -63,6 +63,10 @@ export function registerRoutes(o: ReviewServerOptions, route: Route, _finish: ()
     const b = z.object({ nodeId: Id, name: Name }).parse(body);
     return store.renameTopic(b.nodeId, b.name);
   });
+  route("POST", "/api/tree/describe", ({ body }) => {
+    const b = z.object({ nodeId: Id, definition: z.string().max(500).nullable(), examples: z.array(z.string().max(120)).max(12) }).parse(body);
+    return store.describeTopic(b.nodeId, b);
+  });
   route("POST", "/api/tree/move", ({ body }) => {
     const b = z.object({ nodeId: Id, parentId: Id.nullable() }).parse(body);
     return store.moveTopic(b.nodeId, b.parentId) ?? { ok: true };

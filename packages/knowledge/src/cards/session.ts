@@ -29,6 +29,10 @@ export interface ShownCard {
   nodeId: string;
   topic: string;
   definition: string | null;
+  /** What it includes: its examples, or else up to 5 of its parts. */
+  examples: string[];
+  /** For a guess: why the standin guessed it. */
+  why: string | null;
   /** Names from the root down to (not including) the concept. */
   path: string[];
   /** Why it's asked: the standin's guess, a part of something you answered, or an area nobody has asked about. */
@@ -117,11 +121,17 @@ export class CardSession {
       path.unshift(t.all.get(at)?.name ?? store.getTopic(at).name);
     }
     const parent = probe.checkOf ? store.getTopic(probe.checkOf) : null;
+    const parts = [...t.parentOf]
+      .filter(([c, p]) => p === node.id && t.all.has(c))
+      .map(([c]) => t.all.get(c)!.name)
+      .sort((a, b) => a.localeCompare(b));
     return {
       responseId,
       nodeId: node.id,
       topic: node.name,
       definition: node.definition,
+      examples: node.examples.length > 0 ? node.examples : parts.slice(0, 5),
+      why: probe.hypothesisId ? store.getHypothesis(probe.hypothesisId).reason : null,
       path,
       reason: probe.hypothesisId ? "guess" : parent ? "part" : "area",
       parent: parent?.name ?? null,

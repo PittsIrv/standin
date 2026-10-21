@@ -55,6 +55,8 @@ section[hidden] { display: none !important; }
 .actions button { flex: 1 1 110px; white-space: nowrap; }
 .note { color: var(--muted); font-size: 15px; margin: 4px 0 18px; }
 .statement { font: 400 22px/1.4 var(--read); margin: 10px 0 14px; }
+.includes { margin: -6px 0 18px; font-size: 15px; line-height: 1.5; }
+.includes b { font-weight: 600; margin-right: 4px; }
 .why { color: var(--muted); font-size: 15px; margin: 0 0 18px; padding-left: 14px; border-left: 2px solid var(--line); border-radius: 0; }
 .done { text-align: center; padding-top: 10vh; }
 .error { color: var(--danger); font-size: 14px; margin-top: 8px; }
@@ -245,6 +247,8 @@ function renderCard() {
       <div class="topic">${k.path.map(esc).join(" › ")}</div>
       <h2 class="concept">${esc(k.topic)}</h2>
       ${k.definition && k.definition !== k.topic ? `<p class="definition">${esc(k.definition)}</p>` : ""}
+      ${k.examples.length ? `<p class="includes"><b>Includes</b>${k.examples.map(esc).join(", ")}</p>` : ""}
+      ${k.why ? `<p class="why">${esc(k.why)}</p>` : ""}
       <p class="note">${why} How well do you know it?</p>
       ${buttons([...LEVELS.map(([l, n]) => [n, String(l), `l${l}`]), ["Wouldn't say", "w", "lw", "ghost"]])}
       ${k.reason === "part" ? `<div class="skip"><button id="skip" class="ghost">Skip the rest of ${esc(k.parent)}<kbd>s</kbd></button></div>` : ""}
@@ -611,6 +615,7 @@ async function openPanel(id) {
       <h2>${esc(n.name)}</h2>
       <p class="status">${esc(statusLine(n))}</p>
       ${d.definition ? `<p>${esc(d.definition)}</p>` : ""}
+      ${d.examples.length ? `<p class="includes"><b>Includes</b>${d.examples.map(esc).join(", ")}</p>` : ""}
       ${d.aliases.length ? `<p class="small">Also called ${d.aliases.map(esc).join(", ")}</p>` : ""}
       <h3>Facts here</h3>
       ${d.facts.length ? `<ul>${d.facts.map((f) => `<li>${esc(f.statement)}<div class="row"><select data-fact="${esc(f.id)}" aria-label="Move this fact"><option value="">Move to…</option>${nodeOptions(id)}</select></div></li>`).join("")}</ul>` : `<p class="small">None yet.</p>`}
@@ -621,6 +626,8 @@ async function openPanel(id) {
       ${d.links.length ? `<ul>${d.links.map((l) => `<li><span>${l.kind === "requires" ? (l.direction === "out" ? "needs" : "needed by") : "related to"} ${esc(l.other.name)}</span> <button class="ghost" data-unlink="${esc(l.id)}" aria-label="Remove this link">Remove</button></li>`).join("")}</ul>` : `<p class="small">None.</p>`}
       <h3>Edit</h3>
       <div class="row"><input id="rename" value="${esc(n.name)}" aria-label="New name"><button id="doRename">Rename</button></div>
+      <div class="row"><input id="defn" value="${esc(d.definition || "")}" placeholder="One-line definition" aria-label="Definition"></div>
+      <div class="row"><input id="examples" value="${esc(d.examples.join(", "))}" placeholder="What it includes, comma-separated" aria-label="What it includes"><button id="doDescribe">Save</button></div>
       <div class="row"><select id="moveTo" aria-label="New parent"><option value="">Move under…</option>${nodeOptions(id)}</select><button id="doMove">Move</button></div>
       <div class="row"><input id="childName" placeholder="New child's name" aria-label="New child's name"><select id="childLabel" aria-label="Kind">${LABELS.map((l) => `<option${l === (n.label === "other" ? "other" : n.label) ? " selected" : ""}>${l}</option>`).join("")}</select><button id="doAdd">Add child</button></div>
       <div class="row"><button id="doDelete" class="ghost" style="color:var(--danger)">Delete this node</button></div>
@@ -636,6 +643,7 @@ async function openPanel(id) {
     };
     $("#closePanel").onclick = () => { panel.hidden = true; selected = null; drawForest(); };
     $("#doRename").onclick = () => { const name = $("#rename").value.trim(); if (!name) return fail(new Error("Give it a name first.")); edit("/api/tree/rename", { nodeId: id, name }); };
+    $("#doDescribe").onclick = () => edit("/api/tree/describe", { nodeId: id, definition: $("#defn").value.trim() || null, examples: $("#examples").value.split(",").map((e) => e.trim()).filter(Boolean) });
     $("#doMove").onclick = () => { const to = $("#moveTo").value; if (!to) return fail(new Error("Pick where it goes.")); edit("/api/tree/move", { nodeId: id, parentId: to }); };
     $("#doAdd").onclick = () => { const name = $("#childName").value.trim(); if (!name) return fail(new Error("Give the child a name first.")); edit("/api/tree/add", { parentId: id, name, label: $("#childLabel").value }); };
     $("#doDelete").onclick = () => {

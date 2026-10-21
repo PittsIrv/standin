@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { ScriptedLLM, type GenerateObjectRequest } from "@standin/llm";
 import { defaultRoot, type EntityKind, type ObservationInput } from "@standin/schema";
-import { EXTRACTIONS, HYPOTHESES, PLACEMENTS, RECONCILIATIONS, SEED } from "./fixtures.ts";
+import { EXTRACTIONS, fallbackSplit, HYPOTHESES, PLACEMENTS, RECONCILIATIONS, SEED, SPLITS } from "./fixtures.ts";
 
 export const DEMO_PERSONA_NAME = "Lin Qiao";
 
@@ -52,10 +52,10 @@ function homes(prompt: string) {
 
 const topicOf = (prompt: string) => /^Topic: ([^(\n]+)/m.exec(prompt)?.[1]?.trim() ?? "the topic";
 
-/** The demo's expansion: four generic parts per topic, from basic (1) to expert (4), no prerequisites. */
+/** The demo's expansion: a hand-written split when there is one, else a generic one; no prerequisites. */
 function expansion(topic: string) {
-  const parts = [`${topic} fundamentals`, `${topic} in practice`, `${topic} theory`, `advanced ${topic}`];
-  return { components: parts.map((name, i) => ({ name, definition: `${name}.`, level: i + 1 })), prerequisites: [] };
+  const parts = SPLITS[topic] ?? fallbackSplit(topic);
+  return { components: parts.map(([name, definition, level, examples]) => ({ name, definition, level, examples })), prerequisites: [] };
 }
 
 /** The demo's probes: numbered questions at the requested depth. */

@@ -64,7 +64,7 @@ describe("the world tree in the knowledge layer", () => {
     const rl = store.ensureTopic("RL");
     const existing = store.ensureTopic("Bandits");
     const llm = new ScriptedLLM(() => ({
-      components: ["Bandits", "PPO", "Q-learning"].map((name, i) => ({ name, definition: ".", level: i + 1 })),
+      components: ["Bandits", "PPO", "Q-learning"].map((name, i) => ({ name, definition: ".", level: i + 1, examples: ["x", "y", "z"] })),
       prerequisites: [],
     }));
     await expandNode(store, llm, rl.id, "Lin Qiao");
