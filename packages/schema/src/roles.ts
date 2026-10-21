@@ -21,6 +21,8 @@ export const ROLES = {
   grade: { tier: "medium", zone: "private", purpose: "Grade spot-check answers" },
   // Large: its output is stored and reused as the tree's structure, so quality outweighs price.
   map: { tier: "large", zone: "private", purpose: "Place topics in the knowledge tree, merge duplicates, and seed from background" },
+  // Large: a wrong guess costs a probe and some calibration, so judgment is worth paying for; it runs rarely.
+  hypothesize: { tier: "large", zone: "private", purpose: "Predict what the person probably knows, with the evidence for each guess" },
 } as const satisfies Record<string, { tier: ModelTier; zone: Zone; purpose: string }>;
 
 export type Role = keyof typeof ROLES;

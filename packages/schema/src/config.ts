@@ -90,6 +90,21 @@ export const Config = z.object({
       splitAt: z.number().int().positive().default(12),
     })
     .prefault({}),
+  /** Starting values, tuned by experiment (world-tree spec §5). */
+  hypotheses: z
+    .object({
+      /** A probable node is spoken (hedged) only at or above this probability. */
+      speakAt: z.number().min(0).max(1).default(0.8),
+      /** An evidence cell this unreliable stops being proposed… */
+      dropBelow: z.number().min(0).max(1).default(0.3),
+      /** …once it has at least this many outcomes. */
+      dropAfter: z.number().int().positive().default(10),
+      /** Held-out answers the Brier safeguard looks back over. */
+      brierWindow: z.number().int().positive().default(20),
+      /** The most pseudo-counts a loaded default-reliability file may add per cell. */
+      priorCap: z.number().positive().default(10),
+    })
+    .prefault({}),
 });
 export type Config = z.infer<typeof Config>;
 export type ConfigInput = z.input<typeof Config>;

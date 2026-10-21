@@ -139,6 +139,7 @@ describe("config", () => {
       tracing: {},
       consolidation: { freshnessDays: 120 },
       tree: { splitAt: 12 },
+      hypotheses: { speakAt: 0.8, dropBelow: 0.3, dropAfter: 10, brierWindow: 20, priorCap: 10 },
     });
   });
 
@@ -256,5 +257,23 @@ describe("world tree schema", () => {
     expect(parseConfig({ persona: { name: "X" } }).tree.splitAt).toBe(12);
     const m = Memory.parse({ ...baseMemory, kind: "fact", attrs: {} });
     expect(m.homeNodeId).toBeNull();
+  });
+});
+
+describe("hypothesis schema", () => {
+  it("adds the hypothesize role, hypothesis config, and probe links with defaults", async () => {
+    const { ROLES, Probe, ProbeResponse, ProbeKind, Hypothesis, isId, newId } = await import("../src/index.ts");
+    expect(ROLES.hypothesize).toMatchObject({ tier: "large", zone: "private" });
+    expect(parseConfig({ persona: { name: "X" } }).hypotheses).toEqual({ speakAt: 0.8, dropBelow: 0.3, dropAfter: 10, brierWindow: 20, priorCap: 10 });
+    expect(ProbeKind.options).toContain("hypothesis");
+    expect(isId("hyp", newId("hyp"))).toBe(true);
+    const p = Probe.parse({ id: "prb_1", nodeId: "ent_1", checkOf: null, kind: "hypothesis", difficulty: 2, question: "Q?", holdout: "none", createdAt: "2026-10-01T00:00:00.000Z", releasedAt: null });
+    expect(p.hypothesisId).toBeNull();
+    const r = ProbeResponse.parse({
+      id: "rsp_1", probeId: "prb_1", sessionId: "ses_1", shownAt: "2026-10-01T00:00:00.000Z", predictedMode: "brief", rating: null, answeredAt: null,
+      spotCheck: "none", spotCheckAnswer: null, observationId: null, grade: null, gradeReason: null, gradeBatchId: null, judged: null,
+    });
+    expect([r.predictedP, r.priorP]).toEqual([null, null]);
+    expect(Hypothesis.parse({ id: "hyp_1", nodeId: "ent_1", depth: 2, rawScore: "medium", kind: "background", path: ["ent_0"], reason: "r", status: "open", createdAt: "2026-10-01T00:00:00.000Z", settledAt: null }).kind).toBe("background");
   });
 });

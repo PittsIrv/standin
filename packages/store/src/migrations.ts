@@ -81,6 +81,78 @@ function worldTree(db: DatabaseSync): void {
   for (const [memoryId, { node }] of best) db.prepare("UPDATE memories SET home_node_id = ? WHERE id = ?").run(node, memoryId);
 }
 
+/**
+ * Hypotheses: inferred lighting stops lighting nodes. Each approved inferred lighting becomes an open hypothesis (its
+ * memory retracted), and each pending inferred proposal is withdrawn, so nothing is both lit and probable.
+ */
+function hypotheses(db: DatabaseSync): void {
+  db.exec(`
+    CREATE TABLE hypotheses (
+      id TEXT PRIMARY KEY,
+      node_id TEXT NOT NULL REFERENCES entities(id),
+      depth INTEGER NOT NULL CHECK (depth BETWEEN 1 AND 4),
+      raw_score TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      path TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      status TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      settled_at TEXT
+    );
+    CREATE INDEX hypotheses_node ON hypotheses (node_id);
+    CREATE TABLE kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    ALTER TABLE probes ADD COLUMN hypothesis_id TEXT REFERENCES hypotheses(id);
+    ALTER TABLE probe_responses ADD COLUMN predicted_p REAL;
+    ALTER TABLE probe_responses ADD COLUMN prior_p REAL;
+  `);
+  const now = new Date().toISOString();
+  const event = (memoryId: string, from: string, to: string, note: string) => {
+    const { next } = db.prepare("SELECT COALESCE(MAX(seq), 0) + 1 AS next FROM memory_events").get() as { next: number };
+    db.prepare("INSERT INTO memory_events (id, seq, memory_id, from_status, to_status, at, actor, note) VALUES (?, ?, ?, ?, ?, ?, 'map', ?)").run(
+      newId("evt"),
+      next,
+      memoryId,
+      from,
+      to,
+      now,
+      note,
+    );
+    db.prepare("UPDATE memories SET status = ?, decided_at = COALESCE(decided_at, ?) WHERE id = ?").run(to, now, memoryId);
+  };
+  const kindOf = (reasons: string[]) => {
+    const text = reasons.join("; ");
+    return text.includes("core of your background") ? "background" : text.includes("is part of it") ? "part" : text.includes("needed for") ? "prerequisite" : "other";
+  };
+  const rows = db.prepare("SELECT id, status, attrs FROM memories WHERE kind = 'competence' AND status IN ('approved', 'proposed')").all() as {
+    id: string;
+    status: string;
+    attrs: string;
+  }[];
+  for (const m of rows) {
+    const attrs = JSON.parse(m.attrs) as { depth: number; basis?: string; reasons?: string[] };
+    if (attrs.basis !== "predicted") continue;
+    if (m.status === "proposed") {
+      event(m.id, "proposed", "rejected", "withdrawn: inferred lighting is now a hypothesis");
+      continue;
+    }
+    const link = db
+      .prepare("SELECT me.entity_id FROM memory_entities me JOIN entities e ON e.id = me.entity_id WHERE me.memory_id = ? AND e.kind = 'topic' ORDER BY me.rowid LIMIT 1")
+      .get(m.id) as { entity_id: string } | undefined;
+    if (link && attrs.depth >= 1) {
+      db.prepare("INSERT INTO hypotheses (id, node_id, depth, raw_score, kind, path, reason, status, created_at) VALUES (?, ?, ?, 'medium', ?, ?, ?, 'open', ?)").run(
+        newId("hyp"),
+        link.entity_id,
+        attrs.depth,
+        kindOf(attrs.reasons ?? []),
+        JSON.stringify([link.entity_id]),
+        (attrs.reasons ?? []).join("; ") || "inferred lighting",
+        now,
+      );
+    }
+    event(m.id, "approved", "retracted", "replaced by a hypothesis");
+  }
+}
+
 const MIGRATIONS: Migration[] = [
   `
   CREATE TABLE observations (
@@ -308,6 +380,7 @@ const MIGRATIONS: Migration[] = [
   ALTER TABLE gaps ADD COLUMN response_id TEXT REFERENCES probe_responses(id);
   `,
   worldTree,
+  hypotheses,
 ];
 
 /** Applies pending migrations up to `target` (default: all of them). */

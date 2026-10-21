@@ -6,10 +6,11 @@ import { tree } from "./fixtures.ts";
 let n = 0;
 function resp(kind: ProbeKind, nodeId: string, difficulty: number, rating: Rating | null, extra: { checkOf?: string; judged?: "gap" | "not_gap" } = {}) {
   n++;
-  const probe: Probe = { id: `prb_${n}`, nodeId, checkOf: extra.checkOf ?? null, kind, difficulty, question: "q?", holdout: "none", createdAt: "2026-10-01T00:00:00.000Z", releasedAt: null };
+  const probe: Probe = { id: `prb_${n}`, nodeId, checkOf: extra.checkOf ?? null, kind, difficulty, question: "q?", holdout: "none", createdAt: "2026-10-01T00:00:00.000Z", releasedAt: null, hypothesisId: null };
   const r: ProbeResponse = {
     id: `rsp_${n}`, probeId: probe.id, sessionId: "ses_1", shownAt: `2026-10-01T00:00:${String(n).padStart(2, "0")}.000Z`, predictedMode: "brief",
     rating, answeredAt: null, spotCheck: "none", spotCheckAnswer: null, observationId: null, grade: null, gradeReason: null, gradeBatchId: null, judged: extra.judged ?? null,
+    predictedP: null, priorP: null,
   };
   return { ...r, probe };
 }
