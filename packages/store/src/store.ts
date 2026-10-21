@@ -41,6 +41,7 @@ import type {
   Actor,
   EdgeKind,
   Gap,
+  RootKey,
   Topic,
   TopicEdge,
   AnswerModeName,
@@ -212,8 +213,13 @@ export class Store {
     return { id, kind: input.kind, name: input.name.trim(), aliases: input.aliases ?? [] };
   }
 
+  /** Every entity except the six root nodes. */
   listEntities(): Entity[] {
-    return (this.db.prepare("SELECT * FROM entities ORDER BY kind, name").all() as Row[]).map(rowToEntity);
+    return (
+      this.db
+        .prepare("SELECT e.* FROM entities e LEFT JOIN topics t ON t.entity_id = e.id WHERE t.root_key IS NULL ORDER BY e.kind, e.name")
+        .all() as Row[]
+    ).map(rowToEntity);
   }
 
   getEntity(id: string): Entity {
@@ -315,10 +321,18 @@ export class Store {
   ensureTopic(name: string, definition?: string | null): Topic {
     return tree.ensureTopic(this, name, definition ?? null);
   }
+  roots(): Topic[] {
+    return tree.roots(this);
+  }
+
+  root(key: RootKey): Topic {
+    return tree.root(this, key);
+  }
+
   getTopic(id: string): Topic {
     return tree.getTopic(this, id);
   }
-  listTopics(opts?: { includeDeleted?: boolean }): Topic[] {
+  listTopics(opts?: { includeDeleted?: boolean; includeRoots?: boolean }): Topic[] {
     return tree.listTopics(this, opts);
   }
   setTopic(id: string, patch: Parameters<typeof tree.setTopic>[2]): Topic {

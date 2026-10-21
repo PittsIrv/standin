@@ -80,6 +80,7 @@ export function rowToMemory(r: Row): Memory {
     recordedAt: r.recorded_at,
     decidedAt: r.decided_at,
     lastCorroboratedAt: r.last_corroborated_at,
+    homeNodeId: r.home_node_id ?? null,
     attrs: JSON.parse(String(r.attrs)),
   });
 }

@@ -1,4 +1,4 @@
-import { Gap, newId, Topic, TopicEdge, type EdgeKind, type Memory, type MemoryKind, type MemoryStatus, type Tier } from "@standin/schema";
+import { Gap, newId, ROOTS, Topic, TopicEdge, type EdgeKind, type Memory, type MemoryKind, type MemoryStatus, type RootKey, type Tier } from "@standin/schema";
 import { CycleError, NotFoundError } from "./errors.ts";
 import { rowToMemory } from "./memories.ts";
 import { rowToEntity, type Row } from "./rows.ts";
@@ -45,7 +45,8 @@ const rowToGap = (r: Row): Gap =>
     createdAt: r.created_at,
   });
 
-const TOPIC_SELECT = "SELECT e.*, t.definition, t.expanded_at, t.seed_memory_id, t.boundary_tier, t.deleted_at FROM entities e JOIN topics t ON t.entity_id = e.id";
+const TOPIC_SELECT =
+  "SELECT e.*, t.definition, t.expanded_at, t.seed_memory_id, t.boundary_tier, t.deleted_at, t.root_key, t.frontier FROM entities e JOIN topics t ON t.entity_id = e.id";
 
 /** The topic for a name or alias, created if absent. A deleted topic is returned as it is (still deleted). */
 export function ensureTopic(s: Store, name: string, definition: string | null = null): Topic {
@@ -57,15 +58,28 @@ export function ensureTopic(s: Store, name: string, definition: string | null = 
   });
 }
 
+/** The six root nodes, in display order. */
+export function roots(s: Store): Topic[] {
+  return ROOTS.map((r) => root(s, r.key));
+}
+
+export function root(s: Store, key: RootKey): Topic {
+  const r = s.db.prepare(`${TOPIC_SELECT} WHERE t.root_key = ?`).get(key) as Row | undefined;
+  if (!r) throw new NotFoundError("root", key);
+  return rowToTopic(r);
+}
+
 export function getTopic(s: Store, id: string): Topic {
   const r = s.db.prepare(`${TOPIC_SELECT} WHERE e.id = ?`).get(id) as Row | undefined;
   if (!r) throw new NotFoundError("topic", id);
   return rowToTopic(r);
 }
 
-export function listTopics(s: Store, opts: { includeDeleted?: boolean } = {}): Topic[] {
-  const where = opts.includeDeleted ? "" : "WHERE t.deleted_at IS NULL";
-  return (s.db.prepare(`${TOPIC_SELECT} ${where} ORDER BY e.name, e.id`).all() as Row[]).map(rowToTopic);
+/** Every node except the six roots (see `roots()`); deleted nodes only on request. */
+export function listTopics(s: Store, opts: { includeDeleted?: boolean; includeRoots?: boolean } = {}): Topic[] {
+  const where = [opts.includeDeleted ? null : "t.deleted_at IS NULL", opts.includeRoots ? null : "t.root_key IS NULL"].filter(Boolean);
+  const clause = where.length > 0 ? `WHERE ${where.join(" AND ")}` : "";
+  return (s.db.prepare(`${TOPIC_SELECT} ${clause} ORDER BY e.name, e.id`).all() as Row[]).map(rowToTopic);
 }
 
 export function setTopic(
