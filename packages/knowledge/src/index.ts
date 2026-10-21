@@ -30,3 +30,5 @@ export {
 export { discoveryProposals, EXPERT_PASSES } from "./probing/discovery.ts";
 export { calibration, type Calibration, type SetScore } from "./probing/calibration.ts";
 export { nodeStatus, renderForest, treeNodes, type TreeNode } from "./tree-view.ts";
+export { isSensitive, SENSITIVE_CATEGORIES } from "./hypotheses/sensitive.ts";
+export { checkHypothesis, established, MAX_HOPS } from "./hypotheses/guards.ts";

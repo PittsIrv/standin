@@ -24,12 +24,18 @@ export function tree(spec: {
   seeded?: Record<string, string>;
   gaps?: { node: string; level: number }[];
   boundaries?: string[];
+  hypotheses?: Record<string, { depth: number; p: number }>;
+  confirmedHypotheses?: Record<string, number>;
+  /** Nodes outside the Knowledge root (Life). */
+  life?: string[];
 }): TreeSnapshot {
   const names = new Set<string>();
   for (const [a, b] of [...(spec.partOf ?? []), ...(spec.requires ?? [])]) names.add(a).add(b);
   for (const n of [...Object.keys(spec.claims ?? {}), ...Object.keys(spec.approved ?? {}), ...Object.keys(spec.seeded ?? {})]) names.add(n);
   for (const g of spec.gaps ?? []) names.add(g.node);
+  for (const n of [...Object.keys(spec.hypotheses ?? {}), ...Object.keys(spec.confirmedHypotheses ?? {})]) names.add(n);
   const topics = new Map([...names].map((n) => [n, { ...topic(n), boundaryTier: spec.boundaries?.includes(n) ? (3 as const) : null }]));
+  const all = new Map<string, Topic>([...topics, ...(spec.life ?? []).map((n): [string, Topic] => [n, { ...topic(n), label: "pet" }])]);
   const claims = new Map(Object.entries(spec.claims ?? {}));
   const approved = new Map(
     Object.entries({
@@ -39,11 +45,15 @@ export function tree(spec: {
   );
   return {
     topics,
-    all: topics,
+    all,
     roots: new Map(),
-    rootOf: new Map([...topics.keys()].map((n) => [n, null])),
+    rootOf: new Map([...all.keys()].map((n) => [n, (spec.life ?? []).includes(n) ? ("life" as const) : null])),
     knowledge: new Set(topics.keys()),
     homeFacts: new Map(),
+    hypotheses: new Map(
+      Object.entries(spec.hypotheses ?? {}).map(([n, h]) => [n, { id: `hyp_${n}`, depth: h.depth, p: h.p, kind: "part", rawScore: "medium", reason: "r" }]),
+    ),
+    confirmedHypotheses: new Map(Object.entries(spec.confirmedHypotheses ?? {})),
     parentOf: new Map(spec.partOf ?? []),
     requires: spec.requires ?? [],
     approved,

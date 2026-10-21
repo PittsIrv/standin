@@ -15,6 +15,10 @@ export interface TreeSnapshot {
   knowledge: Set<string>;
   /** Approved memories living in each node. */
   homeFacts: Map<string, number>;
+  /** Open hypotheses per node, with their calibrated probability. */
+  hypotheses: Map<string, { id: string; depth: number; p: number; kind: string; rawScore: string; reason: string }>;
+  /** The highest depth a usable probe confirmed per node, from hypotheses. */
+  confirmedHypotheses: Map<string, number>;
   /** part_of: child → parent. */
   parentOf: Map<string, string>;
   /** requires: [advanced, foundation]. */
@@ -83,6 +87,8 @@ export function loadSnapshot(store: Store): TreeSnapshot {
     topics,
     all,
     homeFacts,
+    hypotheses: new Map(),
+    confirmedHypotheses: new Map(),
     roots,
     rootOf,
     knowledge,
