@@ -1,0 +1,17 @@
+{
+  "name": "@standin/review",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@standin/compaction": "workspace:*",
+    "@standin/knowledge": "workspace:*",
+    "@standin/schema": "workspace:*",
+    "@standin/store": "workspace:*",
+    "zod": "^4.6.5"
+  }
+}
