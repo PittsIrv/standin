@@ -24,7 +24,7 @@ export {
   type FinishReport,
   type Miss,
   type SessionDeps,
-  type ShownProbe,
+  type ShownProbe, type PendingSpotCheck,
 } from "./probing/session.ts";
 export { calibration, type Calibration, type SetScore } from "./probing/calibration.ts";
 export { nodeStatus, renderForest, treeNodes, type TreeNode } from "./tree-view.ts";
@@ -32,3 +32,4 @@ export { isSensitive, SENSITIVE_CATEGORIES } from "./hypotheses/sensitive.ts";
 export { checkHypothesis, established, MAX_HOPS } from "./hypotheses/guards.ts";
 export { cellKey, cells, loadPriors, outcomeOf, probabilityOf, safeguard, type Cell, type Safeguard } from "./hypotheses/calibrate.ts";
 export { hypothesize, type HypothesizeReport } from "./hypotheses/hypothesize.ts";
+export { nodeDetail, type NodeDetail } from "./node-detail.ts";

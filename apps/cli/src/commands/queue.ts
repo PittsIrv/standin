@@ -1,16 +1,8 @@
 import { reviewQueue, type ReviewItem } from "@standin/compaction";
-import type { Config } from "@standin/schema";
 import type { Store } from "@standin/store";
 import { formatSources, table } from "../format.ts";
 import { loadInstance } from "../home.ts";
 import { flag, json, type Command } from "./shared.ts";
-
-/** Where an item sits in the review queue right now, for the decision log. */
-export function queuePlace(store: Store, config: Config, id: string): { group: string | null; position: number | null } {
-  const items = reviewQueue(store, config);
-  const position = items.findIndex((i) => i.memory.id === id);
-  return position === -1 ? { group: null, position: null } : { group: items[position]!.group, position };
-}
 
 function describe(store: Store, item: ReviewItem): string {
   const m = item.memory;

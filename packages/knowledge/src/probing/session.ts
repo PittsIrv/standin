@@ -64,6 +64,12 @@ export interface ClaimDecision {
   gaps: { topic: string; level: number }[];
 }
 
+export interface PendingSpotCheck {
+  responseId: string;
+  topic: string;
+  question: string;
+}
+
 export const FIRST_SESSION_SIZE = 40;
 export const SESSION_SIZE = 10;
 export const SPOT_CHECK_RATE = 1 / 3;
@@ -154,6 +160,43 @@ export class ProbeSession {
       }
       return null;
     });
+  }
+
+  /** The probe shown in this session and not yet rated (a reload shows it again), or null. */
+  current(): ShownProbe | null {
+    const { store } = this.deps;
+    const here = store.listResponses({ sessionId: this.sessionId });
+    const open = here.findLast((r) => r.rating === null);
+    if (!open) return null;
+    const probe = store.getProbe(open.probeId);
+    return {
+      responseId: open.id,
+      nodeId: probe.nodeId,
+      topic: store.getTopic(probe.nodeId).name,
+      question: probe.question,
+      difficulty: probe.difficulty,
+      kind: probe.kind,
+      done: here.findIndex((r) => r.id === open.id) + 1,
+      total: this.size,
+    };
+  }
+
+  /** A spot-check asked for in this session and not yet answered, or null. */
+  pendingSpotCheck(): PendingSpotCheck | null {
+    const { store } = this.deps;
+    const r = store.listResponses({ sessionId: this.sessionId }).find((x) => x.spotCheck === "requested" && x.spotCheckAnswer === null);
+    if (!r) return null;
+    const probe = store.getProbe(r.probeId);
+    return { responseId: r.id, topic: store.getTopic(probe.nodeId).name, question: probe.question };
+  }
+
+  /** Nodes with a "wouldn't say" boundary, by name. */
+  boundaries(): { nodeId: string; topic: string }[] {
+    return this.deps.store
+      .listTopics()
+      .filter((t) => t.boundaryTier !== null)
+      .map((t) => ({ nodeId: t.id, topic: t.name }))
+      .sort((a, b) => a.topic.localeCompare(b.topic));
   }
 
   /** Records a rating. `know`/`roughly` may ask for a one-line spot-check; `wouldnt_say` sets a boundary at once. */
