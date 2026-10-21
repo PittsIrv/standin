@@ -341,3 +341,4 @@ Continues from knowledge-map decision 40.
 | 52 | Using probable nodes | Spoken without approval, at most `brief` with the "inferred" badge, only if `P ≥ 0.8` | Only after approval; never spoken |
 | 53 | Confirmed hypotheses | Light directly with basis `probed`; the person's rating is the evidence | A lighting proposal to review |
 | 54 | Numbers | Starting values as named constants, tuned by an SP3 sweep | Setting each by discussion before building |
+| 55 | Seeing the tree | A node-link forest on the review page: lit glows by depth, probable is dashed with fill by probability, dark is gray, frontier behind a toggle; a side panel shows a node's facts and evidence and edits it, and dragging moves a node | A radial forest; an indented outline |
