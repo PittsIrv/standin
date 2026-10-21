@@ -36,7 +36,9 @@ export async function readIntro(map: LLM, text: string, personaName: string): Pr
  * person wrote and confirmed it). Sensitive statements are dropped, not stored, and returned so the page can say so.
  */
 export function saveIntro(store: Store, text: string, statements: string[]): { saved: Memory[]; dropped: string[] } {
-  const { kept, dropped } = clean(statements);
+  const known = new Set(store.listMemories({ kind: "fact" }).filter((m) => m.status !== "rejected").map((m) => normalizeName(m.statement)));
+  const { dropped, ...c } = clean(statements);
+  const kept = c.kept.filter((s) => !known.has(normalizeName(s)));
   if (kept.length === 0) return { saved: [], dropped };
   return store.transaction(() => {
     const obs = store.addObservation({ sourceKind: "intro", sourceRef: "review-page", authorRole: "self", text, occurredAt: store.nowIso() });

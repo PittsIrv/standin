@@ -35,6 +35,14 @@ describe("the introduction", () => {
     expect([obs.sourceKind, obs.authorRole, obs.text]).toEqual(["intro", "self", "Raw intro text."]);
   });
 
+  it("doesn't store a statement that is already a fact", () => {
+    const s = store();
+    saveIntro(s, "x", ["I research RL."]);
+    const { saved } = saveIntro(s, "y", ["i research rl.", "I build robots."]);
+    expect(saved.map((m) => m.statement)).toEqual(["I build robots."]);
+    expect(s.listMemories({ kind: "fact" })).toHaveLength(2);
+  });
+
   it("is needed until there is a background, or the person skips it", () => {
     const a = store();
     expect(needsIntro(a)).toBe(true);
@@ -71,6 +79,18 @@ describe("seeding from background", () => {
     await seedBackground(s, llm, "Mingxi");
     expect(llm.calls).toHaveLength(1);
     expect(s.listHypotheses({})).toEqual([]);
+  });
+
+  it("skips a concept that would make a loop, and still seeds the rest", async () => {
+    const s = store();
+    const learning = s.ensureTopic("Learning");
+    s.addEdge({ from: s.ensureTopic("RL").id, to: learning.id, kind: "part_of", source: "person" });
+    saveIntro(s, "x", ["I research RL."]);
+    const llm = new ScriptedLLM(() => ({ field: concept("RL", 3), core: [concept("Learning", 2), concept("Bandits", 2)], evidence: "work" }));
+    await seedBackground(s, llm, "Mingxi");
+    expect(s.homeParent(s.ensureTopic("Bandits").id)).toBe(s.ensureTopic("RL").id);
+    expect(s.homeParent(learning.id)).toBeNull();
+    expect(s.getTopic(learning.id).seedMemoryId).toBeNull();
   });
 
   it("never guesses what the person already spoke to, or a sensitive concept", async () => {

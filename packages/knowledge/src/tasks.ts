@@ -90,9 +90,14 @@ export async function seedBackground(store: Store, model: LLM, personaName: stri
       const place = (c: Concept, parentId: string): string | null => {
         const node = store.ensureTopic(c.name, c.definition);
         if (node.deletedAt || node.id === parentId) return null;
+        try {
+          store.addEdge({ from: node.id, to: parentId, kind: "part_of", source: "seeding" });
+        } catch (err) {
+          if (err instanceof CycleError) return null;
+          throw err;
+        }
         if (!node.seedMemoryId) store.setTopic(node.id, { seedMemoryId: fact.id });
         if (node.examples.length === 0 && c.examples.length > 0) store.setTopic(node.id, { examples: c.examples.map((e) => e.trim()).filter(Boolean).slice(0, 5) });
-        store.addEdge({ from: node.id, to: parentId, kind: "part_of", source: "seeding" });
         return node.id;
       };
       const fieldId = place(seed.field, store.root("knowledge").id);
