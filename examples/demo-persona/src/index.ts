@@ -36,6 +36,27 @@ function placements(prompt: string) {
   };
 }
 
+const topicOf = (prompt: string) => /^Topic: ([^(\n]+)/m.exec(prompt)?.[1]?.trim() ?? "the topic";
+
+/** The demo's expansion: four generic parts per topic, no prerequisites. */
+function expansion(topic: string) {
+  const parts = [`${topic} fundamentals`, `${topic} in practice`, `${topic} theory`, `advanced ${topic}`];
+  return { components: parts.map((name) => ({ name, definition: `${name}.` })), prerequisites: [] };
+}
+
+/** The demo's probes: numbered questions at the requested depth. */
+function probes(topic: string, prompt: string) {
+  const depth = /^Depth: (\d)/m.exec(prompt)?.[1] ?? "2";
+  const count = Number(/^Write (\d+) probe/m.exec(prompt)?.[1] ?? "2");
+  return { probes: Array.from({ length: count }, (_, i) => ({ question: `Could you explain ${topic} at depth ${depth} (question ${i + 1})?` })) };
+}
+
+/** The demo's grader: passes any answer longer than a few words. */
+function grade(prompt: string) {
+  const answer = /^Answer: (.*)$/m.exec(prompt)?.[1] ?? "";
+  return answer.trim().split(/\s+/).length >= 4 ? { grade: "pass", reason: "demo: substantive answer" } : { grade: "fail", reason: "demo: too short" };
+}
+
 /** A ScriptedLLM that answers with the demo persona's hand-written fixtures. */
 export function demoLLM(): ScriptedLLM {
   return new ScriptedLLM((req: GenerateObjectRequest<unknown>) => {
@@ -43,6 +64,9 @@ export function demoLLM(): ScriptedLLM {
       return EXTRACTIONS[observationText(req.prompt)] ?? { memories: [], exemplars: [] };
     }
     if (req.purpose === "seed") return SEED;
+    if (req.purpose === "expand") return expansion(topicOf(req.prompt));
+    if (req.purpose === "quiz") return probes(topicOf(req.prompt), req.prompt);
+    if (req.purpose === "grade") return grade(req.prompt);
     if (req.purpose === "place") return placements(req.prompt);
     const rule = RECONCILIATIONS[candidateStatement(req.prompt)];
     if (rule) {

@@ -1,4 +1,5 @@
-import { answerMode, loadSnapshot, refresh, type TreeSnapshot } from "@standin/knowledge";
+import { answerMode, calibration, loadSnapshot, refresh, type SetScore, type TreeSnapshot } from "@standin/knowledge";
+import type { Store } from "@standin/store";
 import { CliError } from "../errors.ts";
 import { loadInstance } from "../home.ts";
 import { fmtUsd, instanceModels, instanceTracer } from "../runtime.ts";
@@ -14,6 +15,8 @@ interface NodeView {
   via: "own" | "inherited" | "gap" | null;
   from: string | null;
   boundary: boolean;
+  /** An inferred node a foundation probe confirmed. */
+  confirmed: boolean;
 }
 
 function views(t: TreeSnapshot): NodeView[] {
@@ -31,6 +34,7 @@ function views(t: TreeSnapshot): NodeView[] {
       via: d.from?.via ?? null,
       from: d.from ? name(d.from.nodeId) : null,
       boundary: d.boundary,
+      confirmed: t.confirmed.has(topic.id),
     };
   });
 }
@@ -43,7 +47,7 @@ function status(v: NodeView): string {
         ? `gap: fine up to ${v.depth}`
         : v.via === "inherited"
           ? `lit ${v.depth} (inherited from ${v.from})`
-          : `lit ${v.depth} (${v.basis})`;
+          : `lit ${v.depth} (${v.basis}${v.confirmed ? ", confirmed" : ""})`;
   return v.boundary ? `${lit} · boundary` : lit;
 }
 
@@ -65,12 +69,25 @@ function render(t: TreeSnapshot): string {
   return lines.length > 0 ? lines.join("\n") : "Your knowledge tree is empty. Approve some memories, then run `standin map refresh`.";
 }
 
+const fmtSet = (s: SetScore) => `${s.agree}/${s.n}${s.score === null ? "" : ` (${Math.round(s.score * 100)}%)`}`;
+
+/** The map score always; the presented score only on request, since it shows how far you present beyond your ratings. */
+function calibrationLines(store: Store, t: TreeSnapshot, showPrivate: boolean): string[] {
+  const c = calibration(store, t);
+  if (c.presented.fixed.n + c.presented.rotating.n === 0) return ["Calibration: not enough held-out answers yet"];
+  const lines = [`Calibration (map score): fixed ${fmtSet(c.map.fixed)}, rotating ${fmtSet(c.map.rotating)}`];
+  if (showPrivate) lines.push(`Presented score (private): fixed ${fmtSet(c.presented.fixed)}, rotating ${fmtSet(c.presented.rotating)}`);
+  return lines;
+}
+
 async function show(ctx: CommandContext): Promise<number> {
   const { store } = loadInstance(ctx.home, ctx.io.clock);
   try {
     const t = loadSnapshot(store);
-    if (flag(ctx, "json")) ctx.io.stdout(JSON.stringify({ nodes: views(t) }, null, 2));
-    else ctx.io.stdout(render(t));
+    if (flag(ctx, "json")) {
+      const c = calibration(store, t);
+      ctx.io.stdout(JSON.stringify({ nodes: views(t), calibration: flag(ctx, "private") ? c : { map: c.map } }, null, 2));
+    } else ctx.io.stdout([render(t), "", ...calibrationLines(store, t, flag(ctx, "private"))].join("\n"));
     return 0;
   } finally {
     store.close();
@@ -105,7 +122,7 @@ async function refreshTree(ctx: CommandContext): Promise<number> {
 }
 
 export const mapCommand: Command = {
-  options: { "demo-llm": { type: "boolean" }, ...json },
+  options: { "demo-llm": { type: "boolean" }, private: { type: "boolean" }, ...json },
   async run(ctx) {
     const sub = ctx.positionals[0];
     if (sub === undefined) return show(ctx);

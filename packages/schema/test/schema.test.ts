@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   Actor,
+  Probe,
+  ProbeResponse,
+  ReviewSession,
+  SourceKind,
   ALLOWED_TRANSITIONS,
   Gap,
   TopicEdge,
@@ -181,5 +185,52 @@ describe("knowledge tree records", () => {
 
   it("accepts the map actor", () => {
     expect(Actor.parse("map")).toBe("map");
+  });
+});
+
+describe("probing records", () => {
+  const probe = {
+    id: "prb_0123456789ab",
+    nodeId: "ent_a",
+    checkOf: "ent_b",
+    kind: "claim",
+    difficulty: 3,
+    question: "Could you explain how Raft elects a leader?",
+    holdout: "none",
+    createdAt: "2026-10-01T00:00:00.000Z",
+    releasedAt: null,
+  };
+  const response = {
+    id: "rsp_0123456789ab",
+    probeId: probe.id,
+    sessionId: "ses_0123456789ab",
+    shownAt: "2026-10-01T00:00:00.000Z",
+    predictedMode: "explain",
+    rating: null,
+    answeredAt: null,
+    spotCheck: "none",
+    spotCheckAnswer: null,
+    observationId: null,
+    grade: null,
+    gradeReason: null,
+    gradeBatchId: null,
+    judged: null,
+  };
+
+  it("parses probes and rejects difficulty 0 or an unknown holdout", () => {
+    expect(Probe.parse(probe).kind).toBe("claim");
+    expect(() => Probe.parse({ ...probe, difficulty: 0 })).toThrow();
+    expect(() => Probe.parse({ ...probe, holdout: "sometimes" })).toThrow();
+  });
+
+  it("parses responses and rejects an unknown rating", () => {
+    expect(ProbeResponse.parse(response).predictedMode).toBe("explain");
+    expect(() => ProbeResponse.parse({ ...response, rating: "maybe" })).toThrow();
+  });
+
+  it("parses review sessions, probe gaps and probe observations", () => {
+    expect(ReviewSession.parse({ id: "ses_0123456789ab", startedAt: "2026-10-01T00:00:00.000Z", endedAt: null, size: 10 }).size).toBe(10);
+    expect(Gap.parse({ id: "gap_0123456789ab", nodeId: "a", claimNodeId: "b", level: 2, status: "open", source: "probe", memoryId: null, responseId: "rsp_0123456789ab", createdAt: "2026-10-01T00:00:00.000Z" }).responseId).toBe("rsp_0123456789ab");
+    expect(SourceKind.parse("probe")).toBe("probe");
   });
 });

@@ -21,38 +21,53 @@ export function proposeLighting(store: Store, t: TreeSnapshot, values: Map<strin
   store.transaction(() => {
     for (const [nodeId, value] of values) {
       if (value.basis !== "predicted") continue;
-      const approved = t.approved.get(nodeId);
-      const decided = t.proposals.some((p) => p.nodeId === nodeId && p.depth === value.depth);
-      if ((approved && approved.depth >= value.depth) || decided) {
-        report.unchanged++;
-        continue;
-      }
-      for (const stale of t.proposals.filter((p) => p.nodeId === nodeId && p.status === "proposed")) {
-        store.reject(stale.memoryId, "replaced by a newer estimate", "map");
-        report.replaced.push(stale.memoryId);
-      }
-      const topic = t.topics.get(nodeId)!;
-      // Approved lighting covers the branch below it, so say how far before the person approves.
-      const parts = descendants(t, nodeId);
-      const reasons = parts > 0 ? [...value.reasons, `Approving lights its whole branch: ${parts} part${parts === 1 ? "" : "s"} in the tree.`] : value.reasons;
-      const previous = approved ? store.getMemory(approved.memoryId) : null;
-      const m = store.insertMemory(
-        {
-          kind: "competence",
-          statement: statementFor(value.depth, topic.name),
-          tier: previous?.tier ?? 1,
-          isCurrentState: false,
-          attrs: { domain: topic.name, depth: value.depth, basis: "predicted", reasons },
-          supersedesId: approved?.memoryId ?? null,
-        },
-        { sourceObservationIds: [], entityIds: [nodeId], actor: "map" },
-      );
-      report.proposed.push(m.id);
+      const out = proposeNode(store, t, nodeId, value.depth, "predicted", value.reasons);
+      if (out.proposed) report.proposed.push(out.proposed);
+      else report.unchanged++;
+      report.replaced.push(...out.replaced);
     }
   });
   return report;
 }
 
+/**
+ * One lighting proposal, by the §3.6 rules: only above what is approved, never twice for the same node and
+ * depth (pending or rejected), and replacing a pending proposal at another depth.
+ */
+export function proposeNode(
+  store: Store,
+  t: TreeSnapshot,
+  nodeId: string,
+  depth: number,
+  basis: "predicted" | "probed",
+  reasons: string[],
+): { proposed: string | null; replaced: string[] } {
+  const approved = t.approved.get(nodeId);
+  const decided = t.proposals.some((p) => p.nodeId === nodeId && p.depth === depth);
+  if ((approved && approved.depth >= depth) || decided) return { proposed: null, replaced: [] };
+  const replaced: string[] = [];
+  for (const stale of t.proposals.filter((p) => p.nodeId === nodeId && p.status === "proposed")) {
+    store.reject(stale.memoryId, "replaced by a newer estimate", "map");
+    replaced.push(stale.memoryId);
+  }
+  const topic = t.topics.get(nodeId)!;
+  const previous = approved ? store.getMemory(approved.memoryId) : null;
+  // Approved lighting covers the branch below it, so say how far before the person approves.
+  const parts = descendants(t, nodeId);
+  const why = parts > 0 ? [...reasons, `Approving lights its whole branch: ${parts} part${parts === 1 ? "" : "s"} in the tree.`] : reasons;
+  const m = store.insertMemory(
+    {
+      kind: "competence",
+      statement: statementFor(depth, topic.name),
+      tier: previous?.tier ?? 1,
+      isCurrentState: false,
+      attrs: { domain: topic.name, depth, basis, reasons: why },
+      supersedesId: approved?.memoryId ?? null,
+    },
+    { sourceObservationIds: [], entityIds: [nodeId], actor: "map" },
+  );
+  return { proposed: m.id, replaced };
+}
 /** How many nodes sit below `nodeId` in the part_of tree. */
 function descendants(t: TreeSnapshot, nodeId: string): number {
   const children = new Map<string, string[]>();

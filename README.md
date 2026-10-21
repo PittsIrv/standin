@@ -93,6 +93,20 @@ pnpm standin queue         # approve or reject the proposals
 pnpm standin map           # see the tree (no model calls)
 ```
 
+## Probing
+
+Probes check the tree against you. A session asks short questions you rate (know / roughly / no idea / wouldn't say), in strict order:
+
+1. **Your claims:** three questions at your claimed level, on different parts of the topic.
+2. **What the system inferred:** one question each for background-seeded topics, inferred parents and prerequisites.
+3. **Discovery:** topics next to your strong ones that you never claimed, climbing from level 2.
+
+About one answer in three asks for a one-line explanation, which a model grades later. When you miss something inside a claim, *you* decide whether it's a gap. A gap gets one follow-up a level lower, then you **keep** the claim (the gap is carved out) or **lower** it. "Wouldn't say" puts a boundary on the topic at once.
+
+About 30% of probes are **held out** as test items. The standin's prediction is recorded before you answer, held-out answers never shape the tree until they're released (and a fixed 10% never are), and `standin map` reports how often the prediction matched you: the **calibration score**. `standin map --private` adds the score over branches where you kept a claim.
+
+The review page that runs sessions arrives in the next release; the engine and its rules are here and tested.
+
 ## Choosing models: roles and tiers
 
 Every model call belongs to a **role**, and each role defaults to a **tier**. The cheapest thing that does the job well wins: code first, then a cache, then small, medium, and large models.

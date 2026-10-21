@@ -1,6 +1,7 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { openStore } from "@standin/store";
 import { describe, expect, it } from "vitest";
 import { runCli } from "../src/main.ts";
 
@@ -59,5 +60,37 @@ describe("standin map", () => {
     const { run } = harness();
     await run("init", "--name", "T");
     expect((await run("map", "frob")).code).toBe(1);
+  });
+});
+
+describe("standin map calibration", () => {
+  it("shows the map score, and the presented score only with --private", async () => {
+    const home = join(mkdtempSync(join(tmpdir(), "standin-cli-")), "home");
+    const run = async (...argv: string[]) => {
+      const out: string[] = [];
+      const code = await runCli(argv, { stdout: (s) => out.push(s), stderr: () => {}, env: { STANDIN_HOME: home }, sleep: async () => {} });
+      return { code, out: out.join("\n") };
+    };
+    await run("init", "--name", "T");
+    expect((await run("map")).out).toContain("Calibration: not enough held-out answers yet");
+
+    const store = openStore({ path: join(home, "standin.db") });
+    const session = store.startSession(10);
+    const held = (topic: string, holdout: "fixed" | "rotating", mode: "explain" | "decline", rating: "know" | "no_idea") => {
+      const node = store.ensureTopic(topic);
+      const p = store.insertProbe({ nodeId: node.id, checkOf: null, kind: "foundation", difficulty: 2, question: "?", holdout });
+      store.rateResponse(store.showProbe(p.id, session.id, mode).id, rating, false);
+    };
+    held("a", "fixed", "explain", "know");
+    held("b", "fixed", "explain", "no_idea");
+    held("c", "rotating", "decline", "no_idea");
+    store.close();
+
+    const shown = (await run("map")).out;
+    expect(shown).toContain("Calibration (map score): fixed 1/2 (50%), rotating 1/1 (100%)");
+    expect(shown).not.toContain("Presented");
+    expect((await run("map", "--private")).out).toContain("Presented score (private): fixed 1/2 (50%), rotating 1/1 (100%)");
+    const json = JSON.parse((await run("map", "--json")).out) as { calibration: { map: { fixed: { n: number } } } };
+    expect(json.calibration.map.fixed.n).toBe(2);
   });
 });

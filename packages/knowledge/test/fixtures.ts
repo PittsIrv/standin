@@ -49,9 +49,11 @@ export function tree(spec: {
       status: "kept" as const,
       source: "stated" as const,
       memoryId: null,
+      responseId: null,
       createdAt: "2026-10-01T00:00:00.000Z",
     })),
     negatives: [],
     proposals: [],
+    confirmed: new Set(),
   };
 }

@@ -3,7 +3,7 @@ import type { TreeSnapshot } from "./snapshot.ts";
 /** What the rules say a node's lighting should be. Claims come straight from the person; the rest is inferred. */
 export interface RuleValue {
   depth: number;
-  basis: "claimed" | "predicted";
+  basis: "claimed" | "predicted" | "probed";
   reasons: string[];
 }
 
@@ -21,11 +21,14 @@ export function computeLighting(t: TreeSnapshot): Map<string, RuleValue> {
   const name = (id: string) => t.topics.get(id)?.name ?? id;
   const values = new Map<string, RuleValue>();
   for (const [node, depth] of t.claims) if (t.topics.has(node)) values.set(node, { depth, basis: "claimed", reasons: [`you claimed ${depth}`] });
+  // Probed lighting is measured, so inference never overrides it.
+  for (const [node, lit] of t.approved)
+    if (lit.basis === "probed" && t.topics.has(node)) values.set(node, { depth: lit.depth, basis: "probed", reasons: [`probed at ${lit.depth}`] });
 
   const raise = (node: string, depth: number, reason: string): boolean => {
     if (!t.topics.has(node)) return false;
     const current = values.get(node);
-    if (current && current.depth >= depth) return false;
+    if (current?.basis === "probed" || (current && current.depth >= depth)) return false;
     values.set(node, { depth, basis: "predicted", reasons: current ? [...current.reasons, reason] : [reason] });
     return true;
   };

@@ -29,3 +29,10 @@ export class CycleError extends Error {
     this.name = "CycleError";
   }
 }
+
+export class AlreadyRatedError extends Error {
+  constructor(id: string) {
+    super(`response ${id} is already rated`);
+    this.name = "AlreadyRatedError";
+  }
+}

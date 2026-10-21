@@ -23,6 +23,7 @@ export const SourceKind = z.enum([
   "chatgpt-export",
   "claude-export",
   "demo",
+  "probe",
 ]);
 export type SourceKind = z.infer<typeof SourceKind>;
 
@@ -222,6 +223,63 @@ export const Gap = z.object({
   status: z.enum(["open", "kept", "lowered"]),
   source: z.enum(["stated", "probe"]),
   memoryId: z.string().nullable(),
+  /** The probe response the person judged a gap, for gaps found by probing. */
+  responseId: z.string().nullable().default(null),
   createdAt: IsoTime,
 });
 export type Gap = z.infer<typeof Gap>;
+
+export const Rating = z.enum(["know", "roughly", "no_idea", "wouldnt_say"]);
+export type Rating = z.infer<typeof Rating>;
+
+/** Held-out probes are test items: `fixed` never feeds the map, `rotating` only once released. */
+export const Holdout = z.enum(["none", "fixed", "rotating"]);
+export type Holdout = z.infer<typeof Holdout>;
+
+export const AnswerModeName = z.enum(["explain", "brief", "decline"]);
+export type AnswerModeName = z.infer<typeof AnswerModeName>;
+
+export const ProbeKind = z.enum(["claim", "followup", "foundation", "discovery"]);
+export type ProbeKind = z.infer<typeof ProbeKind>;
+
+export const Probe = z.object({
+  id: z.string(),
+  nodeId: z.string(),
+  /** For claim checks and their follow-ups: the claimed node being checked. */
+  checkOf: z.string().nullable(),
+  kind: ProbeKind,
+  difficulty: Depth.min(1),
+  question: NonBlank,
+  holdout: Holdout,
+  createdAt: IsoTime,
+  releasedAt: IsoTime.nullable(),
+});
+export type Probe = z.infer<typeof Probe>;
+
+export const ProbeResponse = z.object({
+  id: z.string(),
+  probeId: z.string(),
+  sessionId: z.string(),
+  shownAt: IsoTime,
+  /** The standin's answer mode for the node, recorded when shown and before the rating. */
+  predictedMode: AnswerModeName,
+  rating: Rating.nullable(),
+  answeredAt: IsoTime.nullable(),
+  spotCheck: z.enum(["none", "requested", "answered"]),
+  spotCheckAnswer: z.string().nullable(),
+  observationId: z.string().nullable(),
+  grade: z.enum(["pass", "fail"]).nullable(),
+  gradeReason: z.string().nullable(),
+  gradeBatchId: z.string().nullable(),
+  /** The person's judgment of a miss. */
+  judged: z.enum(["gap", "not_gap"]).nullable(),
+});
+export type ProbeResponse = z.infer<typeof ProbeResponse>;
+
+export const ReviewSession = z.object({
+  id: z.string(),
+  startedAt: IsoTime,
+  endedAt: IsoTime.nullable(),
+  size: z.number().int().positive(),
+});
+export type ReviewSession = z.infer<typeof ReviewSession>;

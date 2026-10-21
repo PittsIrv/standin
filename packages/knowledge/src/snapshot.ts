@@ -1,4 +1,4 @@
-import type { DepthBasis, Gap, Topic } from "@standin/schema";
+import type { DepthBasis, Gap, Probe, Topic } from "@standin/schema";
 import type { Store } from "@standin/store";
 
 /** Everything the lighting rules and the answering rule read, loaded once. Deleted topics are left out. */
@@ -19,6 +19,8 @@ export interface TreeSnapshot {
   negatives: { memoryId: string; topicIds: string[] }[];
   /** Lighting proposals the knowledge map wrote, pending or rejected. */
   proposals: { nodeId: string; depth: number; status: "proposed" | "rejected"; memoryId: string }[];
+  /** Inferred nodes a usable foundation probe confirmed ("know", no failed spot-check). */
+  confirmed: Set<string>;
 }
 
 export function loadSnapshot(store: Store): TreeSnapshot {
@@ -60,5 +62,14 @@ export function loadSnapshot(store: Store): TreeSnapshot {
     gaps: store.listGaps().filter((g) => topics.has(g.nodeId)),
     negatives,
     proposals,
+    confirmed: new Set(
+      store
+        .listResponses({ rated: true })
+        .filter((r) => r.probe.kind === "foundation" && r.rating === "know" && r.grade !== "fail" && usableProbe(r.probe))
+        .map((r) => r.probe.nodeId),
+    ),
   };
 }
+
+/** Held-out probes feed the map only once released, and fixed ones never (spec §4.8). */
+export const usableProbe = (p: Probe): boolean => p.holdout === "none" || (p.holdout === "rotating" && p.releasedAt !== null);

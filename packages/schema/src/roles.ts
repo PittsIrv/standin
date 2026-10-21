@@ -13,10 +13,12 @@ export const ROLES = {
   screen: { tier: "medium", zone: "private", purpose: "Flag possibly sensitive memories for review" },
   answer: { tier: "small", zone: "public", purpose: "Answer a visitor turn" },
   checkin: { tier: "medium", zone: "private", purpose: "Write follow-up interview questions" },
-  quiz: { tier: "medium", zone: "private", purpose: "Generate self-quiz questions" },
+  quiz: { tier: "medium", zone: "private", purpose: "Write knowledge probes for a node at a difficulty" },
   attack: { tier: "medium", zone: "private", purpose: "Generate break-me attempts" },
   style: { tier: "large", zone: "private", purpose: "Rewrite the style card" },
   judge: { tier: "large", zone: "private", purpose: "Grade eval answers" },
+  // Medium: the person judges every failed grade before anything changes, so a grading mistake costs a moment.
+  grade: { tier: "medium", zone: "private", purpose: "Grade spot-check answers" },
   // Large: its output is stored and reused as the tree's structure, so quality outweighs price.
   map: { tier: "large", zone: "private", purpose: "Place topics in the knowledge tree, merge duplicates, and seed from background" },
 } as const satisfies Record<string, { tier: ModelTier; zone: Zone; purpose: string }>;

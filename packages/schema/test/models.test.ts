@@ -13,6 +13,8 @@ describe("roles", () => {
     expect(ROLES.extract.tier).toBe("large");
     expect(ROLES.reconcile.tier).toBe("small");
     expect(ROLES.screen.tier).toBe("medium");
+    expect(ROLES.grade).toEqual({ tier: "medium", zone: "private", purpose: "Grade spot-check answers" });
+    expect(ROLES.quiz.purpose).toBe("Write knowledge probes for a node at a difficulty");
     expect(ROLES.map).toEqual({ tier: "large", zone: "private", purpose: "Place topics in the knowledge tree, merge duplicates, and seed from background" });
     expect(ROLES.answer.zone).toBe("public");
   });
