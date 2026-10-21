@@ -19,6 +19,8 @@ describe("review server", () => {
     expect(ok.headers.get("referrer-policy")).toBe("no-referrer");
     const html = await ok.text();
     expect(html).toContain("<title>standin review</title>");
+    expect(html).toContain("X-Standin-Token");
+    expect(html).toContain('id="forest"');
     expect((await page("")).status).toBe(403);
     expect((await page("?t=wrong")).status).toBe(403);
     await server.finish();

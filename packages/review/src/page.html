@@ -1,2 +1,708 @@
 <!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>standin review</title>
+<style>
+:root {
+  --bg: #e9eeec; --panel: #f7f9f8; --ink: #1d2624; --muted: #5d6a66; --line: #c9d3cf;
+  --lit: #d9932b; --lit-ink: #6b430b; --life: #2f8f83; --dark-node: #8a948f; --danger: #a8322a; --focus: #2f6fb3;
+  --ui: "Avenir Next", "Seravek", "Segoe UI", system-ui, sans-serif;
+  --read: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #14201c; --panel: #1b2925; --ink: #e4ece8; --muted: #9db0a9; --line: #2f413b;
+    --lit: #f0b452; --lit-ink: #f6d39a; --life: #4fbfb0; --dark-node: #5f6e69; --danger: #ef7a6f; --focus: #7fb2ec; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--ink); font: 16px/1.5 var(--ui); display: flex; flex-direction: column; }
+button, select, input, textarea { font: inherit; color: inherit; }
+button { min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); cursor: pointer; }
+button:hover { border-color: var(--muted); }
+button.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+button.ghost { background: transparent; }
+button:disabled { opacity: .45; cursor: default; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+kbd { font: 12px var(--ui); color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; margin-left: 8px; }
+input, select, textarea { min-height: 40px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); padding: 6px 10px; }
+textarea { width: 100%; min-height: 88px; resize: vertical; }
+
+header { display: flex; align-items: center; gap: 16px; padding: 10px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+header h1 { font-size: 17px; font-weight: 600; margin: 0 8px 0 0; letter-spacing: .01em; }
+nav { display: flex; gap: 4px; }
+nav button { border: none; background: transparent; color: var(--muted); padding: 0 12px; }
+nav button[aria-selected="true"] { color: var(--ink); box-shadow: inset 0 -2px 0 var(--lit); border-radius: 0; }
+.progress { margin-left: auto; color: var(--muted); font-size: 14px; }
+#banner { display: none; margin: 12px 16px 0; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--lit); color: var(--lit-ink); }
+#banner button { min-height: 32px; margin-left: 12px; }
+main { flex: 1; min-height: 0; display: flex; }
+section[hidden] { display: none !important; }
+
+/* Session */
+#session { flex: 1; overflow: auto; padding: 32px 16px; }
+.card { max-width: 40rem; margin: 0 auto; }
+.topic { color: var(--muted); font-size: 15px; }
+.topic b { color: var(--ink); font-weight: 600; }
+.kind { font-size: 13px; color: var(--muted); margin-left: 6px; }
+.question { font: 400 clamp(22px, 3.2vw, 30px)/1.35 var(--read); margin: 14px 0 28px; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.actions button { flex: 1 1 140px; white-space: nowrap; }
+.note { color: var(--muted); font-size: 15px; margin: 4px 0 18px; }
+.statement { font: 400 22px/1.4 var(--read); margin: 10px 0 14px; }
+.why { color: var(--muted); font-size: 15px; margin: 0 0 18px; padding-left: 14px; border-left: 2px solid var(--line); border-radius: 0; }
+.done { text-align: center; padding-top: 10vh; }
+.error { color: var(--danger); font-size: 14px; margin-top: 8px; }
+
+/* Forest */
+#forestTab { flex: 1; display: flex; min-width: 0; position: relative; }
+#canvas { flex: 1; position: relative; overflow: hidden; touch-action: none; }
+#forest { width: 100%; height: 100%; display: block; cursor: grab; user-select: none; }
+#forest.panning { cursor: grabbing; }
+.tools { position: absolute; top: 12px; left: 12px; display: flex; gap: 8px; align-items: center; }
+.tools label { display: flex; align-items: center; gap: 6px; font-size: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 0 12px; min-height: 44px; }
+.legend { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; }
+.legend svg { vertical-align: -3px; margin-right: 4px; }
+.edge { fill: none; stroke: var(--line); stroke-width: 1.4; }
+.link { fill: none; stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 4; opacity: .7; }
+.label { font: 14px var(--ui); fill: var(--ink); }
+.label.unlit, .label.frontier { fill: var(--muted); }
+.rootlabel { font: 600 16px var(--ui); fill: var(--ink); }
+.chev { font: 12px var(--ui); fill: var(--muted); cursor: pointer; }
+.node { cursor: pointer; outline: none; }
+.node:focus-visible circle.core { stroke: var(--focus); stroke-width: 3; }
+.node.selected .label { font-weight: 600; }
+.node.target circle.core, .rootgroup.target text { stroke: var(--focus); stroke-width: 3; }
+.halo { fill: var(--lit); }
+#ghost { position: fixed; pointer-events: none; padding: 4px 10px; border-radius: 8px; background: var(--ink); color: var(--bg); font-size: 14px; display: none; z-index: 5; }
+
+#panel { width: 380px; border-left: 1px solid var(--line); background: var(--panel); overflow: auto; padding: 18px 18px 40px; }
+#panel h2 { font-size: 20px; margin: 0 0 2px; }
+#panel h3 { font-size: 14px; font-weight: 600; margin: 22px 0 8px; color: var(--muted); }
+#panel .status { color: var(--muted); margin: 0 0 8px; }
+#panel ul { list-style: none; margin: 0; padding: 0; }
+#panel li { padding: 8px 0; border-bottom: 1px solid var(--line); }
+#panel li:last-child { border-bottom: none; }
+#panel .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+#panel .row > input, #panel .row > select { flex: 1 1 140px; min-width: 0; }
+#panel .path { font-size: 15px; }
+#panel .small { font-size: 13px; color: var(--muted); }
+#panel .close { float: right; min-height: 36px; }
+.empty { color: var(--muted); padding: 40px 0; text-align: center; }
+
+/* Lists */
+.list { flex: 1; overflow: auto; padding: 24px 16px; }
+.list > div { max-width: 44rem; margin: 0 auto; }
+.list li { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.list ul { list-style: none; padding: 0; margin: 0; }
+
+@media (max-width: 760px) {
+  #panel { position: absolute; left: 0; right: 0; bottom: 0; width: auto; max-height: 62%; border-left: none; border-top: 1px solid var(--line); border-radius: 14px 14px 0 0; }
+  .legend { font-size: 12px; gap: 8px; padding: 6px 10px; right: 12px; }
+  header { gap: 8px; }
+  .progress { margin-left: 0; width: 100%; order: 3; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .halo { transition: opacity .3s; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>standin review</h1>
+  <nav role="tablist">
+    <button role="tab" data-tab="session" aria-selected="true">Session</button>
+    <button role="tab" data-tab="forest" aria-selected="false">Forest</button>
+    <button role="tab" data-tab="boundaries" aria-selected="false">Boundaries</button>
+    <button role="tab" data-tab="queue" aria-selected="false">Queue</button>
+  </nav>
+  <span class="progress" id="progress"></span>
+  <button id="finish" title="Finish the session (f)">Finish<kbd>f</kbd></button>
+</header>
+<div id="banner" role="status"><span id="bannerText"></span><button id="bannerClose" class="ghost">Dismiss</button></div>
+<main>
+  <section id="session" role="tabpanel"></section>
+  <section id="forestTab" role="tabpanel" hidden>
+    <div id="canvas">
+      <svg id="forest" aria-label="Your world tree"></svg>
+      <div class="tools">
+        <button id="fit">Fit</button>
+        <label><input type="checkbox" id="frontier"> Show frontier</label>
+      </div>
+      <div class="legend" aria-hidden="true">
+        <span><svg width="16" height="16"><circle style="fill:var(--lit)" cx="8" cy="8" r="7" opacity=".35"/><circle style="fill:var(--lit)" cx="8" cy="8" r="5"/></svg>lit (brighter = deeper)</span>
+        <span><svg width="16" height="16"><circle style="fill:var(--lit);stroke:var(--lit)" cx="8" cy="8" r="6" fill-opacity=".4" stroke-dasharray="2 2" stroke-width="1.5"/></svg>probable (fill = probability)</span>
+        <span><svg width="16" height="16"><circle style="fill:var(--life)" cx="8" cy="8" r="6"/></svg>has facts</span>
+        <span><svg width="16" height="16"><circle style="fill:var(--dark-node)" cx="8" cy="8" r="6"/></svg>dark</span>
+        <span><svg width="16" height="16"><circle style="stroke:var(--dark-node)" cx="8" cy="8" r="5.5" fill="none" stroke-width="1.5"/></svg>not lit</span>
+      </div>
+    </div>
+    <aside id="panel" hidden></aside>
+    <div id="ghost"></div>
+  </section>
+  <section id="boundaries" class="list" role="tabpanel" hidden><div></div></section>
+  <section id="queue" class="list" role="tabpanel" hidden><div></div></section>
+</main>
+<script>
+"use strict";
+const TOKEN = new URLSearchParams(location.search).get("t") || "";
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+let finished = false;
+
+async function api(path, body) {
+  const res = await fetch(path, {
+    method: body === undefined ? "GET" : "POST",
+    headers: { "X-Standin-Token": TOKEN, ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  return data;
+}
+
+function banner(text) {
+  if (!text) return;
+  $("#bannerText").textContent = text;
+  $("#banner").style.display = "block";
+}
+$("#bannerClose").onclick = () => ($("#banner").style.display = "none");
+
+// ---- tabs ---------------------------------------------------------------------
+let tab = "session";
+function show(name) {
+  tab = name;
+  for (const b of document.querySelectorAll("nav button")) b.setAttribute("aria-selected", String(b.dataset.tab === name));
+  $("#session").hidden = name !== "session";
+  $("#forestTab").hidden = name !== "forest";
+  $("#boundaries").hidden = name !== "boundaries";
+  $("#queue").hidden = name !== "queue";
+  if (name === "forest") loadForest();
+  if (name === "boundaries") loadBoundaries();
+  if (name === "queue") loadQueue();
+}
+for (const b of document.querySelectorAll("nav button")) b.onclick = () => show(b.dataset.tab);
+
+// ---- the session: one card at a time --------------------------------------------
+let card = null;
+let keymap = {};
+const KIND = { claim: "checking your claim", followup: "a follow-up", hypothesis: "checking a guess", foundation: "checking an inference", discovery: "exploring" };
+
+async function loadCard() {
+  if (finished) return;
+  try {
+    const data = await api("/api/card");
+    card = data.card;
+    if (data.warnings?.length) banner(data.warnings.join(" · "));
+    renderCard();
+    const st = await api("/api/status");
+    $("#progress").textContent = `${st.done} of ${st.total} questions`;
+  } catch (e) {
+    $("#session").innerHTML = `<div class="card"><p class="error">${esc(e.message)}</p></div>`;
+  }
+}
+
+function buttons(list) {
+  keymap = {};
+  return `<div class="actions">${list
+    .map(([label, key, id, cls]) => {
+      if (key) keymap[key] = id;
+      return `<button id="${id}" class="${cls || ""}">${esc(label)}${key ? `<kbd>${key}</kbd>` : ""}</button>`;
+    })
+    .join("")}</div><div class="error" id="cardError"></div>`;
+}
+
+async function act(fn) {
+  try {
+    await fn();
+    await loadCard();
+  } catch (e) {
+    const el = $("#cardError");
+    if (el) el.textContent = e.message;
+  }
+}
+
+function renderCard() {
+  const root = $("#session");
+  const c = card;
+  keymap = {};
+  if (!c) return;
+  if (c.type === "probe") {
+    const p = c.probe;
+    root.innerHTML = `<div class="card">
+      <div class="topic"><b>${esc(p.topic)}</b> · level ${p.difficulty}<span class="kind">${esc(KIND[p.kind] || p.kind)}</span></div>
+      <p class="question">${esc(p.question)}</p>
+      ${buttons([["I know this", "1", "r1"], ["Roughly", "2", "r2"], ["No idea", "3", "r3"], ["Wouldn't say", "4", "r4"]])}
+    </div>`;
+    const rate = (rating) => act(() => api("/api/rate", { responseId: p.responseId, rating }));
+    $("#r1").onclick = () => rate("know");
+    $("#r2").onclick = () => rate("roughly");
+    $("#r3").onclick = () => rate("no_idea");
+    $("#r4").onclick = () => rate("wouldnt_say");
+  } else if (c.type === "spot-check") {
+    root.innerHTML = `<div class="card">
+      <div class="topic"><b>${esc(c.check.topic)}</b></div>
+      <p class="question">${esc(c.check.question)}</p>
+      <p class="note">In a line, how would you answer? If you can't, say so: that's useful too.</p>
+      <textarea id="answer" aria-label="Your one-line answer"></textarea>
+      <div style="height:12px"></div>
+      ${buttons([["Submit answer", null, "submit", "primary"]])}
+      <p class="note">Ctrl or ⌘ + Enter submits.</p>
+    </div>`;
+    const submit = () => {
+      const text = $("#answer").value.trim();
+      if (!text) return ($("#cardError").textContent = "Write a line first.");
+      act(() => api("/api/answer", { responseId: c.check.responseId, text }));
+    };
+    $("#submit").onclick = submit;
+    $("#answer").onkeydown = (e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit(); };
+    $("#answer").oninput = () => ($("#cardError").textContent = "");
+    $("#answer").focus();
+  } else if (c.type === "miss") {
+    const m = c.miss;
+    root.innerHTML = `<div class="card">
+      <div class="topic"><b>${esc(m.topic)}</b> · level ${m.difficulty}</div>
+      <p class="question">${esc(m.question)}</p>
+      <p class="note">${m.reason === "no_idea" ? "You said no idea." : "Your one-line answer didn't hold up."} Is this a gap in what you know?</p>
+      ${buttons([["Gap", "g", "gap"], ["Not a gap", "n", "nogap"]])}
+    </div>`;
+    $("#gap").onclick = () => act(() => api("/api/judge", { responseId: m.responseId, gap: true }));
+    $("#nogap").onclick = () => act(() => api("/api/judge", { responseId: m.responseId, gap: false }));
+  } else if (c.type === "claim") {
+    const d = c.decision;
+    root.innerHTML = `<div class="card">
+      <div class="topic"><b>${esc(d.topic)}</b></div>
+      <p class="statement">You said you know ${esc(d.topic)} at level ${d.claimed}.</p>
+      <p class="why">Gaps: ${d.gaps.map((g) => `${esc(g.topic)} (fine up to ${g.level})`).join(", ")}</p>
+      <p class="note">Keep your claim with these gaps noted, or lower it to the lowest gap.</p>
+      ${buttons([["Keep", "k", "keep"], ["Lower", "l", "lower"]])}
+    </div>`;
+    $("#keep").onclick = () => act(() => api("/api/claim", { claimNodeId: d.claimNodeId, choice: "keep" }));
+    $("#lower").onclick = () => act(() => api("/api/claim", { claimNodeId: d.claimNodeId, choice: "lower" }));
+  } else if (c.type === "proposal") {
+    const it = c.item;
+    const extra = [
+      it.reasons.length ? `why: ${it.reasons.map(esc).join("; ")}` : "",
+      it.replaces ? `replaces: “${esc(it.replaces)}”` : "",
+      it.conflictsWith ? `conflicts with: “${esc(it.conflictsWith)}”` : "",
+    ].filter(Boolean);
+    root.innerHTML = `<div class="card">
+      <div class="topic">${it.stillTrue ? "<b>Still true?</b>" : `<b>${esc(it.memoryKind)}</b> · ${esc(it.group)}`}</div>
+      <p class="statement" id="stmt">${esc(it.statement)}</p>
+      ${extra.length ? `<p class="why">${extra.join("<br>")}</p>` : ""}
+      ${it.stillTrue ? buttons([["Still true", "k", "keep"], ["No longer", "x", "expire"]]) : buttons([["Approve", "a", "approve", "primary"], ["Edit, then approve", "e", "edit"], ["Reject", "r", "reject"]])}
+    </div>`;
+    const decide = (decision, statement) => act(() => api("/api/decide", { id: it.id, decision, statement }));
+    if (it.stillTrue) {
+      $("#keep").onclick = () => decide("keep");
+      $("#expire").onclick = () => decide("expire");
+    } else {
+      $("#approve").onclick = () => decide("approve");
+      $("#reject").onclick = () => decide("reject");
+      $("#edit").onclick = () => {
+        $("#stmt").outerHTML = `<input id="stmtEdit" style="width:100%;margin:10px 0 14px" value="${esc(it.statement)}" aria-label="Statement">`;
+        const input = $("#stmtEdit");
+        input.focus();
+        input.onkeydown = (e) => { if (e.key === "Enter" && input.value.trim()) decide("approve", input.value.trim()); };
+        $("#edit").textContent = "Approve edit";
+        $("#edit").onclick = () => input.value.trim() && decide("approve", input.value.trim());
+      };
+    }
+  } else {
+    root.innerHTML = `<div class="card done"><p class="statement">Nothing left for this session.</p><p class="note">Check the forest, or finish to grade spot-checks and settle guesses.</p>${buttons([["Finish session", "f", "finish2", "primary"]])}</div>`;
+    $("#finish2").onclick = finish;
+  }
+}
+
+document.addEventListener("keydown", (e) => {
+  if (finished || e.metaKey || e.ctrlKey || e.altKey) return;
+  const t = e.target;
+  if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT")) return;
+  if (e.key === "f") return finish();
+  if (tab !== "session") return;
+  const id = keymap[e.key];
+  if (id && $(`#${id}`)) {
+    e.preventDefault();
+    $(`#${id}`).click();
+  }
+});
+
+async function finish() {
+  if (finished || !confirm("Finish this session? Spot-checks get graded and guesses settle.")) return;
+  try {
+    const { report } = await api("/api/finish", {});
+    finished = true;
+    for (const b of document.querySelectorAll("button")) b.disabled = true;
+    $("#bannerClose").disabled = false;
+    show("session");
+    $("#session").innerHTML = `<div class="card done"><p class="statement">Session finished.</p>
+      <p class="note">Graded ${report.gradingSubmitted} answers, released ${report.released} held-out questions, ${report.exemplars} new voice samples, settled ${report.settled} guesses.</p>
+      <p class="note">You can close this tab.</p></div>`;
+    $("#progress").textContent = "";
+  } catch (e) {
+    banner(e.message);
+  }
+}
+$("#finish").onclick = finish;
+
+// ---- the forest -------------------------------------------------------------------
+const SVGNS = "http://www.w3.org/2000/svg";
+const ROW = 30, ROOT_GAP = 46;
+let forest = null;
+let selected = null;
+const collapsed = new Set();
+let view = { x: 40, y: 40, k: 1 };
+let laid = null;
+
+async function loadForest() {
+  try {
+    const first = forest === null;
+    forest = await api("/api/forest");
+    drawForest();
+    if (first) fit();
+    if (selected) openPanel(selected);
+  } catch (e) {
+    banner(e.message);
+  }
+}
+$("#frontier").onchange = drawForest;
+
+function layout() {
+  const showFrontier = $("#frontier").checked;
+  const visible = forest.nodes.filter((n) => showFrontier || !n.frontier);
+  const kids = new Map();
+  for (const n of visible) if (n.parentId) kids.set(n.parentId, [...(kids.get(n.parentId) || []), n]);
+  for (const list of kids.values()) list.sort((a, b) => a.name.localeCompare(b.name));
+  const pos = new Map();
+  const depthOf = new Map();
+  let y = 0;
+  const place = (n, depth) => {
+    depthOf.set(n.id, depth);
+    const children = collapsed.has(n.id) ? [] : kids.get(n.id) || [];
+    if (children.length === 0) {
+      pos.set(n.id, { x: 0, y: y });
+      y += ROW;
+    } else {
+      for (const c of children) place(c, depth + 1);
+      const first = pos.get(children[0].id).y, last = pos.get(children[children.length - 1].id).y;
+      pos.set(n.id, { x: 0, y: (first + last) / 2 });
+    }
+  };
+  const roots = [];
+  for (const r of forest.roots) {
+    const top = { id: r.id, name: r.name, root: true };
+    const start = y;
+    if (!(kids.get(r.id) || []).length) { pos.set(r.id, { x: 0, y }); y += ROW; }
+    else place(top, 0);
+    roots.push({ ...r, y: pos.get(r.id).y, top: start });
+    y += ROOT_GAP;
+  }
+  const loose = visible.filter((n) => !n.parentId || (!pos.has(n.parentId) && !forest.roots.some((r) => r.id === n.parentId)));
+  for (const n of loose) if (!pos.has(n.id)) place(n, 0);
+  // Columns as wide as their widest label, so edges start after a label instead of crossing it.
+  const names = new Map([...forest.roots.map((r) => [r.id, r.name]), ...visible.map((n) => [n.id, n.name])]);
+  const widths = [];
+  const labelEnd = new Map();
+  for (const [id, depth] of depthOf) {
+    const w = textWidth(names.get(id) || "", depth === 0 && forest.roots.some((r) => r.id === id)) + ((kids.get(id) || []).length ? 30 : 18);
+    labelEnd.set(id, w);
+    widths[depth] = Math.max(widths[depth] || 0, w);
+  }
+  const colX = [0];
+  for (let d = 1; d < widths.length; d++) colX[d] = colX[d - 1] + (widths[d - 1] || 0) + 56;
+  for (const [id, depth] of depthOf) pos.get(id).x = colX[depth];
+  return { visible, kids, pos, roots, labelEnd, height: y, width: (colX.at(-1) || 0) + (widths.at(-1) || 0) };
+}
+
+const measure = document.createElement("canvas").getContext("2d");
+function textWidth(text, bold) {
+  measure.font = `${bold ? "600 16px" : "14px"} ${getComputedStyle(document.body).fontFamily}`;
+  return measure.measureText(text).width;
+}
+
+function el(name, attrs, parent) {
+  const e = document.createElementNS(SVGNS, name);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v === undefined || v === null) continue;
+    // Colour tokens are CSS variables, which presentation attributes don't resolve: set them as style.
+    if ((k === "fill" || k === "stroke") && String(v).startsWith("var(")) e.style.setProperty(k, v);
+    else e.setAttribute(k, v);
+  }
+  if (parent) parent.appendChild(e);
+  return e;
+}
+
+function nodeGlyph(g, n) {
+  const knowledge = n.root === "knowledge" || (!n.root && n.label === "topic");
+  if (n.frontier) return el("circle", { class: "core", r: 4, fill: "none", stroke: "var(--dark-node)", "stroke-dasharray": "1.5 2" }, g);
+  if (n.state === "lit" && knowledge) {
+    const d = Math.max(1, Math.min(4, n.depth || 1));
+    el("circle", { class: "halo", r: 7 + d * 3, opacity: 0.08 + d * 0.05 }, g);
+    return el("circle", { class: "core", r: 7, fill: "var(--lit)", "fill-opacity": 0.35 + 0.15 * d }, g);
+  }
+  if (n.state === "lit") return el("circle", { class: "core", r: 7, fill: "var(--life)" }, g);
+  if (n.state === "probable") return el("circle", { class: "core", r: 7, fill: "var(--lit)", "fill-opacity": n.p ?? 0.5, stroke: "var(--lit)", "stroke-width": 1.6, "stroke-dasharray": "3 2.5" }, g);
+  if (n.state === "dark") return el("circle", { class: "core", r: 7, fill: "var(--dark-node)" }, g);
+  return el("circle", { class: "core", r: 6.5, fill: "var(--bg)", stroke: "var(--dark-node)", "stroke-width": 1.6 }, g);
+}
+
+function drawForest() {
+  if (!forest) return;
+  laid = layout();
+  const svg = $("#forest");
+  svg.innerHTML = "";
+  const world = el("g", { id: "world", transform: `translate(${view.x},${view.y}) scale(${view.k})` }, svg);
+  const byId = new Map(forest.nodes.map((n) => [n.id, n]));
+  // Tree edges, then cross-links (requires / related) between drawn nodes.
+  for (const n of laid.visible) {
+    const a = laid.pos.get(n.parentId), b = laid.pos.get(n.id);
+    if (!a || !b || collapsed.has(n.parentId)) continue;
+    const ax = a.x + (laid.labelEnd.get(n.parentId) || 8) + 6;
+    const mx = (ax + b.x) / 2;
+    el("path", { class: "edge", d: `M${ax},${a.y} C${mx},${a.y} ${mx},${b.y} ${b.x - 9},${b.y}` }, world);
+  }
+  for (const l of forest.links) {
+    const a = laid.pos.get(l.from), b = laid.pos.get(l.to);
+    if (a && b) el("path", { class: "link", d: `M${a.x},${a.y} Q${(a.x + b.x) / 2 + 40},${(a.y + b.y) / 2} ${b.x},${b.y}` }, world);
+  }
+  for (const r of laid.roots) {
+    const g = el("g", { class: "rootgroup", "data-root": r.id, transform: `translate(0,${r.y})` }, world);
+    el("circle", { r: 9, fill: "var(--ink)" }, g);
+    const t = el("text", { class: "rootlabel", x: 16, y: 5 }, g);
+    t.textContent = r.name;
+  }
+  for (const n of laid.visible) {
+    const p = laid.pos.get(n.id);
+    if (!p) continue;
+    const g = el("g", { class: `node${selected === n.id ? " selected" : ""}`, "data-node": n.id, transform: `translate(${p.x},${p.y})`, tabindex: 0, role: "button", "aria-label": `${n.name}, ${n.state}` }, world);
+    nodeGlyph(g, n);
+    const hasKids = (laid.kids.get(n.id) || []).length > 0;
+    let x = 14;
+    if (hasKids) {
+      const ch = el("text", { class: "chev", x: 12, y: 4, "data-toggle": n.id }, g);
+      ch.textContent = collapsed.has(n.id) ? "▸" : "▾";
+      x = 26;
+    }
+    const label = el("text", { class: `label ${n.state}${n.frontier ? " frontier" : ""}`, x, y: 5 }, g);
+    label.textContent = n.name + (n.boundary ? " 🔒" : "");
+  }
+}
+
+function fit() {
+  if (!laid) return;
+  const box = $("#canvas").getBoundingClientRect();
+  const width = laid.width + 40;
+  const k = Math.max(0.35, Math.min(1.2, (box.width - 60) / width, (box.height - 120) / Math.max(laid.height, 1)));
+  view = { x: 30, y: 70, k };
+  drawForest();
+}
+$("#fit").onclick = fit;
+
+// Pan, zoom, select, collapse, and drag a node onto another to move it.
+(() => {
+  const svg = $("#forest");
+  const pointers = new Map();
+  let pan = null, drag = null, pinch = null;
+  const target = (x, y) => {
+    const hit = document.elementFromPoint(x, y)?.closest("[data-node],[data-root]");
+    return hit ? hit.getAttribute("data-node") || hit.getAttribute("data-root") : null;
+  };
+  const mark = (id) => {
+    for (const e of svg.querySelectorAll(".target")) e.classList.remove("target");
+    if (id) svg.querySelector(`[data-node="${id}"],[data-root="${id}"]`)?.classList.add("target");
+  };
+  svg.addEventListener("pointerdown", (e) => {
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 2) {
+      const [a, b] = [...pointers.values()];
+      pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), k: view.k };
+      pan = drag = null;
+      return;
+    }
+    const toggle = e.target.closest("[data-toggle]");
+    if (toggle) {
+      const id = toggle.getAttribute("data-toggle");
+      collapsed.has(id) ? collapsed.delete(id) : collapsed.add(id);
+      drawForest();
+      return;
+    }
+    const node = e.target.closest("[data-node]");
+    if (node) drag = { id: node.getAttribute("data-node"), x: e.clientX, y: e.clientY, moving: false };
+    else {
+      pan = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y };
+      svg.classList.add("panning");
+    }
+    svg.setPointerCapture(e.pointerId);
+  });
+  svg.addEventListener("pointermove", (e) => {
+    if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch && pointers.size === 2) {
+      const [a, b] = [...pointers.values()];
+      view.k = Math.max(0.3, Math.min(2.5, pinch.k * (Math.hypot(a.x - b.x, a.y - b.y) / pinch.d)));
+      return drawForest();
+    }
+    if (pan) {
+      view.x = pan.vx + e.clientX - pan.x;
+      view.y = pan.vy + e.clientY - pan.y;
+      $("#world")?.setAttribute("transform", `translate(${view.x},${view.y}) scale(${view.k})`);
+    } else if (drag) {
+      if (!drag.moving && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 6) {
+        drag.moving = true;
+        const ghost = $("#ghost");
+        ghost.textContent = `Move ${forest.nodes.find((n) => n.id === drag.id)?.name}`;
+        ghost.style.display = "block";
+      }
+      if (drag.moving) {
+        const ghost = $("#ghost");
+        ghost.style.left = `${e.clientX + 14}px`;
+        ghost.style.top = `${e.clientY + 10}px`;
+        const t = target(e.clientX, e.clientY);
+        mark(t && t !== drag.id ? t : null);
+      }
+    }
+  });
+  const end = async (e) => {
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) pinch = null;
+    svg.classList.remove("panning");
+    if (pan) pan = null;
+    if (!drag) return;
+    const d = drag;
+    drag = null;
+    $("#ghost").style.display = "none";
+    mark(null);
+    if (!d.moving) return openPanel(d.id);
+    const t = target(e.clientX, e.clientY);
+    if (!t || t === d.id) return;
+    try {
+      await api("/api/tree/move", { nodeId: d.id, parentId: t });
+      await loadForest();
+    } catch (err) {
+      banner(`Couldn't move it: ${err.message}`);
+    }
+  };
+  svg.addEventListener("pointerup", end);
+  svg.addEventListener("pointercancel", end);
+  svg.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const box = svg.getBoundingClientRect();
+    const mx = e.clientX - box.left, my = e.clientY - box.top;
+    const k = Math.max(0.3, Math.min(2.5, view.k * Math.exp(-e.deltaY * 0.0015)));
+    view.x = mx - ((mx - view.x) * k) / view.k;
+    view.y = my - ((my - view.y) * k) / view.k;
+    view.k = k;
+    $("#world")?.setAttribute("transform", `translate(${view.x},${view.y}) scale(${view.k})`);
+  }, { passive: false });
+  svg.addEventListener("keydown", (e) => {
+    const node = e.target.closest?.("[data-node]");
+    if (node && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); openPanel(node.getAttribute("data-node")); }
+  });
+})();
+
+// ---- the side panel: everything about a node, and edits -------------------------------
+const LABELS = ["topic", "project", "org", "place", "person", "work", "pet", "other"];
+function nodeOptions(exclude) {
+  const roots = forest.roots.map((r) => `<option value="${esc(r.id)}">${esc(r.name)} (root)</option>`);
+  const nodes = forest.nodes
+    .filter((n) => n.id !== exclude && !n.frontier)
+    .sort((a, b) => (a.root || "~").localeCompare(b.root || "~") || a.name.localeCompare(b.name))
+    .map((n) => `<option value="${esc(n.id)}">${esc(n.name)}${n.parent ? ` (in ${esc(n.parent)})` : ""}</option>`);
+  return roots.concat(nodes).join("");
+}
+
+async function openPanel(id) {
+  selected = id;
+  const panel = $("#panel");
+  panel.hidden = false;
+  try {
+    const d = await api(`/api/node/${encodeURIComponent(id)}`);
+    const n = d.node;
+    for (const g of document.querySelectorAll("#forest .node")) g.classList.toggle("selected", g.getAttribute("data-node") === id);
+    panel.innerHTML = `
+      <button class="close ghost" id="closePanel" aria-label="Close">Close</button>
+      <h2>${esc(n.name)}</h2>
+      <p class="status">${esc(statusLine(n))}</p>
+      ${d.definition ? `<p>${esc(d.definition)}</p>` : ""}
+      ${d.aliases.length ? `<p class="small">Also called ${d.aliases.map(esc).join(", ")}</p>` : ""}
+      <h3>Facts here</h3>
+      ${d.facts.length ? `<ul>${d.facts.map((f) => `<li>${esc(f.statement)}<div class="row"><select data-fact="${esc(f.id)}" aria-label="Move this fact"><option value="">Move to…</option>${nodeOptions(id)}</select></div></li>`).join("")}</ul>` : `<p class="small">None yet.</p>`}
+      ${d.hypothesis ? `<h3>The guess</h3><p>Probably level ${d.hypothesis.depth}, p ${d.hypothesis.p.toFixed(2)} (${esc(d.hypothesis.kind)}).</p><p class="path">${d.hypothesis.path.map(esc).join(" → ")}</p><p class="small">${esc(d.hypothesis.reason)}</p>` : ""}
+      <h3>Questions asked</h3>
+      ${d.history.length ? `<ul>${d.history.map((h) => `<li>${esc(h.question)}<div class="small">level ${h.difficulty} · ${esc(KIND[h.kind] || h.kind)} · ${esc(h.rating ? h.rating.replace("_", " ") : "not answered")}${h.grade ? ` · spot-check ${esc(h.grade)}` : ""}</div></li>`).join("")}</ul>` : `<p class="small">None yet.</p>`}
+      <h3>Links</h3>
+      ${d.links.length ? `<ul>${d.links.map((l) => `<li><span>${l.kind === "requires" ? (l.direction === "out" ? "needs" : "needed by") : "related to"} ${esc(l.other.name)}</span> <button class="ghost" data-unlink="${esc(l.id)}" aria-label="Remove this link">Remove</button></li>`).join("")}</ul>` : `<p class="small">None.</p>`}
+      <h3>Edit</h3>
+      <div class="row"><input id="rename" value="${esc(n.name)}" aria-label="New name"><button id="doRename">Rename</button></div>
+      <div class="row"><select id="moveTo" aria-label="New parent"><option value="">Move under…</option>${nodeOptions(id)}</select><button id="doMove">Move</button></div>
+      <div class="row"><input id="childName" placeholder="New child's name" aria-label="New child's name"><select id="childLabel" aria-label="Kind">${LABELS.map((l) => `<option${l === (n.label === "other" ? "other" : n.label) ? " selected" : ""}>${l}</option>`).join("")}</select><button id="doAdd">Add child</button></div>
+      <div class="row"><button id="doDelete" class="ghost" style="color:var(--danger)">Delete this node</button></div>
+      <div class="error" id="panelError"></div>`;
+    const fail = (e) => ($("#panelError").textContent = e.message);
+    const edit = async (path, body) => {
+      try {
+        await api(path, body);
+        await loadForest();
+      } catch (e) {
+        fail(e);
+      }
+    };
+    $("#closePanel").onclick = () => { panel.hidden = true; selected = null; drawForest(); };
+    $("#doRename").onclick = () => { const name = $("#rename").value.trim(); if (!name) return fail(new Error("Give it a name first.")); edit("/api/tree/rename", { nodeId: id, name }); };
+    $("#doMove").onclick = () => { const to = $("#moveTo").value; if (!to) return fail(new Error("Pick where it goes.")); edit("/api/tree/move", { nodeId: id, parentId: to }); };
+    $("#doAdd").onclick = () => { const name = $("#childName").value.trim(); if (!name) return fail(new Error("Give the child a name first.")); edit("/api/tree/add", { parentId: id, name, label: $("#childLabel").value }); };
+    $("#doDelete").onclick = () => {
+      if (!confirm(`Delete ${n.name}? Its facts move up to its parent, and nothing re-adds it.`)) return;
+      selected = null;
+      panel.hidden = true;
+      edit("/api/tree/delete-node", { nodeId: id });
+    };
+    for (const s of panel.querySelectorAll("[data-fact]")) s.onchange = () => s.value && edit("/api/fact/move", { memoryId: s.getAttribute("data-fact"), nodeId: s.value });
+    for (const b of panel.querySelectorAll("[data-unlink]")) b.onclick = () => edit("/api/tree/delete-edge", { edgeId: b.getAttribute("data-unlink") });
+  } catch (e) {
+    panel.innerHTML = `<p class="error">${esc(e.message)}</p>`;
+  }
+}
+
+function statusLine(n) {
+  const knowledge = n.root === "knowledge" || (!n.root && n.label === "topic");
+  if (!knowledge) return `${n.facts} fact${n.facts === 1 ? "" : "s"} · ${n.label}${n.boundary ? " · boundary" : ""}`;
+  if (n.state === "probable" && n.hypothesis) return `Probable at level ${n.hypothesis.depth} (p ${n.hypothesis.p.toFixed(2)})`;
+  if (n.state === "dark") return n.depth === null ? "Dark: you said you don't know it" : "Dark";
+  if (n.depth === null) return "Not lit yet";
+  if (n.via === "gap") return `Gap: fine up to level ${n.depth}`;
+  if (n.via === "inherited") return `Lit at level ${n.depth}, inherited from ${n.from}`;
+  return `Lit at level ${n.depth} (${n.basis})${n.boundary ? " · boundary" : ""}`;
+}
+
+// ---- boundaries and queue -----------------------------------------------------------
+async function loadBoundaries() {
+  const box = $("#boundaries > div");
+  try {
+    const { boundaries } = await api("/api/boundaries");
+    box.innerHTML = boundaries.length
+      ? `<p class="note">The standin deflects questions on these branches. Undo any you'd rather allow.</p><ul>${boundaries.map((b) => `<li><span>${esc(b.topic)}</span><button data-undo="${esc(b.nodeId)}">Undo</button></li>`).join("")}</ul>`
+      : `<p class="empty">No boundaries. Rating a question “Wouldn't say” adds one.</p>`;
+    for (const b of box.querySelectorAll("[data-undo]")) b.onclick = async () => { await api("/api/boundaries/undo", { nodeId: b.getAttribute("data-undo") }); loadBoundaries(); };
+  } catch (e) {
+    box.innerHTML = `<p class="error">${esc(e.message)}</p>`;
+  }
+}
+
+async function loadQueue() {
+  const box = $("#queue > div");
+  try {
+    const { items } = await api("/api/queue");
+    box.innerHTML = items.length
+      ? `<p class="note">In the order the session shows them. Decide them from the Session tab.</p><ul>${items.map((i) => `<li><span>${esc(i.statement)}</span><span class="small">${i.stillTrue ? "still true?" : esc(i.group)}</span></li>`).join("")}</ul>`
+      : `<p class="empty">Nothing waiting for review.</p>`;
+  } catch (e) {
+    box.innerHTML = `<p class="error">${esc(e.message)}</p>`;
+  }
+}
+
+loadCard();
+</script>
+</body>
+</html>
