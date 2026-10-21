@@ -21,6 +21,11 @@ export interface SessionDeps {
   personaName: string;
   /** Probes this session; defaults to 40 for the very first session and 10 after. */
   size?: number;
+  /** The `hypothesize` role's model, for the refresh at session start; without it, no new guesses. */
+  hypothesize?: LLM;
+  /** From config: the split threshold and hypothesis settings. */
+  splitAt?: number;
+  hypotheses?: { speakAt: number; dropBelow: number; dropAfter: number; brierWindow: number };
 }
 
 export interface ShownProbe {
@@ -90,7 +95,15 @@ export class ProbeSession {
       for (const s of unfinished) store.endSession(s.id);
       await session.attempt("collecting grades", () => collectGrades(store, deps.grade));
       await session.attempt("refreshing the tree", async () => {
-        const report = await refresh({ store, map: deps.map, tracer: deps.tracer, personaName: deps.personaName });
+        const report = await refresh({
+          store,
+          map: deps.map,
+          tracer: deps.tracer,
+          personaName: deps.personaName,
+          splitAt: deps.splitAt,
+          hypothesize: deps.hypothesize,
+          hypotheses: deps.hypotheses,
+        });
         session.warnings.push(...report.warnings);
       });
     });

@@ -34,8 +34,16 @@ async function refreshTree(ctx: CommandContext): Promise<number> {
   const { store, config } = loadInstance(ctx.home, ctx.io.clock);
   try {
     const tracer = instanceTracer(ctx, store, config);
-    const map = instanceModels(ctx, config, tracer, { demo: flag(ctx, "demo-llm") }).for("map");
-    const report = await refresh({ store, map, tracer, personaName: config.persona.name, splitAt: config.tree.splitAt });
+    const models = instanceModels(ctx, config, tracer, { demo: flag(ctx, "demo-llm") });
+    const report = await refresh({
+      store,
+      map: models.for("map"),
+      hypothesize: models.for("hypothesize"),
+      hypotheses: config.hypotheses,
+      tracer,
+      personaName: config.persona.name,
+      splitAt: config.tree.splitAt,
+    });
     if (flag(ctx, "json")) {
       ctx.io.stdout(JSON.stringify(report, null, 2));
       return 0;

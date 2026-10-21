@@ -141,3 +141,12 @@ export const PLACEMENTS: Record<string, [string, string | null, string, RootKey?
   "Riverside Institute of Technology": ["Education", "Where Lin studied.", "Lin's university.", "background", "other"],
   Japan: ["Places", "Places in Lin's life.", "A country Lin lived in.", "life", "other"],
 };
+
+/** The demo's guesses: one sound, one the guards refuse (chess engines already has a stated gap). */
+export const HYPOTHESES = {
+  hypotheses: [
+    { node: "Game AI", depth: 2, rawScore: "medium", kind: "part", path: ["game-playing AI", "Game AI"], reason: "game-playing AI is part of Game AI" },
+    { node: "chess engines", depth: 2, rawScore: "low", kind: "part", path: ["game-playing AI", "Game AI", "chess engines"], reason: "a sibling of game-playing AI" },
+  ],
+  withdraw: [],
+};
