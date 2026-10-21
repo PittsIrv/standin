@@ -43,7 +43,7 @@ async function refreshTree(ctx: CommandContext): Promise<number> {
     const run = store.listRuns({ kind: "map-refresh", limit: 1 })[0];
     const lines = [
       report.seeded.length > 0 ? `seeded ${report.seeded.join(", ")}` : "no new background to seed",
-      `placed ${report.placed} topic${report.placed === 1 ? "" : "s"}, merged ${report.merged}${report.refused.length > 0 ? `, refused (would make a cycle): ${report.refused.join(", ")}` : ""}`,
+      `placed ${report.placed} node${report.placed === 1 ? "" : "s"}, merged ${report.merged}${report.refused.length > 0 ? `, refused (would make a cycle): ${report.refused.join(", ")}` : ""}`,
       `homed ${report.homed} memor${report.homed === 1 ? "y" : "ies"}${report.split.length > 0 ? `, split ${report.split.join(", ")}` : ""}`,
       `recorded ${report.gaps} stated gap${report.gaps === 1 ? "" : "s"}`,
       `proposed ${report.proposed} lighting change${report.proposed === 1 ? "" : "s"}${report.replaced > 0 ? ` (replacing ${report.replaced})` : ""}`,
