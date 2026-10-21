@@ -8,6 +8,8 @@ const topic = (id: string): Topic => ({
   label: "topic",
   rootKey: null,
   frontier: false,
+  partLevel: null,
+  walkStopped: false,
   definition: null,
   expandedAt: null,
   seedMemoryId: null,

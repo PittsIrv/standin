@@ -16,7 +16,7 @@ function resp(
   const r: ProbeResponse = {
     id: `rsp_${n}`, probeId: probe.id, sessionId: "ses_1", shownAt: `2026-10-01T00:00:${String(n).padStart(2, "0")}.000Z`, predictedMode: "brief",
     rating, answeredAt: null, spotCheck: "none", spotCheckAnswer: null, observationId: null, grade: null, gradeReason: null, gradeBatchId: null, judged: extra.judged ?? null,
-    predictedP: null, priorP: null,
+    predictedP: null, priorP: null, level: null,
   };
   return { ...r, probe };
 }

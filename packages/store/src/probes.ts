@@ -43,6 +43,7 @@ const rowToResponse = (r: Row): ProbeResponse =>
     judged: r.judged ?? null,
     predictedP: r.predicted_p ?? null,
     priorP: r.prior_p ?? null,
+    level: r.level ?? null,
   });
 
 const rowToSession = (r: Row): ReviewSession =>
@@ -123,6 +124,30 @@ export function rateResponse(s: Store, id: string, rating: Rating, spotCheck: bo
     .prepare("UPDATE probe_responses SET rating = ?, answered_at = ?, spot_check = ? WHERE id = ? AND rating IS NULL")
     .run(rating, s.nowIso(), spotCheck ? "requested" : "none", id);
   return getResponse(s, id);
+}
+
+/** A concept-card answer: a level 0–4, or "wouldn't say". The rating mirrors it so older readers still work. */
+export function answerCard(s: Store, id: string, answer: number | "wouldnt_say"): ProbeResponse {
+  if (getResponse(s, id).rating !== null) throw new AlreadyRatedError(id);
+  const level = answer === "wouldnt_say" ? null : answer;
+  const rating: Rating = level === null ? "wouldnt_say" : level >= 3 ? "know" : level >= 1 ? "roughly" : "no_idea";
+  s.db
+    .prepare("UPDATE probe_responses SET rating = ?, level = ?, answered_at = ?, spot_check = 'none' WHERE id = ? AND rating IS NULL")
+    .run(rating, level, s.nowIso(), id);
+  return getResponse(s, id);
+}
+
+/** The latest concept-card level per node: what the person said about it. */
+export function stateds(s: Store): Map<string, { level: number; responseId: string; answeredAt: string }> {
+  const rows = s.db
+    .prepare(
+      `SELECT r.id, r.level, r.answered_at, p.node_id FROM probe_responses r JOIN probes p ON p.id = r.probe_id
+       WHERE p.kind = 'card' AND r.level IS NOT NULL ORDER BY r.answered_at, r.rowid`,
+    )
+    .all() as Row[];
+  const out = new Map<string, { level: number; responseId: string; answeredAt: string }>();
+  for (const r of rows) out.set(String(r.node_id), { level: Number(r.level), responseId: String(r.id), answeredAt: String(r.answered_at) });
+  return out;
 }
 
 export function answerSpotCheck(s: Store, id: string, answer: string, observationId: string): ProbeResponse {

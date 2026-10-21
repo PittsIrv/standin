@@ -38,8 +38,9 @@ export const reviewCommand: Command = {
       const session = await ProbeSession.start({
         store,
         map: models.for("map"),
-        quiz: models.for("quiz"),
-        grade: models.for("grade"),
+        // Until concept cards replace the quiz session (this branch, task 4), the map model stands in.
+        quiz: models.for("map"),
+        grade: models.for("map"),
         hypothesize: models.for("hypothesize"),
         tracer,
         rng: Math.random,
