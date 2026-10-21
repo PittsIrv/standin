@@ -32,7 +32,7 @@ pnpm standin queue                         # review queue: contradictions, still
 pnpm standin approve <id> [--tier 1-4]     # or: reject <id>
 pnpm standin memories --as-of 2026-09-01   # what was true then, according to what we know now
 pnpm standin map refresh --demo-llm        # build the world tree and its first guesses
-pnpm standin review --demo-llm             # open the review page: answer questions, explore and edit the forest
+pnpm standin review --demo-llm             # open the review page: rate concepts, explore and edit the forest
 pnpm standin consolidate                   # expire memories whose validity has ended
 pnpm standin eval dedup                    # how well duplicate search finds known duplicates (recall@k)
 ```
@@ -93,29 +93,28 @@ Life
 ```
 
 - **Every memory has a home node.** Compaction files it at the most specific node it's about; `standin map refresh` places new nodes under the right root, homes anything left over, and splits a crowded node when parts get their own identity (two cats, then Miso and Tofu).
-- **Lit means known.** Your claims light a Knowledge node at your depth (0–4) and the branch below it; a probe that confirms a guess lights it too. A non-Knowledge node is lit when it holds approved facts.
+- **Lit means known.** Your claims and your concept-card answers light a Knowledge node at your level (0–4) and the branch below it. A non-Knowledge node is lit when it holds approved facts.
 - **Probable means guessed, with evidence.** Your background seeds its field's core at level 2, and the `hypothesize` model proposes guesses ("PPO at 4, so RL at 3"), each with an evidence path at most two steps from something you said. Guesses never build on guesses, never touch health, religion, politics or other sensitive topics, and never go where you said you don't know.
-- **It learns which guesses to trust.** Each confirmed or refuted guess updates a reliability count for its kind of evidence; that count turns the model's confidence into a probability. If learning ever scores worse than not learning on held-out answers, it switches itself off.
+- **It learns which guesses to trust.** Each confirmed or refuted guess updates a reliability count for its kind of evidence; that count turns the model's confidence into a probability. If learning ever predicts your answers worse than not learning, it switches itself off.
 - **Depth decides the answer:** 3–4 explain, 2 brief, 0–1 or dark decline. A probable node is spoken only at p ≥ 0.8, and never beyond brief.
 
 ```bash
 pnpm standin map refresh   # place nodes, home memories, seed from your background, guess (calls the map and hypothesize models)
 pnpm standin map           # see the forest (no model calls); --all shows frontier nodes, --private adds learning scores
-pnpm standin review        # the review page: answer questions, then look at and edit the forest
+pnpm standin review        # the review page: rate concepts, then look at and edit the forest
 ```
 
-## Probing and the review page
+## Concept cards and the review page
 
-`standin review` opens a private page on your machine (`--lan` adds a QR code for your phone). It shows one card at a time:
+`standin review` opens a private page on your machine (`--lan` adds a QR code for your phone). There are no quizzes: you tell the standin how well you know each concept, one click per card.
 
-1. **Your claims:** three questions at your claimed level, on different parts of the topic.
-2. **The guesses:** the one we're least sure of first. "I know this" confirms it and lights the node; "no idea" refutes it.
+- **A card is a concept** with its definition and its place in the tree. Answer **Expert / Know well / Used it / Heard of it / No** (keys `4`–`0`), or **Wouldn't say** (`w`), which puts a boundary on it.
+- **Your answer lights its whole branch.** Expert and No settle it. A middle answer opens the concept's parts, but only parts up to one level above your answer: "Heard of it" on RL asks about rewards and policies, never async RL. "Skip the rest" (`s`) stops there.
+- **What comes first:** the standin's guesses (the ones it's least sure of), then the parts your answers opened, then areas you haven't talked about. Your claims are never asked again. If you rate parts of a claim lower than the claim, you choose to **keep** it or **lower** it.
+- **Splits are made once, on demand,** by the `map` model: 3–7 non-overlapping parts, each with a definition and a level, checked in code. Your edits in the forest always win.
+- **Predict, then learn.** Before each card the standin records what it expected you to say. `standin map` reports how often that matched; each answer then teaches the guesses.
 
-About one answer in three asks for a one-line explanation, graded later. When you miss something inside a claim, *you* decide whether it's a gap; a gap gets one follow-up a level lower, then you **keep** the claim (the gap is carved out) or **lower** it. "Wouldn't say" puts a boundary on the topic at once, undoable on the Boundaries tab. Your review queue follows.
-
-The **Forest** tab draws the whole tree: lit nodes glow brighter the deeper they go, guesses are dashed and filled by their probability, dark ones are gray. Click a node for its facts, its guess and evidence, and the questions asked about it; rename, move, add a child, delete, unlink, or refile a fact from there, or drag a node onto another to move it.
-
-About 30% of questions are **held out** as test items. The standin's prediction is recorded before you answer, held-out answers never shape the tree until they're released (and a fixed 10% never are), and `standin map` reports how often the prediction matched you.
+The **Forest** tab draws the whole tree: lit nodes glow brighter the deeper they go, guesses are dashed and filled by their probability, dark ones are gray. Click a node for its facts, its guess and evidence, and what you've said about it; rename, move, add a child, delete, unlink, or refile a fact from there, or drag a node onto another to move it.
 
 ## Choosing models: roles and tiers
 
@@ -127,10 +126,9 @@ Every model call belongs to a **role**, and each role defaults to a **tier**. Th
 | `reconcile` | small | private | Classify a candidate against similar memories |
 | `screen` | medium | private | Flag possibly sensitive memories for review (the safety net, so not the cheapest tier) |
 | `answer` | small | public | Answer a visitor (the $20/month public agent) |
-| `checkin`, `quiz`, `attack` | medium | private | Check-in questions, self-quiz, break-me attempts |
+| `checkin`, `attack` | medium | private | Check-in questions, break-me attempts |
 | `style`, `judge` | large | private | Style-card rewrites, eval grading |
-| `map`, `hypothesize` | large | private | Organize the world tree; guess what you probably know, with evidence |
-| `grade` | medium | private | Grade one-line spot-check answers |
+| `map`, `hypothesize` | large | private | Organize the world tree and split concepts; guess what you probably know, with evidence |
 
 `$STANDIN_HOME/config.json` maps tiers to models and can override any role. A bare string is an Anthropic model id:
 

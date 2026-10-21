@@ -4,6 +4,8 @@ import type { Tracer } from "@standin/trace";
 import { answerMode } from "../answer.ts";
 import { cells, loadPriors, outcomeOf, probabilityOf } from "../hypotheses/calibrate.ts";
 import { expandNode } from "../probing/expand.ts";
+import { syncStatedGaps } from "../gaps.ts";
+import { computeLighting } from "../lighting.ts";
 import { refresh } from "../refresh.ts";
 import { loadSnapshot, type TreeSnapshot } from "../snapshot.ts";
 import { statementFor } from "../wording.ts";
@@ -128,9 +130,18 @@ export class CardSession {
     };
   }
 
-  /** The card shown and not yet answered (a reload shows it again), or null. */
+  /** The card shown and not yet answered (a reload shows it again), or null. A part whose parent was skipped is dropped. */
   current(): ShownCard | null {
-    const open = this.deps.store.listResponses({ sessionId: this.sessionId }).findLast((r) => r.rating === null);
+    const { store } = this.deps;
+    const skipped = (nodeId: string) => {
+      const seen = new Set<string>();
+      for (let at = store.homeParent(nodeId); at && !seen.has(at); at = store.homeParent(at)) {
+        if (store.getTopic(at).walkStopped) return true;
+        seen.add(at);
+      }
+      return false;
+    };
+    const open = store.listResponses({ sessionId: this.sessionId }).findLast((r) => r.rating === null && !(r.probe.checkOf && skipped(r.probe.nodeId)));
     return open ? this.shown(open.id) : null;
   }
 
@@ -185,6 +196,9 @@ export class CardSession {
     const response = store.answerCard(responseId, answer);
     const probe = store.getProbe(response.probeId);
     if (answer === "wouldnt_say") store.setTopic(probe.nodeId, { boundaryTier: 3 });
+    // Lighting a branch must not override what the person said they don't know inside it: carve that out now.
+    const t = this.snapshot();
+    syncStatedGaps(store, t, computeLighting(t));
     if (!probe.hypothesisId) return;
     const h = store.getHypothesis(probe.hypothesisId);
     if (h.status !== "open") return;

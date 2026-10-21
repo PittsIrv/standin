@@ -34,6 +34,17 @@ describe("a concept-card session", () => {
     expect(await s.next()).toBeNull();
   });
 
+  it("drops the part on screen when you skip the rest of its parent", async () => {
+    const w = world();
+    w.guess("Algorithms", 2);
+    const s = await w.start();
+    s.answer((await s.next())!.responseId, 2);
+    const part = (await s.next())!;
+    s.skipRest(part.parentId!);
+    expect(s.current()).toBeNull();
+    expect(await s.next()).toBeNull();
+  });
+
   it("offers keep or lower once a claim's parts are rated, and lowers to the lowest part", async () => {
     const w = world();
     w.claim("Rust", 2);
@@ -49,6 +60,17 @@ describe("a concept-card session", () => {
     s.decideClaim(due.claimNodeId, "lower");
     expect(s.keepLowerDue()).toBeNull();
     expect(answerMode(loadSnapshot(w.store), due.claimNodeId)).toMatchObject({ depth: 0 });
+  });
+
+  it("carves out what you said you don't know as soon as an answer lights the branch above it", async () => {
+    const w = world();
+    const h = w.guess("Game AI", 2);
+    const chess = w.store.ensureTopic("chess engines");
+    w.store.addEdge({ from: chess.id, to: h.nodeId, kind: "part_of", source: "placement" });
+    w.approve("negative", "I don't know chess engines.", {}, ["chess engines"]);
+    const s = await w.start();
+    s.answer((await s.next())!.responseId, 3);
+    expect(answerMode(loadSnapshot(w.store), chess.id)).toMatchObject({ depth: 1, from: { via: "gap" } });
   });
 
   it("sets a boundary and withdraws the guess on 'wouldn't say'", async () => {

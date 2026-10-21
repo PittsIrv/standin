@@ -16,7 +16,7 @@ export function syncStatedGaps(store: Store, t: TreeSnapshot, values: Map<string
   const created: Gap[] = [];
   for (const negative of t.negatives) {
     for (const nodeId of negative.topicIds) {
-      const litAncestor = ancestors(t, nodeId).find((a) => t.approved.has(a) || values.has(a));
+      const litAncestor = ancestors(t, nodeId).find((a) => (t.approved.get(a)?.depth ?? 0) >= 1 || (values.get(a)?.depth ?? 0) >= 1);
       if (!litAncestor) continue;
       const gap = store.addGap({
         nodeId,

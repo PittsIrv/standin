@@ -47,9 +47,12 @@ section[hidden] { display: none !important; }
 .topic { color: var(--muted); font-size: 15px; }
 .topic b { color: var(--ink); font-weight: 600; }
 .kind { font-size: 13px; color: var(--muted); margin-left: 6px; }
-.question { font: 400 clamp(22px, 3.2vw, 30px)/1.35 var(--read); margin: 14px 0 28px; }
+.concept { font: 600 clamp(26px, 4vw, 36px)/1.2 var(--ui); margin: 10px 0 8px; letter-spacing: -.01em; }
+.definition { font: 400 clamp(19px, 2.4vw, 23px)/1.45 var(--read); margin: 0 0 18px; }
+.skip { margin-top: 14px; }
+.skip button { width: 100%; }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; }
-.actions button { flex: 1 1 140px; white-space: nowrap; }
+.actions button { flex: 1 1 110px; white-space: nowrap; }
 .note { color: var(--muted); font-size: 15px; margin: 4px 0 18px; }
 .statement { font: 400 22px/1.4 var(--read); margin: 10px 0 14px; }
 .why { color: var(--muted); font-size: 15px; margin: 0 0 18px; padding-left: 14px; border-left: 2px solid var(--line); border-radius: 0; }
@@ -185,10 +188,16 @@ function show(name) {
 }
 for (const b of document.querySelectorAll("nav button")) b.onclick = () => show(b.dataset.tab);
 
-// ---- the session: one card at a time --------------------------------------------
+// ---- the session: one concept at a time ----------------------------------------------
 let card = null;
 let keymap = {};
-const KIND = { claim: "checking your claim", followup: "a follow-up", hypothesis: "checking a guess", foundation: "checking an inference", discovery: "exploring" };
+const LEVELS = [[4, "Expert"], [3, "Know well"], [2, "Used it"], [1, "Heard of it"], [0, "No"]];
+const LEVEL_NAME = Object.fromEntries(LEVELS.map(([l, n]) => [l, n]));
+const WHY = {
+  guess: "We guessed you probably know this.",
+  part: (parent) => `A part of ${esc(parent)}.`,
+  area: "An area you haven't told us about yet.",
+};
 
 async function loadCard() {
   if (finished) return;
@@ -198,7 +207,7 @@ async function loadCard() {
     if (data.warnings?.length) banner(data.warnings.join(" · "));
     renderCard();
     const st = await api("/api/status");
-    $("#progress").textContent = `${st.done} of ${st.total} questions`;
+    $("#progress").textContent = `${st.answered} answered`;
   } catch (e) {
     $("#session").innerHTML = `<div class="card"><p class="error">${esc(e.message)}</p></div>`;
   }
@@ -229,54 +238,31 @@ function renderCard() {
   const c = card;
   keymap = {};
   if (!c) return;
-  if (c.type === "probe") {
-    const p = c.probe;
+  if (c.type === "card") {
+    const k = c.card;
+    const why = k.reason === "part" ? WHY.part(k.parent) : WHY[k.reason];
     root.innerHTML = `<div class="card">
-      <div class="topic"><b>${esc(p.topic)}</b> · level ${p.difficulty}<span class="kind">${esc(KIND[p.kind] || p.kind)}</span></div>
-      <p class="question">${esc(p.question)}</p>
-      ${buttons([["I know this", "1", "r1"], ["Roughly", "2", "r2"], ["No idea", "3", "r3"], ["Wouldn't say", "4", "r4"]])}
+      <div class="topic">${k.path.map(esc).join(" › ")}</div>
+      <h2 class="concept">${esc(k.topic)}</h2>
+      ${k.definition && k.definition !== k.topic ? `<p class="definition">${esc(k.definition)}</p>` : ""}
+      <p class="note">${why} How well do you know it?</p>
+      ${buttons([...LEVELS.map(([l, n]) => [n, String(l), `l${l}`]), ["Wouldn't say", "w", "lw", "ghost"]])}
+      ${k.reason === "part" ? `<div class="skip"><button id="skip" class="ghost">Skip the rest of ${esc(k.parent)}<kbd>s</kbd></button></div>` : ""}
     </div>`;
-    const rate = (rating) => act(() => api("/api/rate", { responseId: p.responseId, rating }));
-    $("#r1").onclick = () => rate("know");
-    $("#r2").onclick = () => rate("roughly");
-    $("#r3").onclick = () => rate("no_idea");
-    $("#r4").onclick = () => rate("wouldnt_say");
-  } else if (c.type === "spot-check") {
-    root.innerHTML = `<div class="card">
-      <div class="topic"><b>${esc(c.check.topic)}</b></div>
-      <p class="question">${esc(c.check.question)}</p>
-      <p class="note">In a line, how would you answer? If you can't, say so: that's useful too.</p>
-      <textarea id="answer" aria-label="Your one-line answer"></textarea>
-      <div style="height:12px"></div>
-      ${buttons([["Submit answer", null, "submit", "primary"]])}
-      <p class="note">Ctrl or ⌘ + Enter submits.</p>
-    </div>`;
-    const submit = () => {
-      const text = $("#answer").value.trim();
-      if (!text) return ($("#cardError").textContent = "Write a line first.");
-      act(() => api("/api/answer", { responseId: c.check.responseId, text }));
-    };
-    $("#submit").onclick = submit;
-    $("#answer").onkeydown = (e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit(); };
-    $("#answer").oninput = () => ($("#cardError").textContent = "");
-    $("#answer").focus();
-  } else if (c.type === "miss") {
-    const m = c.miss;
-    root.innerHTML = `<div class="card">
-      <div class="topic"><b>${esc(m.topic)}</b> · level ${m.difficulty}</div>
-      <p class="question">${esc(m.question)}</p>
-      <p class="note">${m.reason === "no_idea" ? "You said no idea." : "Your one-line answer didn't hold up."} Is this a gap in what you know?</p>
-      ${buttons([["Gap", "g", "gap"], ["Not a gap", "n", "nogap"]])}
-    </div>`;
-    $("#gap").onclick = () => act(() => api("/api/judge", { responseId: m.responseId, gap: true }));
-    $("#nogap").onclick = () => act(() => api("/api/judge", { responseId: m.responseId, gap: false }));
-  } else if (c.type === "claim") {
+    const answer = (a) => act(() => api("/api/answer", { responseId: k.responseId, answer: a }));
+    for (const [l] of LEVELS) $(`#l${l}`).onclick = () => answer(l);
+    $("#lw").onclick = () => answer("wouldnt_say");
+    if (k.reason === "part") {
+      keymap.s = "skip";
+      $("#skip").onclick = () => act(() => api("/api/skip", { parentId: k.parentId }));
+    }
+  } else if (c.type === "keep-lower") {
     const d = c.decision;
     root.innerHTML = `<div class="card">
-      <div class="topic"><b>${esc(d.topic)}</b></div>
-      <p class="statement">You said you know ${esc(d.topic)} at level ${d.claimed}.</p>
-      <p class="why">Gaps: ${d.gaps.map((g) => `${esc(g.topic)} (fine up to ${g.level})`).join(", ")}</p>
-      <p class="note">Keep your claim with these gaps noted, or lower it to the lowest gap.</p>
+      <h2 class="concept">${esc(d.topic)}</h2>
+      <p class="statement">You said you know ${esc(d.topic)} at “${esc(LEVEL_NAME[d.claimed])}”.</p>
+      <p class="why">You rated these parts lower: ${d.lower.map((l) => `${esc(l.topic)} (${esc(LEVEL_NAME[l.level])})`).join(", ")}</p>
+      <p class="note">Keep your claim with those parts carved out, or lower it to “${esc(LEVEL_NAME[Math.min(...d.lower.map((l) => l.level))])}”.</p>
       ${buttons([["Keep", "k", "keep"], ["Lower", "l", "lower"]])}
     </div>`;
     $("#keep").onclick = () => act(() => api("/api/claim", { claimNodeId: d.claimNodeId, choice: "keep" }));
@@ -311,7 +297,7 @@ function renderCard() {
       };
     }
   } else {
-    root.innerHTML = `<div class="card done"><p class="statement">Nothing left for this session.</p><p class="note">Check the forest, or finish to grade spot-checks and settle guesses.</p>${buttons([["Finish session", "f", "finish2", "primary"]])}</div>`;
+    root.innerHTML = `<div class="card done"><p class="statement">Nothing left to ask.</p><p class="note">Look over the forest, or finish to settle this session's guesses.</p>${buttons([["Finish session", "f", "finish2", "primary"]])}</div>`;
     $("#finish2").onclick = finish;
   }
 }
@@ -330,7 +316,7 @@ document.addEventListener("keydown", (e) => {
 });
 
 async function finish() {
-  if (finished || !confirm("Finish this session? Spot-checks get graded and guesses settle.")) return;
+  if (finished || !confirm("Finish this session?")) return;
   try {
     const { report } = await api("/api/finish", {});
     finished = true;
@@ -338,7 +324,7 @@ async function finish() {
     $("#bannerClose").disabled = false;
     show("session");
     $("#session").innerHTML = `<div class="card done"><p class="statement">Session finished.</p>
-      <p class="note">Graded ${report.gradingSubmitted} answers, released ${report.released} held-out questions, ${report.exemplars} new voice samples, settled ${report.settled} guesses.</p>
+      <p class="note">You answered ${report.answered} card${report.answered === 1 ? "" : "s"} and settled ${report.settled} guess${report.settled === 1 ? "" : "es"}.</p>
       <p class="note">You can close this tab.</p></div>`;
     $("#progress").textContent = "";
   } catch (e) {
@@ -629,8 +615,8 @@ async function openPanel(id) {
       <h3>Facts here</h3>
       ${d.facts.length ? `<ul>${d.facts.map((f) => `<li>${esc(f.statement)}<div class="row"><select data-fact="${esc(f.id)}" aria-label="Move this fact"><option value="">Move to…</option>${nodeOptions(id)}</select></div></li>`).join("")}</ul>` : `<p class="small">None yet.</p>`}
       ${d.hypothesis ? `<h3>The guess</h3><p>Probably level ${d.hypothesis.depth}, p ${d.hypothesis.p.toFixed(2)} (${esc(d.hypothesis.kind)}).</p><p class="path">${d.hypothesis.path.map(esc).join(" → ")}</p><p class="small">${esc(d.hypothesis.reason)}</p>` : ""}
-      <h3>Questions asked</h3>
-      ${d.history.length ? `<ul>${d.history.map((h) => `<li>${esc(h.question)}<div class="small">level ${h.difficulty} · ${esc(KIND[h.kind] || h.kind)} · ${esc(h.rating ? h.rating.replace("_", " ") : "not answered")}${h.grade ? ` · spot-check ${esc(h.grade)}` : ""}</div></li>`).join("")}</ul>` : `<p class="small">None yet.</p>`}
+      <h3>What you've said</h3>
+      ${d.history.length ? `<ul>${d.history.map((h) => `<li>${h.kind === "card" ? (h.level !== null ? `You said “${esc(LEVEL_NAME[h.level])}”` : h.rating === "wouldnt_say" ? "You said you'd rather not say" : "Asked, not answered") : `${esc(h.question)}<div class="small">an older quiz question · ${esc(h.rating ? h.rating.replace("_", " ") : "not answered")}</div>`}<div class="small">${esc(h.shownAt.slice(0, 10))}</div></li>`).join("")}</ul>` : `<p class="small">None yet.</p>`}
       <h3>Links</h3>
       ${d.links.length ? `<ul>${d.links.map((l) => `<li><span>${l.kind === "requires" ? (l.direction === "out" ? "needs" : "needed by") : "related to"} ${esc(l.other.name)}</span> <button class="ghost" data-unlink="${esc(l.id)}" aria-label="Remove this link">Remove</button></li>`).join("")}</ul>` : `<p class="small">None.</p>`}
       <h3>Edit</h3>
