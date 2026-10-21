@@ -59,8 +59,8 @@ describe("standin map", () => {
   });
 });
 
-describe("standin map calibration", () => {
-  it("shows the map score, and the presented score only with --private", async () => {
+describe("standin map scores", () => {
+  it("shows how often the prediction matched your answers, and the guess score only with --private", async () => {
     const home = join(mkdtempSync(join(tmpdir(), "standin-cli-")), "home");
     const run = async (...argv: string[]) => {
       const out: string[] = [];
@@ -68,28 +68,26 @@ describe("standin map calibration", () => {
       return { code, out: out.join("\n") };
     };
     await run("init", "--name", "T");
-    expect((await run("map")).out).toContain("Calibration: not enough held-out answers yet");
+    expect((await run("map")).out).toContain("Map score: no answers yet");
 
     const store = openStore({ path: join(home, "standin.db") });
     const session = store.startSession(10);
-    const held = (topic: string, holdout: "fixed" | "rotating", mode: "explain" | "decline", rating: "know" | "no_idea") => {
+    const said = (topic: string, mode: "explain" | "decline", level: number) => {
       const node = store.ensureTopic(topic);
-      const p = store.insertProbe({ nodeId: node.id, checkOf: null, kind: "foundation", difficulty: 2, question: "?", holdout });
-      store.rateResponse(store.showProbe(p.id, session.id, mode).id, rating, false);
+      const p = store.insertProbe({ nodeId: node.id, checkOf: null, kind: "card", difficulty: 1, question: "?", holdout: "none" });
+      store.answerCard(store.showProbe(p.id, session.id, mode).id, level);
     };
-    held("a", "fixed", "explain", "know");
-    held("b", "fixed", "explain", "no_idea");
-    held("c", "rotating", "decline", "no_idea");
+    said("a", "explain", 3);
+    said("b", "explain", 0);
+    said("c", "decline", 1);
     store.close();
 
     const shown = (await run("map")).out;
-    expect(shown).toContain("Calibration (map score): fixed 1/2 (50%), rotating 1/1 (100%)");
-    expect(shown).not.toContain("Presented");
-    const priv = (await run("map", "--private")).out;
-    expect(priv).toContain("Presented score (private): fixed 1/2 (50%), rotating 1/1 (100%)");
-    expect(priv).toContain("Hypothesis calibration: not enough held-out hypothesis answers yet");
-    const json = JSON.parse((await run("map", "--json")).out) as { calibration: { map: { fixed: { n: number } } } };
-    expect(json.calibration.map.fixed.n).toBe(2);
+    expect(shown).toContain("Map score: 2/3 (67%) of your answers matched the standin's prediction");
+    expect(shown).not.toContain("Hypothesis calibration");
+    expect((await run("map", "--private")).out).toContain("Hypothesis calibration: not enough answers about guesses yet");
+    const json = JSON.parse((await run("map", "--json")).out) as { scores: { map: { n: number } } };
+    expect(json.scores.map.n).toBe(3);
   });
 });
 
@@ -112,7 +110,7 @@ describe("standin map hypothesis calibration", () => {
     }
     store.close();
     const priv = (await run("map", "--private")).out;
-    expect(priv).toContain("Hypothesis calibration: Brier 0.41 (calibrated) vs 0.25 (prior) over 2 held-out answers; using prior-only probabilities");
+    expect(priv).toContain("Hypothesis calibration: Brier 0.41 (calibrated) vs 0.25 (prior) over 2 answers; using prior-only probabilities");
     expect((await run("map")).out).not.toContain("Hypothesis calibration");
   });
 });

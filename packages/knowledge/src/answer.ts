@@ -34,6 +34,9 @@ export function answerMode(t: TreeSnapshot, nodeId: string | null, opts: { speak
   const path = pathUp(t, nodeId);
   const boundary = path.some((n) => t.topics.get(n)?.boundaryTier === 3);
   for (const n of path) {
+    // A card answer is the person's latest word on this node: it outranks older gaps and claims here.
+    const said = t.stated.get(n);
+    if (said !== undefined) return { mode: modeFor(said), depth: said, from: { nodeId: n, via: n === nodeId ? "own" : "inherited" }, boundary };
     const gaps = t.gaps.filter((g) => g.nodeId === n);
     if (gaps.length > 0) {
       const depth = Math.min(...gaps.map((g) => g.level));

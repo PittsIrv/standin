@@ -32,12 +32,15 @@ export function tree(spec: {
   life?: string[];
   /** Nodes named by an approved "I don't know X". */
   negatives?: string[];
+  /** Concept-card answers: node → level. */
+  stated?: Record<string, number>;
 }): TreeSnapshot {
   const names = new Set<string>();
   for (const [a, b] of [...(spec.partOf ?? []), ...(spec.requires ?? [])]) names.add(a).add(b);
   for (const n of [...Object.keys(spec.claims ?? {}), ...Object.keys(spec.approved ?? {}), ...Object.keys(spec.seeded ?? {})]) names.add(n);
   for (const g of spec.gaps ?? []) names.add(g.node);
-  for (const n of [...Object.keys(spec.hypotheses ?? {}), ...Object.keys(spec.confirmedHypotheses ?? {}), ...(spec.negatives ?? [])]) names.add(n);
+  for (const n of [...Object.keys(spec.hypotheses ?? {}), ...Object.keys(spec.confirmedHypotheses ?? {}), ...(spec.negatives ?? []), ...Object.keys(spec.stated ?? {})])
+    names.add(n);
   const topics = new Map([...names].map((n) => [n, { ...topic(n), boundaryTier: spec.boundaries?.includes(n) ? (3 as const) : null }]));
   const all = new Map<string, Topic>([...topics, ...(spec.life ?? []).map((n): [string, Topic] => [n, { ...topic(n), label: "pet" }])]);
   const claims = new Map(Object.entries(spec.claims ?? {}));
@@ -54,6 +57,7 @@ export function tree(spec: {
     rootOf: new Map([...all.keys()].map((n) => [n, (spec.life ?? []).includes(n) ? ("life" as const) : null])),
     knowledge: new Set(topics.keys()),
     homeFacts: new Map(),
+    stated: new Map(Object.entries(spec.stated ?? {})),
     hypotheses: new Map(
       Object.entries(spec.hypotheses ?? {}).map(([n, h]) => [n, { id: `hyp_${n}`, depth: h.depth, p: h.p, kind: "part", rawScore: "medium", reason: "r" }]),
     ),
