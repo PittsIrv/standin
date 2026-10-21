@@ -36,3 +36,19 @@ export class AlreadyRatedError extends Error {
     this.name = "AlreadyRatedError";
   }
 }
+
+/** Renaming a node to a name another node of the same label already has (or has as an alias). */
+export class NameTakenError extends Error {
+  constructor(name: string) {
+    super(`There is already a topic named ${name}.`);
+    this.name = "NameTakenError";
+  }
+}
+
+/** The six roots are fixed: they cannot be renamed, moved or deleted. */
+export class RootEditError extends Error {
+  constructor(name: string) {
+    super(`${name} is a root of the world tree and can't be renamed, moved or deleted.`);
+    this.name = "RootEditError";
+  }
+}

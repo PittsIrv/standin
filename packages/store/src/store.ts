@@ -321,6 +321,45 @@ export class Store {
   ensureTopic(name: string, definition?: string | null): Topic {
     return tree.ensureTopic(this, name, definition ?? null);
   }
+  ensureNode(name: string, label: EntityKind, definition?: string | null): Topic {
+    return tree.ensureNode(this, name, label, definition ?? null);
+  }
+
+  homeParent(id: string): string | null {
+    return tree.homeParent(this, id);
+  }
+
+  rootOf(id: string): RootKey | null {
+    return tree.rootOf(this, id);
+  }
+
+  nodeMemories(nodeId: string, filter?: { status?: MemoryStatus }): Memory[] {
+    return tree.nodeMemories(this, nodeId, filter);
+  }
+
+  /** Moves a memory to a node (or makes it homeless). */
+  setHome(memoryId: string, nodeId: string | null): Memory {
+    const m = this.getMemory(memoryId);
+    this.db.prepare("UPDATE memories SET home_node_id = ? WHERE id = ?").run(nodeId, m.id);
+    return this.getMemory(m.id);
+  }
+
+  renameTopic(id: string, name: string): Topic {
+    return tree.renameTopic(this, id, name);
+  }
+
+  moveTopic(id: string, parentId: string | null): TopicEdge | null {
+    return tree.moveTopic(this, id, parentId);
+  }
+
+  deleteEdge(id: string): void {
+    tree.deleteEdge(this, id);
+  }
+
+  deleteTopic(id: string): Topic {
+    return tree.deleteTopic(this, id);
+  }
+
   roots(): Topic[] {
     return tree.roots(this);
   }
