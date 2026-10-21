@@ -6,7 +6,7 @@ export const config = parseConfig({ persona: { name: "Lin Qiao" } });
 
 /** A temp instance with a scripted session behind a review server on a free port. */
 export async function served(o: Parameters<typeof world>[0] & { setup?: (w: ReturnType<typeof world>) => void } = {}) {
-  const w = world({ size: 3, ...o });
+  const w = world(o);
   o.setup?.(w);
   const session = await w.start();
   const server: ReviewServer = await startReviewServer({ session, store: w.store, config, port: 0 });

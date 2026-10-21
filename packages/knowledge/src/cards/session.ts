@@ -1,0 +1,287 @@
+import type { LLM } from "@standin/llm";
+import type { Store } from "@standin/store";
+import type { Tracer } from "@standin/trace";
+import { answerMode } from "../answer.ts";
+import { cells, loadPriors, outcomeOf, probabilityOf } from "../hypotheses/calibrate.ts";
+import { expandNode } from "../probing/expand.ts";
+import { refresh } from "../refresh.ts";
+import { loadSnapshot, type TreeSnapshot } from "../snapshot.ts";
+import { statementFor } from "../wording.ts";
+import { MIN_PARTS, nextCardTarget } from "./plan.ts";
+
+export interface CardSessionDeps {
+  store: Store;
+  /** The `map` role's model: refresh at the start, and splitting concepts into parts. */
+  map: LLM;
+  /** The `hypothesize` role's model, for the refresh at the start; without it, no new guesses. */
+  hypothesize?: LLM;
+  tracer: Tracer;
+  personaName: string;
+  splitAt?: number;
+  hypotheses?: { speakAt: number; dropBelow: number; dropAfter: number; brierWindow: number };
+}
+
+/** One concept on the screen. */
+export interface ShownCard {
+  responseId: string;
+  nodeId: string;
+  topic: string;
+  definition: string | null;
+  /** Names from the root down to (not including) the concept. */
+  path: string[];
+  /** Why it's asked: the standin's guess, a part of something you answered, or an area nobody has asked about. */
+  reason: "guess" | "part" | "area";
+  /** For a part: the concept it belongs to. */
+  parent: string | null;
+  parentId: string | null;
+  /** Cards answered in this session so far. */
+  done: number;
+}
+
+export interface ClaimDecision {
+  claimNodeId: string;
+  topic: string;
+  claimed: number;
+  /** Parts rated below the claim. */
+  lower: { topic: string; level: number }[];
+}
+
+export interface FinishReport {
+  answered: number;
+  /** Guesses this session's answers settled. */
+  settled: number;
+}
+
+const keepLowerKey = (claimNodeId: string) => `keepLower:${claimNodeId}`;
+
+/**
+ * A concept-card session: the stateful API the review page drives (concept-cards spec). The person rates concepts;
+ * each answer lights its branch, settles any guess about it (scored against the prediction recorded first), and opens
+ * the parts below a middle answer.
+ */
+export class CardSession {
+  readonly warnings: string[] = [];
+  private readonly skip = new Set<string>();
+  private settledHere = 0;
+
+  private constructor(
+    private readonly deps: CardSessionDeps,
+    readonly sessionId: string,
+  ) {}
+
+  /** Size 0 means no cap: a session runs until nothing is left. */
+  readonly size = 0;
+
+  static async start(deps: CardSessionDeps): Promise<CardSession> {
+    const { store } = deps;
+    for (const s of store.listSessions()) if (s.endedAt === null) store.endSession(s.id);
+    const session = new CardSession(deps, store.startSession(0).id);
+    await session.traced("start", async () => {
+      try {
+        const report = await refresh({
+          store,
+          map: deps.map,
+          tracer: deps.tracer,
+          personaName: deps.personaName,
+          splitAt: deps.splitAt,
+          hypothesize: deps.hypothesize,
+          hypotheses: deps.hypotheses,
+        });
+        session.warnings.push(...report.warnings);
+      } catch (err) {
+        session.warnings.push(`refreshing the tree failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    });
+    return session;
+  }
+
+  private snapshot(): TreeSnapshot {
+    return loadSnapshot(this.deps.store, { brierWindow: this.deps.hypotheses?.brierWindow });
+  }
+
+  private answeredHere(): number {
+    return this.deps.store.listResponses({ sessionId: this.sessionId, rated: true }).length;
+  }
+
+  private shown(responseId: string, t: TreeSnapshot = this.snapshot()): ShownCard {
+    const { store } = this.deps;
+    const r = store.getResponse(responseId);
+    const probe = store.getProbe(r.probeId);
+    const node = store.getTopic(probe.nodeId);
+    const path: string[] = [];
+    const seen = new Set<string>();
+    for (let at = t.parentOf.get(node.id); at && !seen.has(at); at = t.parentOf.get(at)) {
+      seen.add(at);
+      path.unshift(t.all.get(at)?.name ?? store.getTopic(at).name);
+    }
+    const parent = probe.checkOf ? store.getTopic(probe.checkOf) : null;
+    return {
+      responseId,
+      nodeId: node.id,
+      topic: node.name,
+      definition: node.definition,
+      path,
+      reason: probe.hypothesisId ? "guess" : parent ? "part" : "area",
+      parent: parent?.name ?? null,
+      parentId: parent?.id ?? null,
+      done: this.answeredHere(),
+    };
+  }
+
+  /** The card shown and not yet answered (a reload shows it again), or null. */
+  current(): ShownCard | null {
+    const open = this.deps.store.listResponses({ sessionId: this.sessionId }).findLast((r) => r.rating === null);
+    return open ? this.shown(open.id) : null;
+  }
+
+  /** The next card, with the standin's prediction stored before it is shown. Null when nothing is left. */
+  async next(): Promise<ShownCard | null> {
+    const { store } = this.deps;
+    return this.traced("next", async () => {
+      for (let guard = 0; guard < 50; guard++) {
+        const t = this.snapshot();
+        const responses = store.listResponses({ rated: true }).filter((r) => r.probe.kind === "card");
+        const target = nextCardTarget(
+          t,
+          { answered: new Set(responses.map((r) => r.probe.nodeId)), guessesAnswered: new Set(responses.map((r) => r.probe.hypothesisId).filter((x) => x !== null)) },
+          this.skip,
+        );
+        if (target === null) return null;
+        if (typeof target === "string") {
+          const nodeId = target.slice("expand:".length);
+          try {
+            await expandNode(store, this.deps.map, nodeId, this.deps.personaName);
+          } catch (err) {
+            this.warnings.push(`expanding ${t.topics.get(nodeId)?.name ?? nodeId} failed: ${err instanceof Error ? err.message : String(err)}`);
+          }
+          this.skip.add(target);
+          continue;
+        }
+        const node = t.topics.get(target.nodeId)!;
+        const guess = target.kind === "guess" ? t.hypotheses.get(target.nodeId) : undefined;
+        const probe = store.insertProbe({
+          nodeId: target.nodeId,
+          checkOf: target.kind === "part" ? target.parentId : null,
+          kind: "card",
+          difficulty: Math.max(1, node.partLevel ?? 1),
+          question: node.definition ?? node.name,
+          holdout: "none",
+          hypothesisId: target.kind === "guess" ? target.hypothesisId : null,
+        });
+        // Predict, then learn: what the standin would say, and how sure it was of a guess, before the answer.
+        const mode = answerMode(t, target.nodeId, { speakAt: this.deps.hypotheses?.speakAt }).mode;
+        const priorP = guess ? probabilityOf({ kind: guess.kind as never, rawScore: guess.rawScore as never }, cells(store, loadPriors(store)), { safeguard: true }) : null;
+        const response = store.showProbe(probe.id, this.sessionId, mode, guess && priorP !== null ? { predictedP: guess.p, priorP } : undefined);
+        return this.shown(response.id, t);
+      }
+      return null;
+    });
+  }
+
+  /** Records an answer: a level 0–4 lights the branch; "wouldn't say" sets a boundary. Settles any guess about it. */
+  answer(responseId: string, answer: number | "wouldnt_say"): void {
+    const { store } = this.deps;
+    if (answer !== "wouldnt_say" && (!Number.isInteger(answer) || answer < 0 || answer > 4)) throw new RangeError("an answer is a level from 0 to 4");
+    const response = store.answerCard(responseId, answer);
+    const probe = store.getProbe(response.probeId);
+    if (answer === "wouldnt_say") store.setTopic(probe.nodeId, { boundaryTier: 3 });
+    if (!probe.hypothesisId) return;
+    const h = store.getHypothesis(probe.hypothesisId);
+    if (h.status !== "open") return;
+    if (answer === "wouldnt_say") {
+      store.withdrawHypothesis(h.id);
+      return;
+    }
+    if (outcomeOf(h, store.listResponses({ rated: true })) !== null) {
+      store.settleHypothesis(h.id);
+      this.settledHere++;
+    }
+  }
+
+  /** "That's enough here": nothing more under this concept is asked. */
+  skipRest(parentId: string): void {
+    this.deps.store.setTopic(parentId, { walkStopped: true });
+  }
+
+  /**
+   * A claim whose parts are all answered (or whose walk was stopped), with some part rated below it, and no decision
+   * since the latest such answer (concept-cards spec §5).
+   */
+  keepLowerDue(): ClaimDecision | null {
+    const { store } = this.deps;
+    const t = this.snapshot();
+    const stated = store.stateds();
+    const answered = new Set(store.listResponses({ rated: true }).filter((r) => r.probe.kind === "card").map((r) => r.probe.nodeId));
+    for (const [claimNodeId, claimed] of [...t.claims].sort(([a], [b]) => a.localeCompare(b))) {
+      if (claimed < 1 || claimed > 3 || t.stated.has(claimNodeId)) continue;
+      const parts = [...t.parentOf].filter(([c, p]) => p === claimNodeId && t.topics.has(c)).map(([c]) => c);
+      const qualifying = parts.filter((c) => (t.topics.get(c)!.partLevel ?? 2) <= claimed + 1);
+      if (qualifying.length < MIN_PARTS) continue;
+      const stopped = t.topics.get(claimNodeId)!.walkStopped;
+      if (!stopped && !qualifying.every((c) => answered.has(c))) continue;
+      const lower = qualifying.filter((c) => (stated.get(c)?.level ?? claimed) < claimed);
+      if (lower.length === 0) continue;
+      const latest = lower.map((c) => stated.get(c)!.answeredAt).sort().at(-1)!;
+      const decided = store.getKv(keepLowerKey(claimNodeId));
+      if (decided && decided >= latest) continue;
+      return {
+        claimNodeId,
+        topic: t.topics.get(claimNodeId)!.name,
+        claimed,
+        lower: lower.map((c) => ({ topic: t.topics.get(c)!.name, level: stated.get(c)!.level })),
+      };
+    }
+    return null;
+  }
+
+  /** Keep: the claim stands, its lower parts carved out by their own answers. Lower: the claim drops to the lowest part. */
+  decideClaim(claimNodeId: string, choice: "keep" | "lower"): void {
+    const { store } = this.deps;
+    const due = this.keepLowerDue();
+    store.transaction(() => {
+      if (choice === "lower" && due && due.claimNodeId === claimNodeId) {
+        const t = this.snapshot();
+        const topic = t.topics.get(claimNodeId)!;
+        const previous = t.approved.get(claimNodeId);
+        const depth = Math.min(...due.lower.map((l) => l.level));
+        const lowered = store.insertMemory(
+          {
+            kind: "competence",
+            statement: statementFor(depth, topic.name),
+            tier: previous ? store.getMemory(previous.memoryId).tier : 1,
+            isCurrentState: false,
+            attrs: { domain: topic.name, depth, basis: "probed", reasons: [`you lowered your claim after rating ${due.lower.map((l) => l.topic).join(", ")} lower`] },
+            supersedesId: previous?.memoryId ?? null,
+          },
+          { sourceObservationIds: [], entityIds: [claimNodeId], actor: "person", homeNodeId: claimNodeId },
+        );
+        store.approve(lowered.id);
+      }
+      store.setKv(keepLowerKey(claimNodeId), store.nowIso());
+    });
+  }
+
+  boundaries(): { nodeId: string; topic: string }[] {
+    return this.deps.store
+      .listTopics()
+      .filter((t) => t.boundaryTier !== null)
+      .map((t) => ({ nodeId: t.id, topic: t.name }))
+      .sort((a, b) => a.topic.localeCompare(b.topic));
+  }
+
+  undoBoundary(nodeId: string): void {
+    this.deps.store.setTopic(nodeId, { boundaryTier: null });
+  }
+
+  async finish(): Promise<FinishReport> {
+    return this.traced("finish", async () => {
+      const answered = this.answeredHere();
+      this.deps.store.endSession(this.sessionId);
+      return { answered, settled: this.settledHere };
+    });
+  }
+
+  private traced<T>(step: string, fn: () => Promise<T>): Promise<T> {
+    return this.deps.tracer.run("review", { "standin.review.session": this.sessionId, "standin.review.step": step }, () => fn());
+  }
+}

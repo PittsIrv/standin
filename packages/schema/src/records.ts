@@ -353,6 +353,7 @@ export const ReviewSession = z.object({
   id: z.string(),
   startedAt: IsoTime,
   endedAt: IsoTime.nullable(),
-  size: z.number().int().positive(),
+  /** Questions planned; 0 means no cap (a concept-card session runs until nothing is left). */
+  size: z.number().int().nonnegative(),
 });
 export type ReviewSession = z.infer<typeof ReviewSession>;

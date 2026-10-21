@@ -1,6 +1,6 @@
 import { queuePlace, reviewQueue } from "@standin/compaction";
 import { loadSnapshot, nodeDetail, treeNodes, type FinishReport } from "@standin/knowledge";
-import { EntityKind, ROOTS, Rating } from "@standin/schema";
+import { EntityKind, ROOTS } from "@standin/schema";
 import { NameTakenError } from "@standin/store";
 import { z } from "zod";
 import { nextCard, queueCard } from "./cards.ts";
@@ -14,17 +14,14 @@ export function registerRoutes(o: ReviewServerOptions, route: Route, _finish: ()
 
   // ---- the session -----------------------------------------------------------
   route("GET", "/api/card", async () => ({ card: await nextCard(session, store, config), warnings: session.warnings.splice(0) }));
-  route("POST", "/api/rate", ({ body }) => {
-    const b = z.object({ responseId: Id, rating: Rating }).parse(body);
-    return session.rate(b.responseId, b.rating);
-  });
   route("POST", "/api/answer", ({ body }) => {
-    const b = z.object({ responseId: Id, text: z.string().trim().min(1).max(4000) }).parse(body);
-    session.answer(b.responseId, b.text);
+    const b = z.object({ responseId: Id, answer: z.union([z.number().int().min(0).max(4), z.literal("wouldnt_say")]) }).parse(body);
+    session.answer(b.responseId, b.answer);
   });
-  route("POST", "/api/judge", ({ body }) => {
-    const b = z.object({ responseId: Id, gap: z.boolean() }).parse(body);
-    session.judgeMiss(b.responseId, b.gap);
+  route("POST", "/api/skip", ({ body }) => {
+    const b = z.object({ parentId: Id }).parse(body);
+    store.getTopic(b.parentId);
+    session.skipRest(b.parentId);
   });
   route("POST", "/api/claim", ({ body }) => {
     const b = z.object({ claimNodeId: Id, choice: z.enum(["keep", "lower"]) }).parse(body);

@@ -44,8 +44,7 @@ Commands:
                                                  list memories (bitemporal with --as-of)
   map [--json] [--private] [--all]               your world tree: six roots, what's lit, at what depth, and why; calibration
                                                  (--private adds the presented score; --all shows frontier nodes)
-  review [--probes N] [--port P] [--lan] [--demo-llm]
-                                                 rate questions, review proposals and edit your world tree in a local page
+  review [--port P] [--lan] [--demo-llm]          rate concepts, review proposals and edit your world tree in a local page
                                                  (--lan: reachable from your phone, with a QR code; Ctrl-C finishes)
   map refresh [--demo-llm]                       place new topics, seed from background, propose lighting (calls the map model)
   consolidate                                    expire memories whose validity has ended
