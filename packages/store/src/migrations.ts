@@ -14,6 +14,8 @@ function worldTree(db: DatabaseSync): void {
     ALTER TABLE topics ADD COLUMN root_key TEXT;
     CREATE UNIQUE INDEX topics_root_key ON topics (root_key) WHERE root_key IS NOT NULL;
     ALTER TABLE topics ADD COLUMN frontier INTEGER NOT NULL DEFAULT 0;
+    -- How many memories the node held when a split was last considered, so an unchanged node isn't asked again.
+    ALTER TABLE topics ADD COLUMN split_checked INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE memories ADD COLUMN home_node_id TEXT REFERENCES entities(id);
     INSERT OR IGNORE INTO topics (entity_id) SELECT id FROM entities;
   `);

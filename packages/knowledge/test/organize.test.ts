@@ -80,6 +80,18 @@ describe("splitting nodes", () => {
     expect(store.listTopics().filter((t) => t.name === "Pets")).toHaveLength(1);
   });
 
+  it("asks about a crowded node once, and again only after it gains facts", async () => {
+    const { store, fact } = setup();
+    const { pets } = crowdedPets(store, fact, 13);
+    const llm = new ScriptedLLM(() => ({ children: [] }));
+    await splitNodes(store, llm, "Lin Qiao", 12);
+    await splitNodes(store, llm, "Lin Qiao", 12);
+    expect(llm.calls).toHaveLength(1);
+    fact("We got a new scratching post.", pets.id);
+    await splitNodes(store, llm, "Lin Qiao", 12);
+    expect(llm.calls).toHaveLength(2);
+  });
+
   it("leaves a node at the threshold alone", async () => {
     const { store, fact } = setup();
     const { miso, tofu } = crowdedPets(store, fact, 12);

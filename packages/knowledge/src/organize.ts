@@ -45,7 +45,8 @@ export async function homeMemories(store: Store, model: LLM, personaName: string
 
 /**
  * Splits nodes whose parts have their own identity: one `map` call per node holding more than `splitAt` approved
- * memories, or per node in `grew` that still holds some. Only listed memories this node holds move to a child.
+ * memories (and more than when it was last considered), or per node in `grew` that still holds some. Only listed
+ * memories this node holds move to a child.
  */
 export async function splitNodes(
   store: Store,
@@ -58,6 +59,8 @@ export async function splitNodes(
   for (const node of store.listTopics()) {
     const held = store.nodeMemories(node.id, { status: "approved" });
     if (held.length === 0 || (held.length <= splitAt && !grew.has(node.id))) continue;
+    // Already considered at this size: ask again only once the node holds more.
+    if (!grew.has(node.id) && held.length <= store.splitChecked(node.id)) continue;
     const children = store
       .listEdges("part_of")
       .filter((e) => e.to === node.id)
@@ -87,6 +90,7 @@ export async function splitNodes(
         }
       }
     });
+    store.markSplitChecked(node.id, mine.size);
     if (changed) split.push(node.name);
   }
   return { split };

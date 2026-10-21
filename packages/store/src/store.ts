@@ -344,6 +344,16 @@ export class Store {
     return this.getMemory(m.id);
   }
 
+  /** How many memories the node held when a split was last considered (0 if never). */
+  splitChecked(id: string): number {
+    const r = this.db.prepare("SELECT split_checked FROM topics WHERE entity_id = ?").get(id) as Row | undefined;
+    return r ? Number(r.split_checked) : 0;
+  }
+
+  markSplitChecked(id: string, count: number): void {
+    this.db.prepare("UPDATE topics SET split_checked = ? WHERE entity_id = ?").run(count, id);
+  }
+
   renameTopic(id: string, name: string): Topic {
     return tree.renameTopic(this, id, name);
   }
