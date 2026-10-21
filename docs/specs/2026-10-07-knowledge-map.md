@@ -264,6 +264,10 @@ Both are reported separately for the `fixed` and `rotating` sets.
 - `node:http`, plain TypeScript and HTML, with no front-end framework and no build step.
 - It serves one page and a small JSON API backed by the store.
 
+**Layout**
+- One card at a time, in a fixed order: the current probe, its spot-check, misses to judge, keep or lower, then the review queue.
+- Side tabs (Tree, Boundaries, Queue) can be opened at any time.
+
 **Cards**
 - probes, with a text box that expands for spot-checks;
 - **possible gaps:** a miss, with "gap / not a gap";
@@ -283,8 +287,12 @@ The memory review queue (no cap, plain order) is the same one the CLI shows.
 **Security**
 - Binds to `127.0.0.1` by default.
 - Every request needs a random session token. The page URL carries it, the API takes it only in a header, and requests without it get 403. So other pages in the browser can't call the API.
-- `--lan` binds to the local network for phone access and prints a QR code containing the token. It is opt-in, because the page shows private data.
+- `--lan` binds to the local network for phone access and prints a QR code containing the token, rendered in the terminal by `uqr`, a small library with no dependencies of its own. It is opt-in, because the page shows private data.
 - No data leaves the machine except the model calls made by the `map`, `quiz`, and `grade` roles.
+
+**Stopping**
+- A Finish button (key `f`) runs the session's finish step: batch grading, releasing rotating held-out probes, and the trace. It shows the report, and then the server exits.
+- Ctrl-C in the terminal runs the same finish step before exiting.
 
 **Tracing**
 - Each review session is a trace of kind `review`.
@@ -492,3 +500,6 @@ The problem sits between four areas. We did not find work that models **one real
 | 35 | SP2a-2 delivery | Two PRs: the probing engine, then the review page | One PR; a temporary terminal session first |
 | 36 | What foundations check | All approved inferred lighting (seeded, upward, prerequisite) gets one probe at its level | Treating inferred nodes as claims; not probing them |
 | 37 | Reaching 4 by discovery | A second question at 4, both always spot-checked | Capping discovery at 3; leaving it to the 1-in-3 chance |
+| 38 | Review page layout | One card at a time in a fixed order, with side tabs for the tree, boundaries and queue | Strict one-card only; a dashboard |
+| 39 | `--lan` QR code | `uqr`, a small zero-dependency library | Printing the URL only; our own encoder |
+| 40 | Stopping the review server | A Finish button; Ctrl-C runs the same finish | Finish button only; also finishing after 30 idle minutes |
