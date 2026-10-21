@@ -5,7 +5,7 @@ import { syncStatedGaps } from "./gaps.ts";
 import { computeLighting } from "./lighting.ts";
 import { proposeLighting } from "./proposals.ts";
 import { loadSnapshot } from "./snapshot.ts";
-import { placeTopics, seedBackground } from "./tasks.ts";
+import { placeNodes, seedBackground } from "./tasks.ts";
 
 export interface RefreshReport {
   placed: number;
@@ -37,8 +37,8 @@ export async function refresh(o: { store: Store; map: LLM; tracer: Tracer; perso
     await step("seeding from background", async () => {
       report.seeded = (await seedBackground(o.store, o.map, o.personaName)).seeded;
     });
-    await step("placing topics", async () => {
-      Object.assign(report, await placeTopics(o.store, o.map, o.personaName));
+    await step("placing nodes", async () => {
+      Object.assign(report, await placeNodes(o.store, o.map, o.personaName));
     });
     const before = loadSnapshot(o.store);
     report.gaps = syncStatedGaps(o.store, before, computeLighting(before)).length;

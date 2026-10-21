@@ -56,14 +56,16 @@ function render(t: TreeSnapshot): string {
   const all = views(t);
   const byName = new Map(all.map((v) => [v.id, v]));
   const children = new Map<string, NodeView[]>();
-  for (const [child, parent] of t.parentOf) children.set(parent, [...(children.get(parent) ?? []), byName.get(child)!]);
+  for (const [child, parent] of t.parentOf) if (byName.has(child)) children.set(parent, [...(children.get(parent) ?? []), byName.get(child)!]);
   const placed = (v: NodeView) => t.parentOf.has(v.id) || children.has(v.id);
   const lines: string[] = [];
   const walk = (v: NodeView, depth: number) => {
     lines.push(`${"  ".repeat(depth)}${v.name}  ${status(v)}`);
     for (const c of (children.get(v.id) ?? []).sort((a, b) => a.name.localeCompare(b.name))) walk(c, depth + 1);
   };
-  for (const root of all.filter((v) => placed(v) && !t.parentOf.has(v.id)).sort((a, b) => a.name.localeCompare(b.name))) walk(root, 0);
+  // Top-level: placed nodes whose parent is not itself shown (a world-tree root, or none).
+  const top = (v: NodeView) => !byName.has(t.parentOf.get(v.id) ?? "");
+  for (const root of all.filter((v) => placed(v) && top(v)).sort((a, b) => a.name.localeCompare(b.name))) walk(root, 0);
   const loose = all.filter((v) => !placed(v));
   if (loose.length > 0) lines.push("", "Not yet placed (run `standin map refresh`):", ...loose.map((v) => `  ${v.name}  ${status(v)}`));
   return lines.length > 0 ? lines.join("\n") : "Your knowledge tree is empty. Approve some memories, then run `standin map refresh`.";

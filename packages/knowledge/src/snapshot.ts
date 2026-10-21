@@ -1,9 +1,18 @@
-import type { DepthBasis, Gap, Probe, Topic } from "@standin/schema";
+import type { DepthBasis, Gap, Probe, RootKey, Topic } from "@standin/schema";
 import type { Store } from "@standin/store";
 
-/** Everything the lighting rules and the answering rule read, loaded once. Deleted topics are left out. */
+/** Everything the lighting rules and the answering rule read, loaded once. Deleted nodes are left out. */
 export interface TreeSnapshot {
+  /** Knowledge nodes only: lighting, probing and the answering rule work inside the Knowledge root. */
   topics: Map<string, Topic>;
+  /** Every live node except the roots, in any root. */
+  all: Map<string, Topic>;
+  /** Root node id → its key. */
+  roots: Map<string, RootKey>;
+  /** Each node's root, following home parents; null while unplaced. */
+  rootOf: Map<string, RootKey | null>;
+  /** Ids of `topics`: nodes under Knowledge, plus unplaced nodes labeled `topic`. */
+  knowledge: Set<string>;
   /** part_of: child → parent. */
   parentOf: Map<string, string>;
   /** requires: [advanced, foundation]. */
@@ -24,9 +33,22 @@ export interface TreeSnapshot {
 }
 
 export function loadSnapshot(store: Store): TreeSnapshot {
-  const topics = new Map(store.listTopics().map((t) => [t.id, t]));
+  const all = new Map(store.listTopics().map((t) => [t.id, t]));
+  const roots = new Map(store.roots().map((r) => [r.id, r.rootKey!]));
   const parentOf = new Map<string, string>();
   for (const e of store.listEdges("part_of")) if (!parentOf.has(e.from)) parentOf.set(e.from, e.to);
+  const rootOf = new Map<string, RootKey | null>();
+  for (const id of all.keys()) {
+    const seen = new Set<string>();
+    let at: string | undefined = id;
+    while (at !== undefined && !roots.has(at) && !seen.has(at)) {
+      seen.add(at);
+      at = parentOf.get(at);
+    }
+    rootOf.set(id, at !== undefined ? (roots.get(at) ?? null) : null);
+  }
+  const knowledge = new Set([...all.values()].filter((t) => rootOf.get(t.id) === "knowledge" || (rootOf.get(t.id) === null && t.label === "topic")).map((t) => t.id));
+  const topics = new Map([...all].filter(([id]) => knowledge.has(id)));
   const requires = store.listEdges("requires").map((e) => [e.from, e.to] as [string, string]);
 
   const approved: TreeSnapshot["approved"] = new Map();
@@ -54,6 +76,10 @@ export function loadSnapshot(store: Store): TreeSnapshot {
 
   return {
     topics,
+    all,
+    roots,
+    rootOf,
+    knowledge,
     parentOf,
     requires,
     approved,

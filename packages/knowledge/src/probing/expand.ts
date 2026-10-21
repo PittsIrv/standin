@@ -13,7 +13,10 @@ export async function expandNode(store: Store, map: LLM, nodeId: string, persona
   const added = { components: [] as string[], prerequisites: [] as string[] };
   store.transaction(() => {
     const link = (name: string, definition: string, kind: "part_of" | "requires") => {
+      const isNew = store.findEntity({ name, kind: "topic" }) === null;
       const other = store.ensureTopic(name, definition);
+      // Parts nobody has talked about yet wait on the frontier, hidden until a claim, probe or edit touches them.
+      if (isNew && kind === "part_of") store.setTopic(other.id, { frontier: true });
       if (other.deletedAt || other.id === nodeId) return false;
       try {
         const edge = kind === "part_of" ? { from: other.id, to: nodeId } : { from: nodeId, to: other.id };

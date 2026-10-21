@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { ScriptedLLM, type GenerateObjectRequest } from "@standin/llm";
-import type { ObservationInput } from "@standin/schema";
+import { defaultRoot, type EntityKind, type ObservationInput } from "@standin/schema";
 import { EXTRACTIONS, PLACEMENTS, RECONCILIATIONS, SEED } from "./fixtures.ts";
 
 export const DEMO_PERSONA_NAME = "Lin Qiao";
@@ -24,14 +24,16 @@ function neighbors(prompt: string): Map<string, string> {
   return out;
 }
 
-/** The demo's placement answer: each new topic listed in the prompt, under its fixture parent. */
+/** The demo's placement answer: each new node listed in the prompt ("- Name [label]"), under its fixture parent. */
 function placements(prompt: string) {
-  const topics = [...(prompt.split("New topics:\n")[1] ?? "").matchAll(/^- (.+)$/gm)].map((m) => m[1]!.trim());
+  const nodes = [...(prompt.split("New topics:\n")[1] ?? "").matchAll(/^- (.+?) \[(\w+)\]$/gm)].map((m) => [m[1]!.trim(), m[2] as EntityKind] as const);
   return {
     merges: [],
-    placements: topics.map((topic) => {
-      const [parent, parentDefinition, definition] = PLACEMENTS[topic] ?? ["Other topics", "Topics outside the main tree.", topic];
-      return { topic, parent, parentDefinition, definition };
+    placements: nodes.map(([topic, label]) => {
+      const fallback: (typeof PLACEMENTS)[string] =
+        label === "topic" ? ["Other topics", "Topics outside the main tree.", topic] : ["Other", "Everything else.", topic, defaultRoot(label), "other"];
+      const [parent, parentDefinition, definition, root = "knowledge", parentLabel = "topic"] = PLACEMENTS[topic] ?? fallback;
+      return { topic, parent, parentDefinition, parentLabel, root, definition };
     }),
   };
 }

@@ -6,7 +6,7 @@ export { proposeLighting, proposeNode, type ProposalReport } from "./proposals.t
 export { gapStatement, statementFor } from "./wording.ts";
 export { buildPlacePrompt, buildSeedPrompt, outline } from "./prompts.ts";
 export { PlaceSchema, SeedSchema, type Place, type Seed } from "./schemas.ts";
-export { placeTopics, seedBackground, unplacedTopics } from "./tasks.ts";
+export { placeNodes, seedBackground, unplacedNodes } from "./tasks.ts";
 export { refresh, type RefreshReport } from "./refresh.ts";
 export { expandNode } from "./probing/expand.ts";
 export { assignHoldout, FIXED_SHARE, ROTATING_SHARE, writeProbes } from "./probing/quiz.ts";

@@ -39,6 +39,10 @@ export function tree(spec: {
   );
   return {
     topics,
+    all: topics,
+    roots: new Map(),
+    rootOf: new Map([...topics.keys()].map((n) => [n, null])),
+    knowledge: new Set(topics.keys()),
     parentOf: new Map(spec.partOf ?? []),
     requires: spec.requires ?? [],
     approved,
