@@ -39,11 +39,14 @@ export function treeNodes(t: TreeSnapshot, opts: { all?: boolean } = {}): TreeNo
       const d = answerMode(t, n.id);
       const facts = t.homeFacts.get(n.id) ?? 0;
       const guess = t.hypotheses.get(n.id) ?? null;
+      const saidNo = t.negatives.some((x) => x.topicIds.includes(n.id));
       const state: TreeNode["state"] = knowledge
         ? d.depth === null || d.from?.via === "hypothesis"
-          ? guess
-            ? "probable"
-            : "unlit"
+          ? saidNo
+            ? "dark"
+            : guess
+              ? "probable"
+              : "unlit"
           : d.depth === 0
             ? "dark"
             : "lit"
@@ -84,7 +87,9 @@ export function nodeStatus(v: TreeNode): string {
     ? `${v.facts} fact${v.facts === 1 ? "" : "s"}`
     : v.state === "probable" && v.hypothesis
       ? `probable ${v.hypothesis.depth} (p ${v.hypothesis.p.toFixed(2)}, ${v.hypothesis.kind})`
-      : v.depth === null
+      : v.state === "dark" && v.depth === null
+        ? "dark (you said so)"
+        : v.depth === null
       ? "not lit"
       : v.via === "gap"
         ? `gap: fine up to ${v.depth}`

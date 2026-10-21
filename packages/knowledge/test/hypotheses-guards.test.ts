@@ -38,5 +38,10 @@ describe("hypothesis guards", () => {
   it("rejects a path between nodes with no edge", () => expect(check({ nodeId: "ML", path: ["PPO", "ML"] })).toMatch(/edge/));
   it("rejects a path that starts at a guess", () => expect(check({ nodeId: "RL", path: ["Bandits", "RL"] })).toMatch(/established/));
   it("rejects a node the person already spoke to", () => expect(check({ nodeId: "PPO", path: ["PPO"] })).toMatch(/already/));
+  it("rejects a node the person said they don't know, even with no gap recorded", () => {
+    const said = tree({ partOf: [["PPO", "RL"]], claims: { PPO: 4 }, negatives: ["RL"] });
+    expect(checkHypothesis(said, { nodeId: "RL", depth: 2, path: ["PPO", "RL"], reason: "r" }, [edge("PPO", "RL")])).toMatch(/already/);
+  });
+
   it("rejects a sensitive node even when the path is sound", () => expect(check({ nodeId: "Insulin dosing", depth: 2, path: ["Medicine", "Insulin dosing"] })).toMatch(/health/));
 });

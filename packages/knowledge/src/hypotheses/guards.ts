@@ -19,9 +19,15 @@ export function established(t: TreeSnapshot, nodeId: string): boolean {
   );
 }
 
-/** The node's own word on it: then there is nothing to guess. */
-function spokenFor(t: TreeSnapshot, nodeId: string): boolean {
-  return t.claims.has(nodeId) || t.approved.get(nodeId)?.basis === "probed" || t.gaps.some((g) => g.nodeId === nodeId) || t.confirmedHypotheses.has(nodeId);
+/** The person's own word on the node, for or against (including "I don't know X"): then there is nothing to guess. */
+export function spokenFor(t: TreeSnapshot, nodeId: string): boolean {
+  return (
+    t.claims.has(nodeId) ||
+    t.approved.get(nodeId)?.basis === "probed" ||
+    t.gaps.some((g) => g.nodeId === nodeId) ||
+    t.confirmedHypotheses.has(nodeId) ||
+    t.negatives.some((n) => n.topicIds.includes(nodeId))
+  );
 }
 
 /** Why a proposed hypothesis is refused (spec §4.2), or null when it may be recorded. `path` runs from an established node to `nodeId`. */

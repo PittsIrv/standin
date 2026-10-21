@@ -28,12 +28,14 @@ export function tree(spec: {
   confirmedHypotheses?: Record<string, number>;
   /** Nodes outside the Knowledge root (Life). */
   life?: string[];
+  /** Nodes named by an approved "I don't know X". */
+  negatives?: string[];
 }): TreeSnapshot {
   const names = new Set<string>();
   for (const [a, b] of [...(spec.partOf ?? []), ...(spec.requires ?? [])]) names.add(a).add(b);
   for (const n of [...Object.keys(spec.claims ?? {}), ...Object.keys(spec.approved ?? {}), ...Object.keys(spec.seeded ?? {})]) names.add(n);
   for (const g of spec.gaps ?? []) names.add(g.node);
-  for (const n of [...Object.keys(spec.hypotheses ?? {}), ...Object.keys(spec.confirmedHypotheses ?? {})]) names.add(n);
+  for (const n of [...Object.keys(spec.hypotheses ?? {}), ...Object.keys(spec.confirmedHypotheses ?? {}), ...(spec.negatives ?? [])]) names.add(n);
   const topics = new Map([...names].map((n) => [n, { ...topic(n), boundaryTier: spec.boundaries?.includes(n) ? (3 as const) : null }]));
   const all = new Map<string, Topic>([...topics, ...(spec.life ?? []).map((n): [string, Topic] => [n, { ...topic(n), label: "pet" }])]);
   const claims = new Map(Object.entries(spec.claims ?? {}));
@@ -70,7 +72,7 @@ export function tree(spec: {
       responseId: null,
       createdAt: "2026-10-01T00:00:00.000Z",
     })),
-    negatives: [],
+    negatives: (spec.negatives ?? []).map((n, i) => ({ memoryId: `mem_neg_${i}`, topicIds: [n] })),
     proposals: [],
     confirmed: new Set(),
   };

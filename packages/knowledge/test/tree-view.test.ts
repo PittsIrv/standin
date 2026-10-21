@@ -49,3 +49,17 @@ describe("the forest view", () => {
     expect(treeNodes(loadSnapshot(store)).some((n) => n.id === ppo.id)).toBe(false);
   });
 });
+
+describe("stated limits in the forest", () => {
+  it("shows a node the person said they don't know as dark", () => {
+    const { store } = world();
+    const o = store.addObservation({ sourceKind: "interview", sourceRef: "j", authorRole: "self", text: "no chess", occurredAt: "2026-09-01T00:00:00.000Z" });
+    const chess = store.ensureTopic("chess engines");
+    store.addEdge({ from: chess.id, to: store.root("knowledge").id, kind: "part_of", source: "placement" });
+    const m = store.insertMemory({ kind: "negative", statement: "I don't know chess engines.", tier: 1, isCurrentState: false, attrs: {} }, { sourceObservationIds: [o.id], entityIds: [chess.id], actor: "compaction" });
+    store.approve(m.id);
+    const t = loadSnapshot(store);
+    expect(treeNodes(t).find((n) => n.id === chess.id)).toMatchObject({ state: "dark" });
+    expect(renderForest(t)).toContain("  chess engines  dark (you said so)");
+  });
+});

@@ -34,6 +34,7 @@ function knowledgeOutline(t: TreeSnapshot): string {
     if (t.confirmedHypotheses.has(id)) return `confirmed ${t.confirmedHypotheses.get(id)}`;
     const gap = t.gaps.find((g) => g.nodeId === id);
     if (gap) return `gap: fine up to ${gap.level}`;
+    if (t.negatives.some((n) => n.topicIds.includes(id))) return "said they don't know it";
     if (t.seeded.has(id)) return "seeded from background";
     const guess = t.hypotheses.get(id);
     if (guess) return `open guess ${guess.depth}`;
