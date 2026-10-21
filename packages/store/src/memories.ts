@@ -27,6 +27,7 @@ export type NewMemory = DistributiveOmit<
   | "recordedAt"
   | "decidedAt"
   | "lastCorroboratedAt"
+  | "homeNodeId"
   | "validFrom"
   | "validUntil"
   | "supersedesId"

@@ -84,6 +84,12 @@ export const Config = z.object({
       freshnessDays: z.number().positive().default(120),
     })
     .prefault({}),
+  tree: z
+    .object({
+      /** A node with more approved home facts than this is split into children. A starting value, tuned by experiment. */
+      splitAt: z.number().int().positive().default(12),
+    })
+    .prefault({}),
 });
 export type Config = z.infer<typeof Config>;
 export type ConfigInput = z.input<typeof Config>;

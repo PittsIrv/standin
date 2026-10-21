@@ -71,8 +71,37 @@ export const Observation = z.object({
 });
 export type Observation = z.infer<typeof Observation>;
 
-export const EntityKind = z.enum(["project", "org", "place", "person", "work", "topic"]);
+export const EntityKind = z.enum(["project", "org", "place", "person", "work", "topic", "pet", "other"]);
 export type EntityKind = z.infer<typeof EntityKind>;
+
+/** The six fixed roots of the world tree; everything else grows under them. */
+export const RootKey = z.enum(["knowledge", "work", "background", "people", "views", "life"]);
+export type RootKey = z.infer<typeof RootKey>;
+
+export const ROOTS: readonly { key: RootKey; name: string }[] = [
+  { key: "knowledge", name: "Knowledge" },
+  { key: "work", name: "Work" },
+  { key: "background", name: "Background" },
+  { key: "people", name: "People" },
+  { key: "views", name: "Views" },
+  { key: "life", name: "Life" },
+];
+
+/** Where a node with this label goes when nothing better is known. */
+export function defaultRoot(label: EntityKind): RootKey {
+  switch (label) {
+    case "topic":
+      return "knowledge";
+    case "project":
+    case "org":
+    case "work":
+      return "work";
+    case "person":
+      return "people";
+    default:
+      return "life";
+  }
+}
 
 export const Entity = z.object({
   id: z.string(),
@@ -121,6 +150,8 @@ const memoryBase = {
   recordedAt: IsoTime,
   decidedAt: IsoTime.nullable(),
   lastCorroboratedAt: IsoTime,
+  /** The most specific node this memory is about: where it lives in the world tree. */
+  homeNodeId: z.string().nullable().default(null),
 };
 
 export const Memory = z.discriminatedUnion("kind", [
@@ -185,11 +216,17 @@ export const ALLOWED_TRANSITIONS: Record<MemoryStatus, readonly MemoryStatus[]> 
   retracted: [],
 };
 
-/** A node of the knowledge tree: a topic entity plus its tree-only fields. */
+/** A node of the world tree: an entity plus its tree-only fields. */
 export const Topic = z.object({
   id: z.string(),
   name: z.string(),
   aliases: z.array(z.string()),
+  /** What kind of thing the node is; informational only. */
+  label: EntityKind,
+  /** Set only on the six root nodes. */
+  rootKey: RootKey.nullable(),
+  /** Created by expansion and not yet touched by the person, a claim or a probe: hidden from the tree view. */
+  frontier: z.boolean(),
   definition: z.string().nullable(),
   expandedAt: IsoTime.nullable(),
   /** The background fact that seeded this topic, if any. */
@@ -200,7 +237,7 @@ export const Topic = z.object({
 });
 export type Topic = z.infer<typeof Topic>;
 
-export const EdgeKind = z.enum(["part_of", "requires"]);
+export const EdgeKind = z.enum(["part_of", "requires", "related"]);
 export type EdgeKind = z.infer<typeof EdgeKind>;
 
 export const TopicEdge = z.object({

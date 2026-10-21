@@ -138,6 +138,7 @@ describe("config", () => {
       },
       tracing: {},
       consolidation: { freshnessDays: 120 },
+      tree: { splitAt: 12 },
     });
   });
 
@@ -232,5 +233,28 @@ describe("probing records", () => {
     expect(ReviewSession.parse({ id: "ses_0123456789ab", startedAt: "2026-10-01T00:00:00.000Z", endedAt: null, size: 10 }).size).toBe(10);
     expect(Gap.parse({ id: "gap_0123456789ab", nodeId: "a", claimNodeId: "b", level: 2, status: "open", source: "probe", memoryId: null, responseId: "rsp_0123456789ab", createdAt: "2026-10-01T00:00:00.000Z" }).responseId).toBe("rsp_0123456789ab");
     expect(SourceKind.parse("probe")).toBe("probe");
+  });
+});
+
+describe("world tree schema", () => {
+  it("names six fixed roots in order and maps each label to a default root", async () => {
+    const { ROOTS, defaultRoot, EntityKind, EdgeKind } = await import("../src/index.ts");
+    expect(ROOTS.map((r) => [r.key, r.name])).toEqual([
+      ["knowledge", "Knowledge"],
+      ["work", "Work"],
+      ["background", "Background"],
+      ["people", "People"],
+      ["views", "Views"],
+      ["life", "Life"],
+    ]);
+    const expected = { topic: "knowledge", project: "work", org: "work", work: "work", person: "people", place: "life", pet: "life", other: "life" };
+    for (const label of EntityKind.options) expect(defaultRoot(label)).toBe(expected[label]);
+    expect(EdgeKind.options).toContain("related");
+  });
+
+  it("gives memories an optional home node and config a split threshold", () => {
+    expect(parseConfig({ persona: { name: "X" } }).tree.splitAt).toBe(12);
+    const m = Memory.parse({ ...baseMemory, kind: "fact", attrs: {} });
+    expect(m.homeNodeId).toBeNull();
   });
 });
