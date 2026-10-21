@@ -52,10 +52,10 @@ function homes(prompt: string) {
 
 const topicOf = (prompt: string) => /^Topic: ([^(\n]+)/m.exec(prompt)?.[1]?.trim() ?? "the topic";
 
-/** The demo's expansion: four generic parts per topic, no prerequisites. */
+/** The demo's expansion: four generic parts per topic, from basic (1) to expert (4), no prerequisites. */
 function expansion(topic: string) {
   const parts = [`${topic} fundamentals`, `${topic} in practice`, `${topic} theory`, `advanced ${topic}`];
-  return { components: parts.map((name) => ({ name, definition: `${name}.` })), prerequisites: [] };
+  return { components: parts.map((name, i) => ({ name, definition: `${name}.`, level: i + 1 })), prerequisites: [] };
 }
 
 /** The demo's probes: numbered questions at the requested depth. */

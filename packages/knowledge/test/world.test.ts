@@ -63,7 +63,10 @@ describe("the world tree in the knowledge layer", () => {
     const { store } = setup();
     const rl = store.ensureTopic("RL");
     const existing = store.ensureTopic("Bandits");
-    const llm = new ScriptedLLM(() => ({ components: [{ name: "Bandits", definition: "." }, { name: "PPO", definition: "." }], prerequisites: [] }));
+    const llm = new ScriptedLLM(() => ({
+      components: ["Bandits", "PPO", "Q-learning"].map((name, i) => ({ name, definition: ".", level: i + 1 })),
+      prerequisites: [],
+    }));
     await expandNode(store, llm, rl.id, "Lin Qiao");
     expect(store.ensureTopic("PPO").frontier).toBe(true);
     expect(store.getTopic(existing.id).frontier).toBe(false);

@@ -2,9 +2,19 @@ import type { Prompt } from "../prompts.ts";
 
 const SCALE = "0 doesn't know · 1 aware of it · 2 working knowledge · 3 strong · 4 expert";
 
-export function buildExpandPrompt(node: { name: string; definition: string | null }, parent: string | null, personaName: string): Prompt {
-  const system = `You grow the knowledge tree of ${personaName}'s "standin". Expand one topic into what it is made of. Give 4–8 components: the standard parts a course or textbook would cover, each with a one-line definition. Also give the topic's main prerequisites (what someone must know first), each with a one-line definition. Use broad, standard names. Never list the topic itself, or anything it is part of.`;
-  const prompt = `Topic: ${node.name}${node.definition ? ` (${node.definition})` : ""}${parent ? `\nPart of: ${parent}` : ""}`;
+export function buildExpandPrompt(
+  node: { name: string; definition: string | null },
+  parent: string | null,
+  personaName: string,
+  problems: string[] = [],
+): Prompt {
+  const system = `You grow the knowledge tree of ${personaName}'s "standin". Split one concept into its parts, the way a good course or textbook divides it.
+- Give 3–7 parts that don't overlap and that together cover the concept.
+- Give each part a one-line definition, and a level for how advanced it is: 1 basic (anyone who has heard of the concept knows it), 2 working knowledge, 3 strong, 4 expert.
+- Also give the concept's main prerequisites (what someone must know first), each with a one-line definition.
+Use broad, standard names. Never list the concept itself, a synonym of it, or anything it is part of.`;
+  const retry = problems.length > 0 ? `\n\nProblems with your last answer, fix them:\n${problems.map((p) => `- ${p}`).join("\n")}` : "";
+  const prompt = `Topic: ${node.name}${node.definition ? ` (${node.definition})` : ""}${parent ? `\nPart of: ${parent}` : ""}${retry}`;
   return { system, prompt };
 }
 

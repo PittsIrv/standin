@@ -8,7 +8,7 @@ export { HomeSchema, HypothesizeSchema, PlaceSchema, SeedSchema, SplitSchema, ty
 export { placeNodes, seedBackground, unplacedNodes } from "./tasks.ts";
 export { homeMemories, splitNodes } from "./organize.ts";
 export { refresh, type RefreshReport } from "./refresh.ts";
-export { expandNode } from "./probing/expand.ts";
+export { checkSplit, expandNode, MAX_SPLIT, MIN_SPLIT } from "./probing/expand.ts";
 export { assignHoldout, FIXED_SHARE, ROTATING_SHARE, writeProbes } from "./probing/quiz.ts";
 export { ExpandSchema, GradeSchema, QuizSchema } from "./probing/schemas.ts";
 export { buildExpandPrompt, buildGradePrompt, buildQuizPrompt } from "./probing/prompts.ts";

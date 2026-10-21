@@ -24,7 +24,7 @@ describe("expandNode", () => {
     const parent = store.ensureTopic("Systems");
     store.addEdge({ from: ds.id, to: parent.id, kind: "part_of", source: "seeding" });
     const llm = new ScriptedLLM(() => ({
-      components: ["consensus", "replication", "partitioning", "fault tolerance", "Systems"].map((name) => ({ name, definition: `${name}.` })),
+      components: ["consensus", "replication", "partitioning", "fault tolerance", "Systems"].map((name) => ({ name, definition: `${name}.`, level: 2 })),
       prerequisites: [{ name: "networking", definition: "How computers talk." }],
     }));
     const out = await expandNode(store, llm, ds.id, "Lin Qiao");

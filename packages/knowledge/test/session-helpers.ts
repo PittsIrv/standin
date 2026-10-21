@@ -21,7 +21,7 @@ export function models() {
   const topic = (p: string) => /^Topic: ([^(\n]+)/m.exec(p)?.[1]?.trim() ?? "x";
   const handler = (req: GenerateObjectRequest<unknown>) => {
     if (req.purpose === "expand")
-      return { components: ["one", "two", "three", "four"].map((n) => ({ name: `${topic(req.prompt)} ${n}`, definition: "." })), prerequisites: [] };
+      return { components: ["one", "two", "three", "four"].map((n, i) => ({ name: `${topic(req.prompt)} ${n}`, definition: ".", level: i + 1 })), prerequisites: [] };
     if (req.purpose === "quiz") {
       const count = Number(/^Write (\d+) probe/m.exec(req.prompt)?.[1] ?? "1");
       return { probes: Array.from({ length: count }, (_, i) => ({ question: `About ${topic(req.prompt)}, question ${i + 1}?` })) };
