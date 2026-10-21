@@ -32,3 +32,4 @@ export { calibration, type Calibration, type SetScore } from "./probing/calibrat
 export { nodeStatus, renderForest, treeNodes, type TreeNode } from "./tree-view.ts";
 export { isSensitive, SENSITIVE_CATEGORIES } from "./hypotheses/sensitive.ts";
 export { checkHypothesis, established, MAX_HOPS } from "./hypotheses/guards.ts";
+export { cellKey, cells, loadPriors, outcomeOf, probabilityOf, safeguard, type Cell, type Safeguard } from "./hypotheses/calibrate.ts";
