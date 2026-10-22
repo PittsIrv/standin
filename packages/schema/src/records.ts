@@ -27,6 +27,7 @@ export const SourceKind = z.enum([
   "intro",
   "file",
   "website",
+  "answer",
 ]);
 export type SourceKind = z.infer<typeof SourceKind>;
 
@@ -374,6 +375,20 @@ export type EvidenceKind = z.infer<typeof EvidenceKind>;
 export const RawScore = z.enum(["low", "medium", "high"]);
 export type RawScore = z.infer<typeof RawScore>;
 /** A settled hypothesis's outcome (confirmed or refuted) is read from its probe responses, so a late grade can flip it. */
+export const QuestionStatus = z.enum(["open", "answered", "dismissed"]);
+export type QuestionStatus = z.infer<typeof QuestionStatus>;
+
+/** A gap in the person's world the standin asks about, never guesses (questions spec §1). Never a fact. */
+export const Question = z.object({
+  id: z.string(),
+  nodeId: z.string(),
+  text: z.string(),
+  status: QuestionStatus,
+  createdAt: IsoTime,
+  decidedAt: IsoTime.nullable(),
+});
+export type Question = z.infer<typeof Question>;
+
 export const HypothesisStatus = z.enum(["open", "settled", "withdrawn"]);
 export type HypothesisStatus = z.infer<typeof HypothesisStatus>;
 

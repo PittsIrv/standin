@@ -18,6 +18,7 @@ import * as spans from "./spans.ts";
 import * as tree from "./tree.ts";
 import * as probes from "./probes.ts";
 import * as hyp from "./hypotheses.ts";
+import * as qs from "./questions.ts";
 import type { SpanContent, SpanData, SpanSink } from "@standin/trace";
 import { consolidate, purge, type ConsolidationReport } from "./consolidate.ts";
 
@@ -44,6 +45,8 @@ import type {
   Gap,
   Hypothesis,
   HypothesisStatus,
+  Question,
+  QuestionStatus,
   RootKey,
   Topic,
   TopicEdge,
@@ -468,6 +471,18 @@ export class Store {
   }
   showProbe(probeId: string, sessionId: string, predictedMode: AnswerModeName, p?: { predictedP: number; priorP: number }): ProbeResponse {
     return probes.showProbe(this, probeId, sessionId, predictedMode, p);
+  }
+  addQuestion(q: { nodeId: string; text: string }): Question {
+    return qs.addQuestion(this, q);
+  }
+  getQuestion(id: string): Question {
+    return qs.getQuestion(this, id);
+  }
+  listQuestions(f?: { status?: QuestionStatus; nodeId?: string }): Question[] {
+    return qs.listQuestions(this, f);
+  }
+  setQuestionStatus(id: string, status: QuestionStatus): Question {
+    return qs.setQuestionStatus(this, id, status);
   }
   carryResponse(id: string, sessionId: string): ProbeResponse {
     return probes.carryResponse(this, id, sessionId);
