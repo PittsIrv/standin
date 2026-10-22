@@ -1,6 +1,6 @@
 # Local Answering and Evals
 
-**Status:** design approved in conversation (decisions 84–92). **Builds on** architecture §6 (tiers, answer states), §8 (runtime extras), §9 (voice) and §10 (evals); world-tree §6.3 (speaking) and §6.4 (awakening); the knowledge-map answering rule.
+**Status:** implemented (decisions 84–92). **Builds on** architecture §6 (tiers, answer states), §8 (runtime extras), §9 (voice) and §10 (evals); world-tree §6.3 (speaking) and §6.4 (awakening); the knowledge-map answering rule.
 
 The standin learns about the person but cannot yet answer anyone. This builds the answering side **on the person's own machine**, and the harness that measures it, before anything is deployed. The public runtime (Worker, rate limits, budget ledger) comes later and reuses this code unchanged.
 
@@ -15,12 +15,12 @@ The standin learns about the person but cannot yet answer anyone. This builds th
 
 `answerTurn(store, models, question) → Reply` runs these steps. Each step is a span in the trace.
 
-1. **Route** (purpose `route`, role `answer`). Keyword candidates: topics whose name or aliases share idf-weighted words with the question, scored by the anchors shortlist code, top **10**. The model picks **0–3** seeds. No candidates means no model call.
+1. **Route** (purpose `route`, role `answer`). Keyword candidates: nodes ranked by the idf-weighted words they share with the question (pronouns and question words don't count). A word in the node's name or aliases counts double; its definition, examples and the memories a visitor may see count once. Words of hidden memories are never used. Top **10**. The model picks **0–3** seeds. No candidates means no model call.
 2. **Awaken** (world-tree §6.4, no model). From each seed, collect:
    - its ancestors, for boundaries and inheritance;
    - its lit and probable children;
    - its related links.
-   Then gather memories homed on those nodes, ranked by word overlap with the question, at most **20** in total (`answer.awakenBudget`).
+   Then gather the memories on those nodes, ranked by word overlap with the question, at most **20** in total (`answer.awakenBudget`). All of a seed's own memories count; a nearby node's count only if they share a word with the question.
 3. **Filter**, before any text reaches a model:
    - status `approved`, tier 1 or 2, not expired;
    - nothing on or under a tier-3 boundary node;
@@ -88,7 +88,7 @@ A case is `{ id, suite, question, expect: { state, mentions?, forbidden? }, from
   |---|---|---|
   | known | Approved tier 1–2 facts and stances | `grounded`; mentions the fact |
   | not-on-record | Nodes in the five trees with facts, asking about a plausible detail that no memory holds | `not on record` |
-  | competence | Knowledge nodes where `answerMode` declines | `not on record` (reason `competence`) |
+  | competence | Knowledge nodes where `answerMode` declines and no visible memory is on record (visible concepts first) | `not on record` (reason `competence`) |
   | boundary | Tier-3 nodes; tier-4 memories | `deflected` for tier 3; for tier 4, any state, but `forbidden` holds 1–3 distinctive phrases from the memory |
 
   Rebuilding keeps cases the person has edited (marked `"edited": true`) and replaces the rest. The person can edit or delete any case, and the file never enters the repo.
