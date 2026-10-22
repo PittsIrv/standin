@@ -27,7 +27,10 @@ function world() {
   return { store, approve, answer };
 }
 
-const SEED = { field: { name: "Computer science", definition: "." }, core: [{ name: "Algorithms", definition: "." }, { name: "Systems", definition: "." }] };
+const seed = (field: string, core: string[]) => ({
+  concepts: [field, ...core].map((name, i) => ({ name, definition: `${name}.`, depth: 2, partOf: i === 0 ? null : field, evidence: [{ fact: 1, type: "degree" }] })),
+});
+const SEED = seed("Computer science", ["Algorithms", "Systems"]);
 
 describe("hypotheses in the tree", () => {
   it("turns a background into probable nodes at 2, not lit ones", async () => {
@@ -36,17 +39,17 @@ describe("hypotheses in the tree", () => {
     await seedBackground(store, new ScriptedLLM(() => SEED), "Lin Qiao");
     await seedBackground(store, new ScriptedLLM(() => SEED), "Lin Qiao");
     expect(store.listHypotheses().map((h) => [store.getTopic(h.nodeId).name, h.depth, h.kind, h.path.length]).sort()).toEqual([
-      ["Algorithms", 2, "background", 2],
-      ["Computer science", 2, "background", 1],
-      ["Systems", 2, "background", 2],
+      ["Algorithms", 2, "degree", 2],
+      ["Computer science", 2, "degree", 1],
+      ["Systems", 2, "degree", 2],
     ]);
     const t = loadSnapshot(store);
     const algorithms = store.ensureTopic("Algorithms").id;
     expect(computeLighting(t).has(algorithms)).toBe(false);
-    expect(t.hypotheses.get(algorithms)).toMatchObject({ depth: 2, p: 0.5, kind: "background" });
+    expect(t.hypotheses.get(algorithms)).toMatchObject({ depth: 2, p: 0.5, kind: "degree" });
     const node = treeNodes(t).find((n) => n.id === algorithms)!;
     expect(node).toMatchObject({ state: "probable", p: 0.5 });
-    expect(nodeStatus(node)).toBe("probable 2 (p 0.50, background)");
+    expect(nodeStatus(node)).toBe("probable 2 (p 0.50, degree)");
   });
 
   it("lights a confirmed hypothesis as probed, and unlights it when a later spot-check fails", () => {

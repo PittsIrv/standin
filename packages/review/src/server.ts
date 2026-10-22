@@ -1,3 +1,4 @@
+import { IntakeError, TooLargeError, type FetchOptions } from "@standin/intake";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
@@ -16,6 +17,8 @@ export interface ReviewServerOptions {
   token?: string;
   /** The probability a probable node needs before the standin speaks to it. */
   speakAt?: number;
+  /** How websites are fetched for the introduction (tests inject a fake network). */
+  fetchOptions?: FetchOptions;
 }
 
 export interface ReviewServer {
@@ -36,9 +39,10 @@ export interface RouteContext {
   id: string;
 }
 export type Handler = (ctx: RouteContext) => unknown | Promise<unknown>;
-export type Route = (method: "GET" | "POST", path: string, handler: Handler) => void;
+/** `maxBody` raises the body limit for one route (file uploads). */
+export type Route = (method: "GET" | "POST", path: string, handler: Handler, opts?: { maxBody?: number }) => void;
 
-/** Bodies larger than this are refused (413). */
+/** Bodies larger than this are refused (413), unless a route allows more. */
 export const MAX_BODY = 65_536;
 
 const PAGE_HEADERS = {
@@ -64,12 +68,12 @@ function sameSecret(given: string | null | undefined, token: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-async function readBody(req: IncomingMessage): Promise<unknown> {
+async function readBody(req: IncomingMessage, limit: number): Promise<unknown> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of req) {
     size += (chunk as Buffer).length;
-    if (size > MAX_BODY) throw new BodyError(413);
+    if (size > limit) throw new BodyError(413);
     chunks.push(chunk as Buffer);
   }
   const text = Buffer.concat(chunks).toString("utf8").trim();
@@ -83,6 +87,8 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
 
 function statusFor(err: unknown): number {
   if (err instanceof BodyError) return err.status;
+  if (err instanceof TooLargeError) return 413;
+  if (err instanceof IntakeError) return 422;
   if (err instanceof ZodError) return 400;
   if (err instanceof NotFoundError) return 404;
   if (err instanceof AlreadyRatedError || err instanceof InvalidTransitionError || err instanceof NameTakenError || err instanceof CycleError || err instanceof RootEditError)
@@ -100,7 +106,11 @@ export async function startReviewServer(o: ReviewServerOptions, register?: (rout
   const host = o.host ?? "127.0.0.1";
   const page = readFileSync(new URL("./page.html", import.meta.url), "utf8");
   const routes = new Map<string, Handler>();
-  const route: Route = (method, path, handler) => routes.set(`${method} ${path}`, handler);
+  const limits = new Map<string, number>();
+  const route: Route = (method, path, handler, opts) => {
+    routes.set(`${method} ${path}`, handler);
+    if (opts?.maxBody) limits.set(`${method} ${path}`, opts.maxBody);
+  };
 
   let lane: Promise<unknown> = Promise.resolve();
   const serial = <T>(fn: () => T | Promise<T>): Promise<T> => {
@@ -163,7 +173,7 @@ export async function startReviewServer(o: ReviewServerOptions, register?: (rout
       const withId = routes.get(`${method} ${parts.slice(0, -1).join("/")}/:id`);
       const handler = exact ?? withId;
       if (!handler) return send(404, { error: "not found" });
-      const body = method === "POST" ? await readBody(req) : undefined;
+      const body = method === "POST" ? await readBody(req, limits.get(`${method} ${url.pathname}`) ?? MAX_BODY) : undefined;
       const result = await (url.pathname === "/api/finish" ? handler({ body, id: "" }) : serial(() => handler({ body, id: decodeURIComponent(parts.at(-1) ?? "") })));
       send(200, result ?? { ok: true });
     } catch (err) {

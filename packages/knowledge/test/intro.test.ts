@@ -4,43 +4,82 @@ import { join } from "node:path";
 import { ScriptedLLM, type GenerateObjectRequest } from "@standin/llm";
 import { openStore } from "@standin/store";
 import { describe, expect, it } from "vitest";
-import { loadSnapshot, needsIntro, readIntro, saveIntro, seedBackground, skipIntro } from "../src/index.ts";
+import { loadSnapshot, needsIntro, readSource, saveIntro, seedBackground, skipIntro, type ConfirmedStatement, type IntroSource } from "../src/index.ts";
 
 const store = () => openStore({ path: join(mkdtempSync(join(tmpdir(), "standin-intro-")), "db") });
-const concept = (name: string, depth: number, reason = `because of ${name}`) => ({ name, definition: `${name}.`, examples: ["a", "b", "c"], depth, reason });
+const RESUME: IntroSource = {
+  id: "src1",
+  kind: "file",
+  ref: "cv.pdf",
+  text: "EDUCATION\nBS in Mathematics, State University (2015–2019)\n\nEXPERIENCE\nResearch intern, Robotics Lab (2022–present): built a motion-planning stack for legged robots.",
+};
+const said = (statement: string, o: Partial<ConfirmedStatement> = {}): ConfirmedStatement => ({
+  sourceId: "src1",
+  statement,
+  quote: statement,
+  kind: "other",
+  kindLabel: null,
+  start: null,
+  end: null,
+  current: false,
+  ...o,
+});
+/** Saves statements typed into the box: the box's text is what they quote. */
+const intro = (s: ReturnType<typeof store>, ...said: ConfirmedStatement[]) =>
+  saveIntro(s, [{ id: "box", kind: "intro", ref: "your introduction", text: said.map((x) => x.quote).join("\n") }], said.map((x) => ({ ...x, sourceId: "box" })));
 
-describe("the introduction", () => {
-  it("reads statements out of the text: trimmed, deduplicated, never a sensitive one, at most 12", async () => {
+describe("reading a source", () => {
+  it("reads each section, keeps statements whose quote is in the source, and counts the rest", async () => {
     const llm = new ScriptedLLM((req: GenerateObjectRequest<unknown>) => {
       expect(req.purpose).toBe("intro");
-      expect(req.prompt).toContain("PhD student");
+      expect(req.system).toMatch(/one fact each, not one line each/);
+      if (req.prompt.includes("EDUCATION"))
+        return { statements: [{ statement: "I have a BS in math.", quote: "BS in Mathematics, State University (2015-2019)", kind: "education", start: "2015", end: "2019" }] };
       return {
-        statements: [" I'm a PhD student in CS at CMU. ", "", "I'm a PhD student in CS at CMU.", "I go to church every Sunday.", ...Array.from({ length: 15 }, (_, i) => `Fact ${i}.`)],
+        statements: [
+          { statement: "I build motion planners for legged robots.", quote: "built a motion-planning stack for legged robots", kind: "project", current: true },
+          { statement: "I lead the lab.", quote: "Director of the Robotics Lab", kind: "occupation" },
+          { statement: "I go to church every week.", quote: "Research intern, Robotics Lab", kind: "routine" },
+          { statement: "I intern at a robotics lab.", quote: "Research intern, Robotics Lab (2022–present)", kind: "internship" },
+        ],
       };
     });
-    const out = await readIntro(llm, "I'm a PhD student in CS at CMU and I go to church.", "Mingxi");
-    expect(out[0]).toBe("I'm a PhD student in CS at CMU.");
-    expect(out).not.toContain("I go to church every Sunday.");
-    expect(out).toHaveLength(12);
+    const r = await readSource(llm, RESUME, "Mingxi");
+    expect(llm.calls).toHaveLength(2);
+    expect(r.statements.map((s) => [s.statement, s.kind, s.kindLabel])).toEqual([
+      ["I have a BS in math.", "education", null],
+      ["I build motion planners for legged robots.", "project", null],
+      ["I intern at a robotics lab.", "other", "internship"],
+    ]);
+    expect(r.statements[0]).toMatchObject({ sourceId: "src1", start: "2015", end: "2019", current: false });
+    expect([r.notFound, r.sensitive]).toEqual([1, 1]);
   });
+});
 
-  it("stores only what the person confirmed: the text as an observation, each statement an approved background fact", () => {
+describe("saving an introduction", () => {
+  it("keeps only sources a confirmed statement came from, as text, and stores each statement with its kind and quote", () => {
     const s = store();
-    const { saved, dropped } = saveIntro(s, "Raw intro text.", ["I research RL for robotics.", "  ", "My salary is 100k.", "I did my undergrad in math."]);
-    expect(saved.map((m) => m.statement)).toEqual(["I research RL for robotics.", "I did my undergrad in math."]);
+    const other: IntroSource = { id: "src2", kind: "website", ref: "https://lin.example/", text: "Nothing confirmed from here." };
+    const { saved, dropped } = saveIntro(s, [RESUME, other], [
+      said("I research legged robots.", { quote: "built a motion-planning stack for legged robots", kind: "project", current: true }),
+      said("  "),
+      said("My salary is 100k.", { quote: "Research intern, Robotics Lab" }),
+      said("I invented this.", { quote: "Nobel Prize in Physics" }),
+    ]);
+    expect(saved.map((m) => [m.statement, m.attrs])).toEqual([
+      ["I research legged robots.", { background: true, kind: "project", quote: "built a motion-planning stack for legged robots", current: true }],
+    ]);
     expect(dropped).toEqual(["My salary is 100k."]);
-    const facts = s.listMemories({ status: "approved", kind: "fact" });
-    expect(facts.map((m) => m.attrs)).toEqual([{ background: true }, { background: true }]);
     const obs = s.memorySources(saved[0]!.id)[0]!;
-    expect([obs.sourceKind, obs.authorRole, obs.text]).toEqual(["intro", "self", "Raw intro text."]);
+    expect([obs.sourceKind, obs.sourceRef, obs.text]).toEqual(["file", "cv.pdf", RESUME.text]);
+    expect(s.db.prepare("SELECT COUNT(*) AS n FROM observations").get()).toEqual({ n: 1 });
   });
 
   it("doesn't store a statement that is already a fact", () => {
     const s = store();
-    saveIntro(s, "x", ["I research RL."]);
-    const { saved } = saveIntro(s, "y", ["i research rl.", "I build robots."]);
+    intro(s, said("I research RL."));
+    const { saved } = intro(s, said("i research rl."), said("I build robots."));
     expect(saved.map((m) => m.statement)).toEqual(["I build robots."]);
-    expect(s.listMemories({ kind: "fact" })).toHaveLength(2);
   });
 
   it("is needed until there is a background, or the person skips it", () => {
@@ -49,32 +88,58 @@ describe("the introduction", () => {
     skipIntro(a);
     expect(needsIntro(a)).toBe(false);
     const b = store();
-    saveIntro(b, "x", ["I'm a CS master's student."]);
+    intro(b, said("I'm a CS master's student."));
     expect(needsIntro(b)).toBe(false);
   });
 });
 
-describe("seeding from background", () => {
-  it("guesses each concept at the depth the model picked, with its reason and evidence kind, and stores examples", async () => {
+const concept = (name: string, depth: number, evidence: { fact: number; type: string }[], partOf: string | null = null) => ({
+  name,
+  definition: `${name}.`,
+  examples: ["a", "b", "c"],
+  depth,
+  reason: `because of ${name}`,
+  partOf,
+  evidence,
+});
+
+describe("seeding from background evidence", () => {
+  it("makes one call over every new fact, and guesses each concept with its strongest evidence and how much there is", async () => {
     const s = store();
-    saveIntro(s, "x", ["I research RL for robotics."]);
-    const llm = new ScriptedLLM(() => ({
-      field: concept("Robotics", 3),
-      core: [concept("Reinforcement learning", 3, "you research RL"), concept("Control theory", 9)],
-      evidence: "work",
-    }));
+    intro(
+      s,
+      said("I research RL for robots.", { kind: "occupation", current: true }),
+      said("I published a paper on policy gradients.", { kind: "publication" }),
+      said("I took a course on control.", { kind: "education" }),
+    );
+    const llm = new ScriptedLLM((req: GenerateObjectRequest<unknown>) => {
+      expect(req.prompt).toMatch(/\[1\] \(occupation, current\) I research RL for robots\./);
+      return {
+        concepts: [
+          concept("Robotics", 3, [{ fact: 1, type: "job" }]),
+          concept("Reinforcement learning", 3, [{ fact: 1, type: "job" }, { fact: 2, type: "publication" }], "Robotics"),
+          concept("Control theory", 9, [{ fact: 3, type: "course" }], "Robotics"),
+          concept("Unfounded", 2, [{ fact: 7, type: "job" }]),
+        ],
+      };
+    });
     await seedBackground(s, llm, "Mingxi");
+    await seedBackground(s, llm, "Mingxi");
+    expect(llm.calls).toHaveLength(1);
     const t = loadSnapshot(s);
     const rl = s.ensureTopic("Reinforcement learning");
-    expect(t.hypotheses.get(rl.id)).toMatchObject({ depth: 3, kind: "work", reason: "you research RL" });
-    expect(t.hypotheses.get(s.ensureTopic("Control theory").id)?.depth).toBe(4);
+    expect(t.hypotheses.get(rl.id)).toMatchObject({ depth: 3, kind: "publication", rawScore: "medium", reason: "because of Reinforcement learning" });
+    expect(t.hypotheses.get(s.ensureTopic("Control theory").id)).toMatchObject({ depth: 4, kind: "course", rawScore: "low" });
+    expect(s.homeParent(rl.id)).toBe(s.ensureTopic("Robotics").id);
+    expect(s.homeParent(s.ensureTopic("Robotics").id)).toBe(s.root("knowledge").id);
     expect(rl.examples).toEqual(["a", "b", "c"]);
+    expect(s.findEntity({ name: "Unfounded", kind: "topic" })).toBeNull();
   });
 
-  it("seeds nothing for a statement with no field, and doesn't ask about it again", async () => {
+  it("seeds nothing from facts with no knowledge in them, and doesn't ask about them again", async () => {
     const s = store();
-    saveIntro(s, "x", ["I have two cats."]);
-    const llm = new ScriptedLLM(() => ({ field: null, core: [], evidence: "background" }));
+    intro(s, said("I have two cats.", { kind: "relationship" }));
+    const llm = new ScriptedLLM(() => ({ concepts: [] }));
     await seedBackground(s, llm, "Mingxi");
     await seedBackground(s, llm, "Mingxi");
     expect(llm.calls).toHaveLength(1);
@@ -85,8 +150,9 @@ describe("seeding from background", () => {
     const s = store();
     const learning = s.ensureTopic("Learning");
     s.addEdge({ from: s.ensureTopic("RL").id, to: learning.id, kind: "part_of", source: "person" });
-    saveIntro(s, "x", ["I research RL."]);
-    const llm = new ScriptedLLM(() => ({ field: concept("RL", 3), core: [concept("Learning", 2), concept("Bandits", 2)], evidence: "work" }));
+    intro(s, said("I research RL."));
+    const ev = [{ fact: 1, type: "job" }];
+    const llm = new ScriptedLLM(() => ({ concepts: [concept("RL", 3, ev), concept("Learning", 2, ev, "RL"), concept("Bandits", 2, ev, "RL")] }));
     await seedBackground(s, llm, "Mingxi");
     expect(s.homeParent(s.ensureTopic("Bandits").id)).toBe(s.ensureTopic("RL").id);
     expect(s.homeParent(learning.id)).toBeNull();
@@ -102,10 +168,10 @@ describe("seeding from background", () => {
       actor: "compaction",
     });
     s.approve(m.id);
-    saveIntro(s, "x", ["I write systems software."]);
-    const llm = new ScriptedLLM(() => ({ field: concept("Systems programming", 2), core: [concept("Rust", 2), concept("Bible study", 2)], evidence: "work" }));
+    intro(s, said("I write systems software."));
+    const ev = [{ fact: 1, type: "job" }];
+    const llm = new ScriptedLLM(() => ({ concepts: [concept("Systems programming", 2, ev), concept("Rust", 2, ev, "Systems programming"), concept("Bible study", 2, ev, "Systems programming")] }));
     await seedBackground(s, llm, "Mingxi");
-    const guessed = s.listHypotheses({}).map((h) => s.getTopic(h.nodeId).name);
-    expect(guessed).toEqual(["Systems programming"]);
+    expect(s.listHypotheses({}).map((h) => s.getTopic(h.nodeId).name)).toEqual(["Systems programming"]);
   });
 });

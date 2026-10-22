@@ -71,19 +71,71 @@ function grade(prompt: string) {
   return answer.trim().split(/\s+/).length >= 4 ? { grade: "pass", reason: "demo: substantive answer" } : { grade: "fail", reason: "demo: too short" };
 }
 
-/** The demo's reading of an introduction: one statement per sentence. */
+/** The demo's reading of a source section: one statement per sentence or line, quoting itself, with a keyword kind. */
 function intro(prompt: string) {
-  const text = /<introduction>\n([\s\S]*)\n<\/introduction>/.exec(prompt)?.[1] ?? "";
-  return { statements: text.split(/(?<=[.!?])\s+|\n+/).map((s) => s.trim()).filter(Boolean) };
+  const text = /<source>\n([\s\S]*)\n<\/source>/.exec(prompt)?.[1] ?? "";
+  const kindOf = (s: string) =>
+    /\b(PhD|master'?s|BS|BA|degree|student|studied|university)\b/i.test(s)
+      ? "education"
+      : /\b(paper|published|publication)\b/i.test(s)
+        ? "publication"
+        : /\b(built|build|engine|bot|project)\b/i.test(s)
+          ? "project"
+          : /\b(intern|engineer|researcher|research|work(ed)? (at|on)|job)\b/i.test(s)
+            ? "occupation"
+            : /\b(cats?|dogs?|advisor|friend|partner)\b/i.test(s)
+              ? "relationship"
+              : /\b(every|usually|weekends?)\b/i.test(s)
+                ? "routine"
+                : "experience";
+  // A bullet is one fact, and so is a sentence; title lines with no full stop (a role, then its organization) run together.
+  const facts: string[] = [];
+  let open: string | null = null;
+  const close = () => {
+    if (open !== null) facts.push(open);
+    open = null;
+  };
+  for (const line of text.split("\n").map((l) => l.trim()).filter(Boolean)) {
+    if (/^[-*•]\s/.test(line)) {
+      close();
+      facts.push(line.replace(/^[-*•]\s*/, ""));
+      continue;
+    }
+    for (const sentence of line.split(/(?<=[.!?])\s+/)) {
+      open = open === null ? sentence : `${open}\n${sentence}`;
+      if (/[.!?]$/.test(sentence)) close();
+    }
+  }
+  close();
+  const statements = facts
+    .filter((s) => s.length > 3 && !/^\[removed\]/.test(s))
+    .map((s) => ({ statement: s.replace(/\s+/g, " "), quote: s, kind: kindOf(s), current: /\b(now|currently|present)\b/i.test(s) }));
+  return { statements };
 }
 
-/** The demo's seeding, by keyword: a degree, game AI, RL or robotics research; anything else implies no field. */
+type DemoSeed = { field: { name: string; definition: string; examples: string[]; depth: number; reason: string }; core: DemoSeed["field"][]; evidence: string };
+
+/** The demo's seeding: each numbered fact matches a keyword seed (a degree, game AI, RL or robotics work), merged by concept. */
 function seed(prompt: string) {
-  const statement = /^Background: (.*)$/m.exec(prompt)?.[1] ?? "";
-  if (/reinforcement|\bRL\b|robot/i.test(statement)) return RL_SEED;
-  if (/\bgames?\b|\bGo\b|chess|poker|board/i.test(statement)) return GAME_SEED;
-  if (/master|degree|student|bachelor|PhD|computer science|\bCS\b/i.test(statement)) return SEED;
-  return { field: null, core: [], evidence: "background" };
+  const concepts = new Map<string, { name: string; definition: string; examples: string[]; depth: number; reason: string; partOf: string | null; evidence: { fact: number; type: string }[] }>();
+  for (const m of prompt.matchAll(/^\[(\d+)\] (?:\([^)]*\) )?(.*)$/gm)) {
+    const fact = Number(m[1]);
+    const statement = m[2]!;
+    const pick: DemoSeed | null = /reinforcement|\bRL\b|robot/i.test(statement)
+      ? RL_SEED
+      : /\bgames?\b|\bGo\b|chess|poker|board/i.test(statement)
+        ? GAME_SEED
+        : /master|degree|student|bachelor|PhD|computer science|\bCS\b/i.test(statement)
+          ? SEED
+          : null;
+    if (!pick) continue;
+    for (const [c, partOf] of [[pick.field, null], ...pick.core.map((c) => [c, pick.field.name] as const)] as const) {
+      const have = concepts.get(c.name) ?? { ...c, partOf, evidence: [] };
+      have.evidence.push({ fact, type: pick.evidence });
+      concepts.set(c.name, have);
+    }
+  }
+  return { concepts: [...concepts.values()] };
 }
 
 /** A ScriptedLLM that answers with the demo persona's hand-written fixtures. */

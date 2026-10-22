@@ -122,7 +122,7 @@ export const SEED = {
     core("Theory of computation", "What can be computed, and how efficiently.", ["automata", "computability", "complexity classes"], 2, "a required course in a CS master's"),
     core("Software engineering", "Building and maintaining software.", ["version control", "testing", "software design"], 2, "a required course in a CS master's"),
   ],
-  evidence: "background" as const,
+  evidence: "degree",
 };
 
 /** The demo's seeding for game-AI work. */
@@ -133,7 +133,7 @@ export const GAME_SEED = {
     core("Self-play training", "Agents that learn by playing themselves.", ["AlphaZero", "policy iteration", "replay buffers"], 3, "how game engines like yours are trained"),
     core("Reinforcement learning", "Learning to act from rewards.", ["Markov decision processes", "Q-learning", "policy gradients"], 2, "self-play training is reinforcement learning"),
   ],
-  evidence: "work" as const,
+  evidence: "project",
 };
 
 /** The demo's seeding for research in reinforcement learning or robotics. */
@@ -144,7 +144,7 @@ export const RL_SEED = {
     core("Neural networks", "Models built from layers of learned functions.", ["backpropagation", "transformers", "SGD and Adam"], 3, "modern RL research runs on neural networks"),
     core("Probability and statistics", "Reasoning about uncertainty and data.", ["random variables", "expectation", "Bayes' rule"], 2, "RL is built on probability"),
   ],
-  evidence: "work" as const,
+  evidence: "job",
 };
 
 /**

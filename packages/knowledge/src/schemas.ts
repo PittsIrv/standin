@@ -18,23 +18,43 @@ export const PlaceSchema = z.object({
 });
 export type Place = z.infer<typeof PlaceSchema>;
 
-/** A seeded concept: what it includes, and the guess about it (depth 1–4, clamped in code) with its reason. */
-const SeedConcept = z.object({
-  name: z.string(),
-  definition: z.string(),
-  examples: z.array(z.string()).default([]),
-  depth: z.number().default(SEED_DEPTH),
-  reason: z.string().default(""),
-});
+/**
+ * Background seeding over numbered facts (intro-sources spec §5): each concept with the guess about it (depth 1–4,
+ * clamped in code), its reason, what it includes, where it goes (another concept in the answer, or null for the
+ * Knowledge root), and the facts it rests on with the type of evidence each gives.
+ */
 export const SeedSchema = z.object({
-  /** Null when the statement implies no field of knowledge (having two cats). */
-  field: SeedConcept.nullable(),
-  core: z.array(SeedConcept).default([]),
-  /** `work` for jobs, research and projects; `background` for education and everything else. */
-  evidence: z.enum(["background", "work"]).default("background"),
+  concepts: z
+    .array(
+      z.object({
+        name: z.string(),
+        definition: z.string(),
+        examples: z.array(z.string()).default([]),
+        depth: z.number().default(SEED_DEPTH),
+        reason: z.string().default(""),
+        partOf: z.string().nullable().default(null),
+        evidence: z.array(z.object({ fact: z.number(), type: z.string() })).default([]),
+      }),
+    )
+    .default([]),
 });
 
-export const IntroSchema = z.object({ statements: z.array(z.string()) });
+/** One section read into statements; `kind` is checked against FactKind in code, so an unknown one becomes a label. */
+export const IntroSchema = z.object({
+  statements: z
+    .array(
+      z.object({
+        statement: z.string(),
+        quote: z.string(),
+        kind: z.string().default("other"),
+        kindLabel: z.string().nullable().default(null),
+        start: z.string().nullable().default(null),
+        end: z.string().nullable().default(null),
+        current: z.boolean().default(false),
+      }),
+    )
+    .default([]),
+});
 export type Seed = z.infer<typeof SeedSchema>;
 
 export const HomeSchema = z.object({

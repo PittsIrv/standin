@@ -29,6 +29,7 @@ button:disabled { opacity: .45; cursor: default; }
 kbd { font: 12px var(--ui); color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; margin-left: 8px; }
 input, select, textarea { min-height: 40px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); padding: 6px 10px; }
 textarea { width: 100%; min-height: 88px; resize: vertical; }
+input[type="checkbox"] { min-height: 0; width: 18px; height: 18px; margin: 0; flex: none; align-self: center; }
 
 header { display: flex; align-items: center; gap: 16px; padding: 10px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 header h1 { font-size: 17px; font-weight: 600; margin: 0 8px 0 0; letter-spacing: .01em; }
@@ -58,9 +59,25 @@ section[hidden] { display: none !important; }
 .includes { margin: -6px 0 18px; font-size: 15px; line-height: 1.5; }
 .includes b { font-weight: 600; margin-right: 4px; }
 .statements { list-style: none; padding: 0; margin: 0 0 18px; }
-.statements li { display: flex; gap: 8px; margin-bottom: 8px; }
-.statements input { flex: 1; min-width: 0; }
 .add-intro { max-width: 40rem; margin: 28px auto 0; text-align: center; }
+.intro-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+.intro-row input { flex: 1; min-width: 12rem; }
+.intro-row .small, .card .small { color: var(--muted); font-size: 13px; }
+.filebtn { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); cursor: pointer; }
+.filebtn:focus-within { outline: 3px solid var(--focus); outline-offset: 2px; }
+.links { margin-top: 12px; display: grid; gap: 6px; }
+.links label { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.links button { justify-self: start; }
+.sources { list-style: none; padding: 0; margin: 16px 0 0; border-top: 1px solid var(--line); }
+.sources li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.status-line { color: var(--muted); font-size: 14px; min-height: 1.5em; margin: 10px 0 0; }
+.group { font-size: 15px; font-weight: 600; margin: 22px 0 8px; overflow-wrap: anywhere; }
+.statements li { display: block; margin-bottom: 14px; }
+.st-row { display: flex; gap: 8px; align-items: flex-start; }
+.st-row textarea { flex: 1; min-width: 0; min-height: 0; resize: vertical; }
+.st-meta { display: flex; gap: 8px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
+.st-meta select, .st-meta button { min-height: 34px; font-size: 14px; }
+.quote { margin: 8px 0 0; font-style: italic; }
 .why { color: var(--muted); font-size: 15px; margin: 0 0 18px; padding-left: 14px; border-left: 2px solid var(--line); border-radius: 0; }
 .done { text-align: center; padding-top: 10vh; }
 .error { color: var(--danger); font-size: 14px; margin-top: 8px; }
@@ -313,57 +330,139 @@ function renderCard() {
   $("#addIntro").onclick = () => renderIntro(true);
 }
 
-// ---- the introduction: one box, then confirm what was read out of it ----------------
+// ---- the introduction: text, files and your website, then confirm what was read out of them ----
 let introText = "";
-function renderIntro(adding) {
+let siteLinks = [];
+const FACT_KINDS = ["education", "occupation", "project", "publication", "skill", "language", "award", "membership", "place", "characteristic", "routine", "goal", "experience", "relationship", "preference", "other"];
+const SOURCE_KIND = { intro: "Typed", file: "File", website: "Web page" };
+
+async function renderIntro(adding) {
   keymap = {};
+  let sources = [];
+  try { sources = (await api("/api/intro/sources")).sources; } catch {}
   $("#session").innerHTML = `<div class="card">
     <h2 class="concept">${adding ? "Add to your introduction" : "Introduce yourself"}</h2>
-    <p class="definition">In a few sentences: what you study or work on, and what you've done before. Your standin uses it to decide what to ask you about.</p>
-    <textarea id="introText" rows="6" maxlength="4000" aria-label="Your introduction" placeholder="I'm a second-year CS PhD student. I work on reinforcement learning for robots, and before that I studied math.">${esc(introText)}</textarea>
-    <div class="actions" style="margin-top:14px"><button id="readIntro" class="primary">Read it</button><button id="skipIntro" class="ghost">${adding ? "Back to the cards" : "Skip for now"}</button></div>
+    <p class="definition">Tell your standin who you are: a few sentences, your résumé, or your website. It reads them, shows you what it found, and keeps only what you approve.</p>
+    <textarea id="introText" rows="5" maxlength="20000" aria-label="Your introduction" placeholder="I'm a second-year CS PhD student. I work on reinforcement learning for robots, and before that I studied math.">${esc(introText)}</textarea>
+    <div class="intro-row">
+      <label class="filebtn"><input type="file" id="introFile" accept=".pdf,.docx,.md,.markdown,.txt" hidden>Add a file</label>
+      <span class="small">PDF, Word, Markdown or text, up to 10 MB</span>
+    </div>
+    <div class="intro-row"><input id="siteUrl" placeholder="Your website, e.g. lin.example" aria-label="Your website"><button id="addSite">Add website</button></div>
+    ${siteLinks.length ? `<div class="links"><p class="note">Also read these pages from your site?</p>${siteLinks.map((l, i) => `<label><input type="checkbox" data-link="${i}"> ${esc(l.title)} <span class="small">${esc(l.url)}</span></label>`).join("")}<button id="addPages">Add ticked pages</button></div>` : ""}
+    ${sources.length ? `<ul class="sources">${sources.map((s) => `<li><span><b>${esc(SOURCE_KIND[s.kind])}</b> ${esc(s.ref)}<span class="small"> · ${s.chars.toLocaleString()} characters${s.contactsRemoved ? ` · ${s.contactsRemoved} contact detail${s.contactsRemoved === 1 ? "" : "s"} removed` : ""}</span></span><button class="ghost" data-remove="${esc(s.id)}">Remove</button></li>`).join("")}</ul>` : ""}
+    <div class="actions" style="margin-top:14px"><button id="readIntro" class="primary">Read ${sources.length > 1 ? "them" : "it"}</button><button id="skipIntro" class="ghost">${adding ? "Back to the cards" : "Skip for now"}</button></div>
+    <p class="status-line" id="introStatus" role="status"></p>
     <div class="error" id="cardError"></div>
   </div>`;
   const box = $("#introText");
-  box.focus();
+  const fail = (e) => { $("#cardError").textContent = e.message; $("#introStatus").textContent = ""; };
+  const busy = (text) => { $("#cardError").textContent = ""; $("#introStatus").textContent = text; };
+  box.oninput = () => (introText = box.value);
   $("#skipIntro").onclick = () => act(() => (adding ? Promise.resolve() : api("/api/intro/skip", {})));
-  $("#readIntro").onclick = async () => {
-    const text = box.value.trim();
-    if (!text) return ($("#cardError").textContent = "Write a sentence or two first.");
-    introText = text;
-    $("#readIntro").disabled = true;
-    $("#readIntro").textContent = "Reading…";
+  for (const b of document.querySelectorAll("[data-remove]")) b.onclick = async () => { await api("/api/intro/remove", { sourceId: b.dataset.remove }).catch(fail); renderIntro(adding); };
+  $("#introFile").onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) return fail(new Error(`${file.name} is over 10 MB.`));
+    busy(`Reading ${file.name}…`);
     try {
-      const { statements } = await api("/api/intro/read", { text });
-      renderStatements(text, statements, adding);
-    } catch (e) {
-      $("#cardError").textContent = e.message;
+      const data = await new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result).split(",")[1] || "");
+        r.onerror = () => reject(new Error(`${file.name} couldn't be opened.`));
+        r.readAsDataURL(file);
+      });
+      await api("/api/intro/file", { name: file.name, data });
+      renderIntro(adding);
+    } catch (err) { fail(err); }
+  };
+  $("#addSite").onclick = async () => {
+    const url = $("#siteUrl").value.trim();
+    if (!url) return fail(new Error("Type your website's address first."));
+    busy(`Reading ${url}…`);
+    try {
+      const r = await api("/api/intro/site", { url });
+      siteLinks = r.links.slice(0, 20);
+      renderIntro(adding);
+    } catch (err) { fail(err); }
+  };
+  if ($("#addPages")) $("#addPages").onclick = async () => {
+    const urls = [...document.querySelectorAll("[data-link]:checked")].map((c) => siteLinks[Number(c.dataset.link)].url);
+    if (!urls.length) return fail(new Error("Tick the pages to read first."));
+    busy(`Reading ${urls.length} page${urls.length === 1 ? "" : "s"}…`);
+    try {
+      await api("/api/intro/pages", { urls });
+      siteLinks = siteLinks.filter((l) => !urls.includes(l.url));
+      renderIntro(adding);
+    } catch (err) { fail(err); }
+  };
+  $("#readIntro").onclick = async () => {
+    try {
+      const text = box.value.trim();
+      if (text) {
+        await api("/api/intro/text", { text });
+        introText = "";
+      } else if (!sources.length) return fail(new Error("Write a sentence or two, add a file, or add your website first."));
+      $("#readIntro").disabled = true;
+      busy("Reading… each statement is checked against its source.");
+      renderStatements(await api("/api/intro/read", {}), adding);
+    } catch (err) {
+      fail(err);
       $("#readIntro").disabled = false;
-      $("#readIntro").textContent = "Read it";
     }
   };
 }
 
-function renderStatements(text, statements, adding) {
-  const row = (s) => `<li><input value="${esc(s)}" maxlength="300" aria-label="Statement"><button class="ghost remove">Remove</button></li>`;
+function renderStatements(reading, adding) {
+  const all = new Map();
+  const row = (st) => {
+    all.set(st.id, st);
+    const kind = st.kind === "other" && st.kindLabel ? st.kindLabel : st.kind;
+    return `<li data-st="${esc(st.id)}">
+      <div class="st-row"><textarea rows="2" maxlength="500" aria-label="Statement">${esc(st.statement)}</textarea><button class="ghost remove">Remove</button></div>
+      <div class="st-meta"><select aria-label="Kind of fact">${FACT_KINDS.map((k) => `<option value="${k}"${k === st.kind ? " selected" : ""}>${k === "other" && st.kindLabel ? esc(st.kindLabel) : k}</option>`).join("")}</select>${st.start || st.end || st.current ? `<span class="small">${esc([st.start, st.current ? "now" : st.end].filter(Boolean).join("–"))}</span>` : ""}<button class="ghost quote-toggle" aria-expanded="false">Source</button></div>
+      <p class="why quote" hidden>“${esc(st.quote)}”</p>
+    </li>`;
+  };
+  const total = reading.groups.reduce((n, g) => n + g.statements.length, 0);
+  const left = [
+    reading.notFound ? `${reading.notFound} couldn't be found in the source` : "",
+    reading.sensitive ? `${reading.sensitive} touched a sensitive subject` : "",
+    reading.contacts ? `${reading.contacts} contact detail${reading.contacts === 1 ? " was" : "s were"} removed` : "",
+    reading.overLimit ? `${reading.overLimit} more past the limit of 40 (confirm these, then add the rest again)` : "",
+  ].filter(Boolean);
   $("#session").innerHTML = `<div class="card">
     <h2 class="concept">Is this right?</h2>
-    <p class="note">This is what your standin read. Fix or remove anything; only what you keep here is saved.</p>
-    ${statements.length ? `<ul class="statements" id="statements">${statements.map(row).join("")}</ul>` : `<p class="why">Nothing to keep was found in that. Try saying what you study or work on.</p>`}
-    <div class="actions"><button id="confirmIntro" class="primary"${statements.length ? "" : " disabled"}>Looks right</button><button id="backIntro" class="ghost">Back</button></div>
+    <p class="note">This is what your standin read, with the words each statement rests on. Fix, re-kind or remove anything; only what you keep is saved.</p>
+    ${reading.groups.map((g) => `<h3 class="group">${esc(SOURCE_KIND[g.kind])} · ${esc(g.ref)}</h3>${g.statements.length ? `<ul class="statements">${g.statements.map(row).join("")}</ul>` : `<p class="small">Nothing to keep was found here.</p>`}`).join("")}
+    ${left.length ? `<p class="why">Left out: ${left.join("; ")}.</p>` : ""}
+    <div class="actions"><button id="confirmIntro" class="primary"${total ? "" : " disabled"}>Looks right</button><button id="backIntro" class="ghost">Back</button></div>
     <div class="error" id="cardError"></div>
   </div>`;
-  for (const b of document.querySelectorAll("#statements .remove")) b.onclick = () => b.closest("li").remove();
+  for (const b of document.querySelectorAll(".statements .remove")) b.onclick = () => b.closest("li").remove();
+  for (const b of document.querySelectorAll(".quote-toggle"))
+    b.onclick = () => {
+      const q = b.closest("li").querySelector(".quote");
+      q.hidden = !q.hidden;
+      b.setAttribute("aria-expanded", String(!q.hidden));
+    };
   $("#backIntro").onclick = () => renderIntro(adding);
   $("#confirmIntro").onclick = async () => {
-    const kept = [...document.querySelectorAll("#statements input")].map((i) => i.value.trim()).filter(Boolean);
+    const kept = [...document.querySelectorAll(".statements li")]
+      .map((li) => {
+        const st = all.get(li.dataset.st);
+        const kind = li.querySelector("select").value;
+        return { sourceId: st.sourceId, statement: li.querySelector("textarea").value.trim(), quote: st.quote, kind, kindLabel: kind === "other" ? st.kindLabel : null, start: st.start, end: st.end, current: st.current };
+      })
+      .filter((s) => s.statement);
     if (!kept.length) return ($("#cardError").textContent = "Keep at least one statement, or go back.");
     $("#confirmIntro").disabled = true;
     $("#confirmIntro").textContent = "Setting up your guesses…";
     try {
-      const r = await api("/api/intro/confirm", { text, statements: kept });
+      const r = await api("/api/intro/confirm", { statements: kept });
       if (r.dropped.length) banner(`Left out ${r.dropped.length} statement${r.dropped.length === 1 ? "" : "s"} about a sensitive subject; your standin never guesses about those.`);
-      introText = "";
+      siteLinks = [];
       await loadCard();
     } catch (e) {
       $("#cardError").textContent = e.message;

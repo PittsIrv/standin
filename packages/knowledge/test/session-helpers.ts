@@ -22,8 +22,9 @@ export function models() {
   const handler = (req: GenerateObjectRequest<unknown>) => {
     if (req.purpose === "expand")
       return { components: ["one", "two", "three", "four"].map((n, i) => ({ name: `${topic(req.prompt)} ${n}`, definition: ".", level: i + 1, examples: ["a", "b", "c"].map((e) => `${n} ${e}`) })), prerequisites: [] };
-    if (req.purpose === "seed") return { field: { name: "F", definition: ".", depth: 3, reason: "your introduction says so" }, core: [], evidence: "work" };
-    if (req.purpose === "intro") return { statements: (/<introduction>\n([\s\S]*)\n<\/introduction>/.exec(req.prompt)?.[1] ?? "").split(/(?<=\.)\s+/) };
+    if (req.purpose === "seed") return { concepts: [{ name: "F", definition: ".", depth: 3, reason: "your introduction says so", partOf: null, evidence: [{ fact: 1, type: "job" }] }] };
+    if (req.purpose === "intro")
+      return { statements: (/<source>\n([\s\S]*)\n<\/source>/.exec(req.prompt)?.[1] ?? "").split(/(?<=\.)\s+/).map((s) => ({ statement: s, quote: s, kind: "occupation" })) };
     if (req.purpose === "home") return { homes: [] };
     return { merges: [], placements: [] };
   };

@@ -61,10 +61,10 @@ describe("outcomes", () => {
 });
 
 describe("reliability cells", () => {
-  it("has all fifteen cells at 0.5 when nothing is known", () => {
+  it("has a cell at 0.5 for every evidence kind and score when nothing is known", () => {
     const { store } = world();
     const c = cells(store);
-    expect(c.size).toBe(15);
+    expect(c.size).toBe(36);
     expect([...c.values()].every((x) => x.p === 0.5 && x.confirmed === 0)).toBe(true);
   });
 

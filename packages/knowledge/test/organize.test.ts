@@ -9,9 +9,9 @@ import { homeMemories, splitNodes } from "../src/index.ts";
 function setup() {
   const store = openStore({ path: join(mkdtempSync(join(tmpdir(), "standin-organize-")), "db") });
   const o = store.addObservation({ sourceKind: "interview", sourceRef: "i", authorRole: "self", text: "seed", occurredAt: "2026-09-01T00:00:00.000Z" });
-  const fact = (statement: string, home: string | null = null) => {
+  const fact = (statement: string, home: string | null = null, attrs: object = {}) => {
     const m = store.insertMemory(
-      { kind: "fact", statement, tier: 1, isCurrentState: false, attrs: {} },
+      { kind: "fact", statement, tier: 1, isCurrentState: false, attrs },
       { sourceObservationIds: [o.id], entityIds: [], actor: "compaction", homeNodeId: home },
     );
     return store.approve(m.id);
@@ -56,6 +56,19 @@ describe("homing memories", () => {
     const pets = store.getMemory(cats.id).homeNodeId!;
     expect(store.getTopic(pets).name).toBe("Pets");
     expect(store.rootOf(pets)).toBe("life");
+  });
+
+  it("tells the model each fact's kind, as a hint for where it goes", async () => {
+    const { store, fact } = setup();
+    const hike = fact("I hike most weekends.", null, { kind: "routine" });
+    const odd = fact("I volunteer at a shelter.", null, { kind: "other", kindLabel: "volunteering" });
+    const llm = new ScriptedLLM((req: GenerateObjectRequest<unknown>) => {
+      expect(req.prompt).toContain(`[${hike.id}] (routine) I hike most weekends.`);
+      expect(req.prompt).toContain(`[${odd.id}] (volunteering) I volunteer at a shelter.`);
+      return { homes: [] };
+    });
+    await homeMemories(store, llm, "Lin Qiao");
+    expect(llm.calls).toHaveLength(1);
   });
 
   it("does nothing, and makes no call, when every approved memory has a home", async () => {

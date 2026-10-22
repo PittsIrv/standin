@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@standin/compaction": "workspace:*",
+    "@standin/intake": "workspace:*",
     "@standin/knowledge": "workspace:*",
     "@standin/schema": "workspace:*",
     "@standin/store": "workspace:*",
