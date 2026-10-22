@@ -1,3 +1,4 @@
+import { SecretFoundError } from "@standin/airlock";
 import { IntakeError, TooLargeError, type FetchOptions } from "@standin/intake";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -187,6 +188,8 @@ export async function startReviewServer(o: ReviewServerOptions, register?: (rout
       const result = await (url.pathname === "/api/finish" ? handler({ body, id: "" }) : serial(() => handler({ body, id: decodeURIComponent(parts.at(-1) ?? "") })));
       send(200, result ?? { ok: true });
     } catch (err) {
+      // A refused secret comes back with where it is (never what it is), so the page can point at it.
+      if (err instanceof SecretFoundError) return send(422, { error: err.message, findings: err.findings });
       send(statusFor(err), { error: err instanceof ZodError ? "invalid request" : err instanceof Error ? err.message : String(err) });
     }
   });

@@ -1,3 +1,4 @@
+import { assertNoSecret } from "@standin/airlock";
 import { align, sections } from "@standin/intake";
 import type { LLM } from "@standin/llm";
 import { FactKind, type Memory } from "@standin/schema";
@@ -92,6 +93,7 @@ export function saveIntro(store: Store, sources: IntroSource[], statements: Conf
   const kept: ConfirmedStatement[] = [];
   for (const raw of statements) {
     const statement = tidy(raw.statement);
+    assertNoSecret(statement); // the person may have typed it into the statement
     const key = normalizeName(statement);
     // The quote must still be in its source: an edited statement keeps its evidence, an invented one has none.
     if (!key || known.has(key) || !byId.has(raw.sourceId) || !align(raw.quote, byId.get(raw.sourceId)!.text)) continue;

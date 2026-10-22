@@ -2,6 +2,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ScriptedLLM, type GenerateObjectRequest } from "@standin/llm";
+import { SecretFoundError } from "@standin/airlock";
 import { openStore } from "@standin/store";
 import { describe, expect, it } from "vitest";
 import { loadSnapshot, needsIntro, readSource, saveIntro, seedBackground, skipIntro, type ConfirmedStatement, type IntroSource } from "../src/index.ts";
@@ -101,6 +102,16 @@ const concept = (name: string, depth: number, evidence: { fact: number; type: st
   reason: `because of ${name}`,
   partOf,
   evidence,
+});
+
+describe("saving an edited statement with a secret", () => {
+  it("refuses the whole save", () => {
+    const s = store();
+    const token = "ghp_" + "aB3kQ9zX7mW2pL5vR8tY4nC6aB3kQ9zX7mW2".slice(0, 36);
+    const box: IntroSource = { id: "box", kind: "intro", ref: "your introduction", text: "I use GitHub." };
+    expect(() => saveIntro(s, [box], [said(`I use GitHub, token ${token}`, { sourceId: "box", quote: "I use GitHub." })])).toThrow(SecretFoundError);
+    expect(s.listMemories({})).toEqual([]);
+  });
 });
 
 describe("seeding from background evidence", () => {

@@ -1,3 +1,4 @@
+import { clean, SecretFoundError } from "@standin/airlock";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -60,6 +61,18 @@ async function importSheet(ctx: CommandContext): Promise<number> {
   if (nonEnglish.length > 0)
     throw new CliError(`${file}: standin is English-only for now; rewrite these answers in English: ${nonEnglish.join(", ")}. Nothing was imported.`);
   const inputs = answersToObservations(sheet.answers, sheet.bankId ? BANKS[sheet.bankId]! : null, { bankId: sheet.bankId, occurredAt });
+  // Every answer is checked before any is stored, so a sheet is imported whole or not at all (personal-data guard §3).
+  const refused = inputs.flatMap(({ key, input }) => {
+    try {
+      clean(input.text, "refuse");
+      return [];
+    } catch (err) {
+      if (!(err instanceof SecretFoundError)) throw err;
+      return err.findings.map((f) => `  ${key}: ${f.label} (“${f.context}”)`);
+    }
+  });
+  if (refused.length > 0)
+    throw new CliError(`${file}: these answers look like they hold secrets your standin never needs; remove them and import again. Nothing was imported.\n${refused.join("\n")}`);
 
   const dryRun = flag(ctx, "dry-run");
   const { store, config } = loadInstance(ctx.home, ctx.io.clock);

@@ -1,3 +1,4 @@
+import { SecretFoundError } from "@standin/airlock";
 import { parseArgs } from "node:util";
 import { LLMError } from "@standin/llm";
 import { AmbiguousIdError, InvalidTransitionError, NotFoundError, type Clock } from "@standin/store";
@@ -85,7 +86,8 @@ export async function runCli(argv: string[], io: CliIO): Promise<number> {
       err instanceof AmbiguousIdError ||
       err instanceof InvalidTransitionError ||
       err instanceof CliError ||
-      err instanceof LLMError
+      err instanceof LLMError ||
+      err instanceof SecretFoundError
     ) {
       io.stderr(`error: ${err.message}`);
       return 1;

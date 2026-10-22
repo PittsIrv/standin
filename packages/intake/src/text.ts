@@ -11,30 +11,6 @@ export const LIMITS = {
   fuzzyOverlap: 0.9,
 } as const;
 
-const REMOVED = "[removed]";
-const EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g;
-const ADDRESS = /\b\d{1,6}\s+(?:[A-Z][a-z]+\s+){1,4}(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Way|Place|Pl|Terrace)\b\.?/g;
-const PHONE = /\+?\(?\d[\d\s().-]{5,}\d/g;
-
-/** Contact details out of a source's text before it is stored or sent to a model (spec §3). Best effort for addresses. */
-export function stripContacts(text: string): { text: string; removed: number } {
-  let removed = 0;
-  const cut = () => {
-    removed++;
-    return REMOVED;
-  };
-  const out = text
-    .replace(EMAIL, cut)
-    .replace(ADDRESS, cut)
-    .replace(PHONE, (m) => {
-      const digits = m.replace(/\D/g, "").length;
-      // A year range ("1999-2003") or a short number is not a phone number.
-      if (digits < 7 || digits > 15 || /^\d{4}\s*-\s*\d{4}$/.test(m.trim())) return m;
-      return cut();
-    });
-  return { text: out, removed };
-}
-
 const BULLET = /^\s*(?:[-*•▪◦·]|\d+[.)])\s/;
 const CONNECTOR = /\b(?:a|an|and|as|at|by|for|from|in|into|of|on|or|the|to|via|with)$/i;
 

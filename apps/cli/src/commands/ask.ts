@@ -1,3 +1,4 @@
+import { clean } from "@standin/airlock";
 import { answerTurn, type Reply } from "@standin/speak";
 import { CliError } from "../errors.ts";
 import { loadInstance } from "../home.ts";
@@ -28,8 +29,9 @@ export function workLines(r: Reply): string[] {
 export const askCommand: Command = {
   options: { work: { type: "boolean" }, "demo-llm": { type: "boolean" }, ...json },
   async run(ctx) {
-    const question = ctx.positionals.join(" ").trim();
-    if (!question) throw new CliError('usage: standin ask "<question>" [--work] [--json]');
+    const typed = ctx.positionals.join(" ").trim();
+    if (!typed) throw new CliError('usage: standin ask "<question>" [--work] [--json]');
+    const question = clean(typed, "refuse").text; // it goes to a model and the trace
     const { store, config } = loadInstance(ctx.home, ctx.io.clock);
     try {
       const tracer = instanceTracer(ctx, store, config);

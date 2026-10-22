@@ -40,6 +40,15 @@ async function lin() {
 }
 
 describe("standin ask", () => {
+  it("refuses a question with a secret in it before any model sees it", async () => {
+    const { h } = await lin();
+    const token = "ghp_" + "aB3kQ9zX7mW2pL5vR8tY4nC6aB3kQ9zX7mW2".slice(0, 36);
+    const r = await h.run("ask", "--demo-llm", `Is ${token} my token?`);
+    expect(r.code).toBe(1);
+    expect(r.err).toContain("GitHub token");
+    expect(h.withStore((s) => s.db.prepare("SELECT COUNT(*) AS n FROM spans").get())).toEqual({ n: 0 });
+  });
+
   it("answers a known fact grounded, with its citation", async () => {
     const { h } = await lin();
     const r = await h.run("ask", "--demo-llm", "Do you have cats?");

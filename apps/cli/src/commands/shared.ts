@@ -19,3 +19,8 @@ export const str = (ctx: CommandContext, key: string): string | undefined => {
 };
 export const flag = (ctx: CommandContext, key: string): boolean => ctx.values[key] === true;
 export const json = { json: { type: "boolean" } } as const satisfies ParseArgsOptionsConfig;
+
+/** " (2 contact details removed)", or nothing. */
+export function removedNote(contacts: number): string {
+  return contacts ? ` (${contacts} contact detail${contacts === 1 ? "" : "s"} removed)` : "";
+}

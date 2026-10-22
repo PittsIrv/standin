@@ -6,7 +6,8 @@ import { cells, loadPriors, outcomeOf, probabilityOf } from "../hypotheses/calib
 import { expandNode } from "../probing/expand.ts";
 import { syncStatedGaps } from "../gaps.ts";
 import { computeLighting } from "../lighting.ts";
-import { stripContacts, unwrap } from "@standin/intake";
+import { clean, type Cut } from "@standin/airlock";
+import { unwrap } from "@standin/intake";
 import { MAX_INTRO_STATEMENTS, needsIntro, readSource, saveIntro, skipIntro, type ConfirmedStatement, type IntroSource, type ReadStatement } from "../intro.ts";
 import { refresh } from "../refresh.ts";
 import { loadSnapshot, type TreeSnapshot } from "../snapshot.ts";
@@ -34,6 +35,8 @@ export interface IntroSourceSummary {
   ref: string;
   chars: number;
   contactsRemoved: number;
+  /** Secrets cut from a file or web page (decision 99); typed text with one is refused instead. */
+  secretsRemoved: Cut["secrets"];
 }
 
 /** What the waiting sources were read into, grouped by source, with counts of what was left out. */
@@ -110,7 +113,10 @@ export class CardSession {
   private readonly skip = new Set<string>();
   private settledHere = 0;
   private sourceCount = 0;
-  private readonly pending = new Map<string, { source: IntroSource; contactsRemoved: number; read: Awaited<ReturnType<typeof readSource>> | null }>();
+  private readonly pending = new Map<
+    string,
+    { source: IntroSource; contactsRemoved: number; secretsRemoved: Cut["secrets"]; read: Awaited<ReturnType<typeof readSource>> | null }
+  >();
   /** Knowledge cards answered since the last question, the question on screen, and the ones put off this session. */
   private sinceQuestion = 0;
   private sinceQuiz = 0;
@@ -181,12 +187,13 @@ export class CardSession {
 
   /**
    * Adds a source to the introduction being built (intro-sources spec §3), lines broken mid-sentence joined up. It waits in memory, contact details
-   * removed, until the person confirms statements from it; nothing is stored before then.
+   * removed, until the person confirms statements from it; nothing is stored before then. Typed text with a secret is refused; a file or page has
+   * it cut (personal-data guard §3).
    */
   addSource(kind: IntroSource["kind"], ref: string, text: string): IntroSourceSummary {
-    const { text: clean, removed } = stripContacts(unwrap(text.trim()));
-    const source: IntroSource = { id: `src${++this.sourceCount}`, kind, ref, text: clean };
-    this.pending.set(source.id, { source, contactsRemoved: removed, read: null });
+    const cleaned = clean(unwrap(text.trim()), kind === "intro" || kind === "answer" ? "refuse" : "cut");
+    const source: IntroSource = { id: `src${++this.sourceCount}`, kind, ref, text: cleaned.text };
+    this.pending.set(source.id, { source, contactsRemoved: cleaned.cut.contacts, secretsRemoved: cleaned.cut.secrets, read: null });
     return this.summary(source.id);
   }
 
@@ -200,7 +207,7 @@ export class CardSession {
 
   private summary(id: string): IntroSourceSummary {
     const p = this.pending.get(id)!;
-    return { id, kind: p.source.kind, ref: p.source.ref, chars: p.source.text.length, contactsRemoved: p.contactsRemoved };
+    return { id, kind: p.source.kind, ref: p.source.ref, chars: p.source.text.length, contactsRemoved: p.contactsRemoved, secretsRemoved: p.secretsRemoved };
   }
 
   /** Every waiting source read into statements for the person to confirm (each source is read once). Nothing is stored. */
@@ -421,11 +428,11 @@ export class CardSession {
   /** Reads an answer like the introduction (decision 81): quote-checked statements to confirm; nothing is stored yet. */
   async readAnswer(id: string, text: string): Promise<AnswerReading> {
     const q = this.deps.store.getQuestion(id);
-    const { text: clean, removed } = stripContacts(unwrap(text.trim()));
-    const source: IntroSource = { id: `answer:${id}`, kind: "answer", ref: q.text, text: clean };
+    const { text: cleaned, cut } = clean(unwrap(text.trim()), "refuse");
+    const source: IntroSource = { id: `answer:${id}`, kind: "answer", ref: q.text, text: cleaned };
     this.answers.set(id, source);
     const read = await this.traced("question.read", () => readSource(this.deps.map, source, this.deps.personaName));
-    return { ...read, contacts: removed };
+    return { ...read, contacts: cut.contacts };
   }
 
   /** Stores the confirmed statements as facts on the question's node, with the answer as their source; the question is answered. */

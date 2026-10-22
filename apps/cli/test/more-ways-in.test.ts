@@ -113,3 +113,47 @@ describe("detailed banks", () => {
     for (const id of ["core-v1", "projects-v1", "skills-v1", "education-v1", "opinions-v1", "life-v1"]) expect(res.err).toContain(id);
   });
 });
+
+describe("secrets and contacts on the way in (personal-data guard)", () => {
+  // Built at run time so no key-shaped string sits in the repo.
+  const TOKEN = "ghp_" + "aB3kQ9zX7mW2pL5vR8tY4nC6aB3kQ9zX7mW2".slice(0, 36);
+
+  it("refuses to tell a secret, says where it is without printing it, and saves nothing", async () => {
+    const { run, observations } = harness();
+    await run("init", "--name", "T");
+    const res = await run("tell", `I use GitHub.\nMy token is ${TOKEN} for work.`);
+    expect(res.code).toBe(1);
+    expect(res.err).toContain("GitHub token (line 2:");
+    expect(res.err).toContain("never needs it");
+    expect(res.err).not.toContain(TOKEN.slice(4));
+    expect(observations()).toEqual([]);
+  });
+
+  it("cuts contact details from what you tell, and says how many", async () => {
+    const { run, observations } = harness();
+    await run("init", "--name", "T");
+    const res = await run("tell", "Reach me at lin@example.edu about Go.");
+    expect(res.code).toBe(0);
+    expect(res.out).toContain("1 contact detail removed");
+    expect(observations()[0]!.text).toBe("Reach me at [removed] about Go.");
+  });
+
+  it("refuses a whole interview import that holds a secret, listing every answer that does", async () => {
+    const { home, run, observations } = harness();
+    await run("init", "--name", "T");
+    const sheet = join(home, "projects.md");
+    await run("interview", "template", "--bank", "projects-v1", "--out", sheet);
+    let md = readFileSync(sheet, "utf8");
+    md = fillCopy(md, "projects.name", 1, "Kite, a Go-variant engine.");
+    md = fillCopy(md, "projects.stack", 1, `Rust. Deploy key ${TOKEN}.`);
+    md = fillCopy(md, "next.build", 1, "A poker trainer; my password is Hunter2!");
+    writeFileSync(sheet, md);
+    const res = await run("interview", "import", sheet);
+    expect(res.code).toBe(1);
+    expect(res.err).toContain("projects.1: GitHub token");
+    expect(res.err).toContain("next.build: password");
+    expect(res.err).toContain("Nothing was imported");
+    expect(res.err).not.toContain(TOKEN.slice(4));
+    expect(observations()).toEqual([]);
+  });
+});

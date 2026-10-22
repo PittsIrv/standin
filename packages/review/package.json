@@ -8,6 +8,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@standin/airlock": "workspace:*",
     "@standin/compaction": "workspace:*",
     "@standin/evals": "workspace:*",
     "@standin/intake": "workspace:*",

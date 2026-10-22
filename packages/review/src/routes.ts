@@ -1,3 +1,4 @@
+import { assertNoSecret, clean, describeAll, scan } from "@standin/airlock";
 import { queuePlace, reviewQueue } from "@standin/compaction";
 import { loadSnapshot, MAX_INTRO_STATEMENTS, nodeDetail, treeNodes, type FinishReport } from "@standin/knowledge";
 import { fetchPage, fileToText, IntakeError, LIMITS } from "@standin/intake";
@@ -89,11 +90,19 @@ export function registerRoutes(o: ReviewServerOptions, route: Route, _finish: ()
     session.skipIntro();
   });
 
+  // ---- the personal-data guard: a draft checked as it's typed; nothing stored, no model (spec §3) ----
+  route("POST", "/api/check", ({ body }) => {
+    const { text } = z.object({ text: z.string().max(LIMITS.textChars) }).parse(body);
+    const found = scan(text);
+    return { findings: describeAll(text, found).map((d, i) => ({ ...d, start: found[i]!.start, end: found[i]!.end })) };
+  });
+
   // ---- asking as a visitor, and the self-quiz (answering spec §4, §7) ----
   route("POST", "/api/ask", async ({ body }) => {
     const b = z.object({ question: z.string().trim().min(1).max(500) }).parse(body);
+    const question = clean(b.question, "refuse").text; // it goes to a model and the trace
     if (!o.turn) throw new UnavailableError("Asking isn't available in this session.");
-    return answerTurn(o.turn, b.question);
+    return answerTurn(o.turn, question);
   });
   const deck = () => {
     if (!o.quiz) throw new UnavailableError("The self-quiz isn't available in this session.");
@@ -101,7 +110,7 @@ export function registerRoutes(o: ReviewServerOptions, route: Route, _finish: ()
   };
   route("POST", "/api/quiz/answer", ({ body }) => {
     const b = z.object({ caseId: z.string().min(1).max(200), answer: z.string().trim().min(1).max(LIMITS.textChars) }).parse(body);
-    return deck().answer(b.caseId, b.answer, session.sessionId);
+    return deck().answer(b.caseId, clean(b.answer, "refuse").text, session.sessionId);
   });
   route("POST", "/api/quiz/rate", ({ body }) => {
     const b = z.object({ quizId: Id, rating: QuizRating }).parse(body);
@@ -184,6 +193,7 @@ export function registerRoutes(o: ReviewServerOptions, route: Route, _finish: ()
   });
   route("POST", "/api/tree/add", ({ body }) => {
     const b = z.object({ parentId: Id, name: Name, label: EntityKind }).parse(body);
+    assertNoSecret(b.name); // the store only cuts from node names, since models name nodes too
     store.getTopic(b.parentId);
     if (store.findEntity({ name: b.name, kind: b.label })) throw new NameTakenError(b.name);
     return store.transaction(() => {

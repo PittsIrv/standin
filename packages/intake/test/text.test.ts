@@ -1,13 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { align, sections, stripContacts, unwrap } from "../src/index.ts";
-
-describe("stripContacts", () => {
-  it("removes emails, phone numbers and street addresses, and counts them", () => {
-    const r = stripContacts("Mail me at lin.q@example.edu or call +1 (412) 555-0199.\nI live at 5000 Forbes Avenue, Pittsburgh.\nI started in 2019 and wrote 3 papers.");
-    expect(r.text).toBe("Mail me at [removed] or call [removed].\nI live at [removed], Pittsburgh.\nI started in 2019 and wrote 3 papers.");
-    expect(r.removed).toBe(3);
-  });
-});
+import { align, sections, unwrap } from "../src/index.ts";
 
 describe("align", () => {
   const source = "EXPERIENCE\nResearch intern, Robotics Lab (2022–2024): built a motion-\nplanning stack for “legged” robots.";
