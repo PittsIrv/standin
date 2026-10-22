@@ -1,12 +1,10 @@
 import type { Probe, ProbeResponse } from "@standin/schema";
-import { answerMode } from "../answer.ts";
 import type { TreeSnapshot } from "../snapshot.ts";
 
 export type Target =
   | { kind: "followup"; nodeId: string; difficulty: number; checkOf: string | null; gapOf: string }
   | { kind: "claim"; nodeId: string; difficulty: number; checkOf: string }
-  | { kind: "foundation"; nodeId: string; difficulty: number }
-  | { kind: "discovery"; nodeId: string; difficulty: number };
+  | { kind: "hypothesis"; nodeId: string; difficulty: number; hypothesisId: string };
 
 export interface ProbeState {
   /** Every shown probe's response (rated or not), in show order. */
@@ -17,8 +15,9 @@ export interface ProbeState {
 
 /** Claims probe this many different parts at the claimed depth. */
 export const CLAIM_PROBES = 3;
-export const DISCOVERY_START = 2;
 const MAX_DIFFICULTY = 4;
+/** Expert needs two passed spot-checks (knowledge-map decision 37), so a hypothesis at 4 is asked twice. */
+const ASKS_AT_4 = 2;
 
 const byName = (t: TreeSnapshot) => (a: string, b: string) => (t.topics.get(a)?.name ?? a).localeCompare(t.topics.get(b)?.name ?? b);
 const targetKey = (kind: string, nodeId: string) => `${kind}:${nodeId}`;
@@ -38,9 +37,9 @@ function inKeptBranch(t: TreeSnapshot, nodeId: string, kept: Set<string>): boole
 }
 
 /**
- * The next thing to probe, by strict priority: follow-ups for confirmed gaps, then claim checks, then
- * inferred lighting (foundations), then discovery. Returns `expand:<node>` when a node needs its parts first,
- * or null when there is nothing left to ask. Pure: the session does the I/O.
+ * The next thing to probe, by strict priority: follow-ups for confirmed gaps, then claim checks, then open
+ * hypotheses (most uncertain first). Returns `expand:<node>` when a claimed node needs its parts first, or null
+ * when there is nothing left to ask. Pure: the session does the I/O.
  */
 export function nextTarget(t: TreeSnapshot, s: ProbeState, skip: Set<string>): Target | `expand:${string}` | null {
   const live = (id: string) => t.topics.has(id);
@@ -72,37 +71,17 @@ export function nextTarget(t: TreeSnapshot, s: ProbeState, skip: Set<string>): T
     if (next) return { kind: "claim", nodeId: next, difficulty: Math.min(depth, MAX_DIFFICULTY), checkOf: claimNode };
   }
 
-  // 3. Foundations: every node lit by inference gets one probe at its depth.
-  for (const [nodeId, lit] of [...t.approved].sort(([a], [b]) => byName(t)(a, b))) {
-    if (lit.basis !== "predicted" || lit.depth < 1 || inKeptBranch(t, nodeId, kept) || !ok("foundation", nodeId)) continue;
-    if (!shown.some((r) => r.probe.kind === "foundation" && r.probe.nodeId === nodeId)) return { kind: "foundation", nodeId, difficulty: lit.depth };
-  }
-
-  // 4. Discovery: finish an open walk, else start one on a dark neighbour of a strong node.
-  const walks = new Map<string, (ProbeResponse & { probe: Probe })[]>();
-  for (const r of shown.filter((x) => x.probe.kind === "discovery")) walks.set(r.probe.nodeId, [...(walks.get(r.probe.nodeId) ?? []), r]);
-  for (const [nodeId, steps] of walks) {
-    const last = steps.at(-1)!;
-    if (last.rating !== "know" || !ok("discovery", nodeId)) continue;
-    if (last.probe.difficulty < MAX_DIFFICULTY) return { kind: "discovery", nodeId, difficulty: last.probe.difficulty + 1 };
-    // Expert needs two passed spot-checks at 4, so the walk asks twice there.
-    if (steps.filter((s) => s.probe.difficulty === MAX_DIFFICULTY).length < 2) return { kind: "discovery", nodeId, difficulty: MAX_DIFFICULTY };
-  }
-  // Strong = the node's own lighting is at least 3. Inherited lighting doesn't count: everything under a lit node
-  // inherits it, so its parts are never dark and expanding them would never end.
-  const strong = [...t.approved]
-    .filter(([id, lit]) => live(id) && lit.depth >= 3 && !inKeptBranch(t, id, kept))
-    .map(([id]) => id)
-    .sort(byName(t));
-  const candidates = new Set<string>();
-  for (const id of strong) {
-    const parent = t.parentOf.get(id);
-    for (const c of s.children.get(id) ?? []) candidates.add(c);
-    if (parent) for (const sib of s.children.get(parent) ?? []) candidates.add(sib);
-    for (const [from, to] of t.requires) if (from === id) candidates.add(to);
-  }
-  const dark = [...candidates].filter((id) => live(id) && answerMode(t, id).depth === null && !walks.has(id) && ok("discovery", id)).sort(byName(t));
-  if (dark[0]) return { kind: "discovery", nodeId: dark[0], difficulty: DISCOVERY_START };
-  const unexpanded = strong.find((id) => !t.topics.get(id)!.expandedAt && !skip.has(targetKey("expand", id)));
-  return unexpanded ? `expand:${unexpanded}` : null;
+  // 3. Hypotheses: the guesses we are least sure of first. Answers in the fixed held-out set never settle a guess,
+  // so they don't count as asked.
+  const asked = (hypothesisId: string) => shown.filter((r) => r.probe.hypothesisId === hypothesisId && r.probe.holdout !== "fixed");
+  const open = [...t.hypotheses]
+    .filter(([nodeId, h]) => {
+      if (!ok("hypothesis", nodeId) || inKeptBranch(t, nodeId, kept)) return false;
+      const answers = asked(h.id);
+      if (answers.some((r) => r.rating === "no_idea" || r.rating === "wouldnt_say")) return false;
+      return answers.length < (h.depth === MAX_DIFFICULTY ? ASKS_AT_4 : 1);
+    })
+    .sort(([a, x], [b, y]) => Math.abs(x.p - 0.5) - Math.abs(y.p - 0.5) || byName(t)(a, b));
+  const [nodeId, h] = open[0] ?? [];
+  return nodeId && h ? { kind: "hypothesis", nodeId, difficulty: h.depth, hypothesisId: h.id } : null;
 }

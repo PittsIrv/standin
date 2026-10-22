@@ -1,4 +1,4 @@
-import { EntityKind, RootKey } from "@standin/schema";
+import { EntityKind, EvidenceKind, RawScore, RootKey } from "@standin/schema";
 import { z } from "zod";
 
 export const PlaceSchema = z.object({
@@ -40,3 +40,20 @@ export const SplitSchema = z.object({
   children: z.array(z.object({ name: z.string(), label: EntityKind, definition: z.string(), memoryIds: z.array(z.string()) })),
 });
 export type Split = z.infer<typeof SplitSchema>;
+
+export const HypothesizeSchema = z.object({
+  hypotheses: z.array(
+    z.object({
+      node: z.string(),
+      depth: z.number().int(),
+      rawScore: RawScore,
+      kind: EvidenceKind,
+      /** Node names from something established to this node. */
+      path: z.array(z.string()),
+      reason: z.string(),
+    }),
+  ),
+  /** Nodes whose open guess no longer holds. */
+  withdraw: z.array(z.string()),
+});
+export type Hypothesize = z.infer<typeof HypothesizeSchema>;

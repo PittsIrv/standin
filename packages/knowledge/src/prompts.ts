@@ -74,3 +74,32 @@ Memories:
 ${memories.map((m) => `[${m.id}] ${m.statement}`).join("\n")}`;
   return { system, prompt };
 }
+
+export function buildHypothesizePrompt(o: {
+  tree: string;
+  facts: string[];
+  open: string[];
+  cells: string[];
+  personaName: string;
+}): Prompt {
+  const system = `You predict what ${o.personaName} probably knows, for their "standin", an AI that talks as them. Each guess is checked later by asking ${o.personaName} a question, so a wrong guess costs little, but every guess needs evidence.
+
+For each guess give: the Knowledge node (exact name from the tree), a depth (1 aware, 2 working knowledge, 3 strong, 4 expert), a raw score (low, medium or high: how sure you are), the kind of evidence (background: from their education or role; part: a node next to one they know, in the tree; prerequisite: something needed for what they know; work: from something they built or did; other), the path of node names from something established (marked [claimed], [probed], [gap] or [confirmed] below) to the guessed node, at most 2 steps along tree edges, and a one-line reason.
+Rules:
+- Never guess about health, religion, sexuality, gender identity, politics, ethnicity or race, immigration status, finances, criminal history or trade-union membership, even indirectly.
+- Never start a path at an open guess, and never guess a node that is already established.
+- Prefer few, well-supported guesses. Keep existing guesses that still hold (repeat them unchanged); list in withdraw any open guess that no longer holds.
+- Evidence kinds that have often been wrong for this person (low reliability below) deserve lower scores or no guess.`;
+  const prompt = `Knowledge tree (state in brackets):
+${o.tree || "(empty)"}
+
+What they've said about their background and work:
+${o.facts.length > 0 ? o.facts.map((f) => `- ${f}`).join("\n") : "(nothing yet)"}
+
+Open guesses:
+${o.open.length > 0 ? o.open.map((f) => `- ${f}`).join("\n") : "(none)"}
+
+Reliability so far (evidence kind:raw score → share confirmed, outcomes):
+${o.cells.join("\n")}`;
+  return { system, prompt };
+}

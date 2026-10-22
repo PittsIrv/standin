@@ -3,8 +3,8 @@ import type { Store } from "@standin/store";
 import type { Tracer } from "@standin/trace";
 import { syncStatedGaps } from "./gaps.ts";
 import { computeLighting } from "./lighting.ts";
-import { proposeLighting } from "./proposals.ts";
 import { loadSnapshot } from "./snapshot.ts";
+import { hypothesize } from "./hypotheses/hypothesize.ts";
 import { homeMemories, splitNodes } from "./organize.ts";
 import { placeNodes, seedBackground } from "./tasks.ts";
 
@@ -20,19 +20,28 @@ export interface RefreshReport {
   /** Nodes split into children. */
   split: string[];
   gaps: number;
-  proposed: number;
-  replaced: number;
+  /** Hypotheses added, withdrawn and rejected by the `hypothesize` step (with why). */
+  hypotheses: { added: number; withdrawn: number; rejected: string[] };
   warnings: string[];
 }
 
 /**
  * `standin map refresh`: seed from background, place new nodes, home memories, split crowded nodes, record stated
- * gaps, then propose lighting.
+ * gaps, then guess what the person probably knows.
  * A failed model step is a warning; the steps after it still run on whatever the tree has.
  */
-export async function refresh(o: { store: Store; map: LLM; tracer: Tracer; personaName: string; splitAt?: number }): Promise<RefreshReport> {
+export async function refresh(o: {
+  store: Store;
+  map: LLM;
+  tracer: Tracer;
+  personaName: string;
+  splitAt?: number;
+  /** The `hypothesize` role's model; without it, no new guesses are made this refresh. */
+  hypothesize?: LLM;
+  hypotheses?: { dropBelow: number; dropAfter: number };
+}): Promise<RefreshReport> {
   return o.tracer.run("map-refresh", {}, async (run) => {
-    const report: RefreshReport = { placed: 0, merged: 0, refused: [], seeded: [], homed: 0, split: [], gaps: 0, proposed: 0, replaced: 0, warnings: [] };
+    const report: RefreshReport = { placed: 0, merged: 0, refused: [], seeded: [], homed: 0, split: [], gaps: 0, hypotheses: { added: 0, withdrawn: 0, rejected: [] }, warnings: [] };
     const step = async (label: string, fn: () => Promise<void>) => {
       try {
         await fn();
@@ -57,10 +66,11 @@ export async function refresh(o: { store: Store; map: LLM; tracer: Tracer; perso
     });
     const before = loadSnapshot(o.store);
     report.gaps = syncStatedGaps(o.store, before, computeLighting(before)).length;
-    const snapshot = loadSnapshot(o.store);
-    const proposals = proposeLighting(o.store, snapshot, computeLighting(snapshot));
-    report.proposed = proposals.proposed.length;
-    report.replaced = proposals.replaced.length;
+    const model = o.hypothesize;
+    if (model)
+      await step("hypothesizing", async () => {
+        report.hypotheses = await hypothesize(o.store, model, o.personaName, o.hypotheses ?? { dropBelow: 0.3, dropAfter: 10 });
+      });
     run.setAttributes({
       "standin.map.seeded": report.seeded.length,
       "standin.map.placed": report.placed,
@@ -68,7 +78,7 @@ export async function refresh(o: { store: Store; map: LLM; tracer: Tracer; perso
       "standin.map.homed": report.homed,
       "standin.map.split": report.split.length,
       "standin.map.gaps": report.gaps,
-      "standin.map.proposed": report.proposed,
+      "standin.map.hypotheses.added": report.hypotheses.added,
     });
     return report;
   });

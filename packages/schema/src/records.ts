@@ -276,7 +276,8 @@ export type Holdout = z.infer<typeof Holdout>;
 export const AnswerModeName = z.enum(["explain", "brief", "decline"]);
 export type AnswerModeName = z.infer<typeof AnswerModeName>;
 
-export const ProbeKind = z.enum(["claim", "followup", "foundation", "discovery"]);
+/** `foundation` and `discovery` are from before hypotheses; old rows keep them. */
+export const ProbeKind = z.enum(["claim", "followup", "foundation", "discovery", "hypothesis"]);
 export type ProbeKind = z.infer<typeof ProbeKind>;
 
 export const Probe = z.object({
@@ -290,6 +291,8 @@ export const Probe = z.object({
   holdout: Holdout,
   createdAt: IsoTime,
   releasedAt: IsoTime.nullable(),
+  /** For a hypothesis probe: the hypothesis it tests. */
+  hypothesisId: z.string().nullable().default(null),
 });
 export type Probe = z.infer<typeof Probe>;
 
@@ -310,8 +313,35 @@ export const ProbeResponse = z.object({
   gradeBatchId: z.string().nullable(),
   /** The person's judgment of a miss. */
   judged: z.enum(["gap", "not_gap"]).nullable(),
+  /** For a hypothesis probe: its calibrated probability and the prior-only one, stored when shown. */
+  predictedP: z.number().nullable().default(null),
+  priorP: z.number().nullable().default(null),
 });
 export type ProbeResponse = z.infer<typeof ProbeResponse>;
+
+export const EvidenceKind = z.enum(["background", "part", "prerequisite", "work", "other"]);
+export type EvidenceKind = z.infer<typeof EvidenceKind>;
+export const RawScore = z.enum(["low", "medium", "high"]);
+export type RawScore = z.infer<typeof RawScore>;
+/** A settled hypothesis's outcome (confirmed or refuted) is read from its probe responses, so a late grade can flip it. */
+export const HypothesisStatus = z.enum(["open", "settled", "withdrawn"]);
+export type HypothesisStatus = z.infer<typeof HypothesisStatus>;
+
+/** "Probably knows {node} at {depth}": a guess with its evidence, verified by probes. Knowledge nodes only. */
+export const Hypothesis = z.object({
+  id: z.string(),
+  nodeId: z.string(),
+  depth: Depth.min(1),
+  rawScore: RawScore,
+  kind: EvidenceKind,
+  /** Node ids from an established node to this one (at most 2 hops). */
+  path: z.array(z.string()).min(1),
+  reason: z.string(),
+  status: HypothesisStatus,
+  createdAt: IsoTime,
+  settledAt: IsoTime.nullable(),
+});
+export type Hypothesis = z.infer<typeof Hypothesis>;
 
 export const ReviewSession = z.object({
   id: z.string(),

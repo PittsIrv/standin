@@ -22,6 +22,7 @@ const rowToProbe = (r: Row): Probe =>
     holdout: r.holdout,
     createdAt: r.created_at,
     releasedAt: r.released_at ?? null,
+    hypothesisId: r.hypothesis_id ?? null,
   });
 
 const rowToResponse = (r: Row): ProbeResponse =>
@@ -40,6 +41,8 @@ const rowToResponse = (r: Row): ProbeResponse =>
     gradeReason: r.grade_reason ?? null,
     gradeBatchId: r.grade_batch_id ?? null,
     judged: r.judged ?? null,
+    predictedP: r.predicted_p ?? null,
+    priorP: r.prior_p ?? null,
   });
 
 const rowToSession = (r: Row): ReviewSession =>
@@ -67,11 +70,11 @@ export function listSessions(s: Store): ReviewSession[] {
   return (s.db.prepare("SELECT * FROM review_sessions ORDER BY started_at, rowid").all() as Row[]).map(rowToSession);
 }
 
-export function insertProbe(s: Store, p: Omit<Probe, "id" | "createdAt" | "releasedAt">): Probe {
+export function insertProbe(s: Store, p: Omit<Probe, "id" | "createdAt" | "releasedAt" | "hypothesisId"> & { hypothesisId?: string | null }): Probe {
   const id = newId("prb");
   s.db
-    .prepare("INSERT INTO probes (id, node_id, check_of, kind, difficulty, question, holdout, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-    .run(id, p.nodeId, p.checkOf, p.kind, p.difficulty, p.question.trim(), p.holdout, s.nowIso());
+    .prepare("INSERT INTO probes (id, node_id, check_of, kind, difficulty, question, holdout, created_at, hypothesis_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    .run(id, p.nodeId, p.checkOf, p.kind, p.difficulty, p.question.trim(), p.holdout, s.nowIso(), p.hypothesisId ?? null);
   s.db.prepare("UPDATE topics SET frontier = 0 WHERE entity_id = ?").run(p.nodeId);
   return getProbe(s, id);
 }
@@ -90,13 +93,21 @@ export function listProbes(s: Store, f: { nodeId?: string; kind?: ProbeKind } = 
 }
 
 /** Shows a probe: creates its response with the standin's prediction recorded before any rating. A probe is shown once. */
-export function showProbe(s: Store, probeId: string, sessionId: string, predictedMode: AnswerModeName): ProbeResponse {
+export function showProbe(
+  s: Store,
+  probeId: string,
+  sessionId: string,
+  predictedMode: AnswerModeName,
+  p?: { predictedP: number; priorP: number },
+): ProbeResponse {
   getProbe(s, probeId);
   if (s.db.prepare("SELECT 1 FROM probe_responses WHERE probe_id = ?").get(probeId)) throw new Error(`probe ${probeId} was already shown`);
   const id = newId("rsp");
   s.db
-    .prepare("INSERT INTO probe_responses (id, probe_id, session_id, shown_at, predicted_mode, spot_check) VALUES (?, ?, ?, ?, ?, 'none')")
-    .run(id, probeId, sessionId, s.nowIso(), predictedMode);
+    .prepare(
+      "INSERT INTO probe_responses (id, probe_id, session_id, shown_at, predicted_mode, spot_check, predicted_p, prior_p) VALUES (?, ?, ?, ?, ?, 'none', ?, ?)",
+    )
+    .run(id, probeId, sessionId, s.nowIso(), predictedMode, p?.predictedP ?? null, p?.priorP ?? null);
   return getResponse(s, id);
 }
 

@@ -1,5 +1,6 @@
 import type { DepthBasis, Gap, Probe, RootKey, Topic } from "@standin/schema";
 import type { Store } from "@standin/store";
+import { cells, loadPriors, outcomeOf, probabilityOf, safeguard } from "./hypotheses/calibrate.ts";
 
 /** Everything the lighting rules and the answering rule read, loaded once. Deleted nodes are left out. */
 export interface TreeSnapshot {
@@ -15,6 +16,10 @@ export interface TreeSnapshot {
   knowledge: Set<string>;
   /** Approved memories living in each node. */
   homeFacts: Map<string, number>;
+  /** Open hypotheses per node, with their calibrated probability. */
+  hypotheses: Map<string, { id: string; depth: number; p: number; kind: string; rawScore: string; reason: string }>;
+  /** The highest depth a usable probe confirmed per node, from hypotheses. */
+  confirmedHypotheses: Map<string, number>;
   /** part_of: child → parent. */
   parentOf: Map<string, string>;
   /** requires: [advanced, foundation]. */
@@ -34,7 +39,7 @@ export interface TreeSnapshot {
   confirmed: Set<string>;
 }
 
-export function loadSnapshot(store: Store): TreeSnapshot {
+export function loadSnapshot(store: Store, opts: { brierWindow?: number } = {}): TreeSnapshot {
   const all = new Map(store.listTopics().map((t) => [t.id, t]));
   const roots = new Map(store.roots().map((r) => [r.id, r.rootKey!]));
   const parentOf = new Map<string, string>();
@@ -76,6 +81,20 @@ export function loadSnapshot(store: Store): TreeSnapshot {
     topicIds: store.memoryEntities(m.id).filter((e) => e.kind === "topic" && topics.has(e.id)).map((e) => e.id),
   }));
 
+  // Hypotheses: open ones are probable (with a calibrated probability); confirmed ones light their node.
+  const responses = store.listResponses({ rated: true });
+  const reliability = cells(store, loadPriors(store));
+  const tripped = safeguard(store, opts.brierWindow ?? 20).tripped;
+  const hypotheses: TreeSnapshot["hypotheses"] = new Map();
+  const confirmedHypotheses = new Map<string, number>();
+  for (const h of store.listHypotheses()) {
+    if (!topics.has(h.nodeId) || h.status === "withdrawn") continue;
+    const outcome = outcomeOf(h, responses);
+    if (outcome === "confirmed") confirmedHypotheses.set(h.nodeId, Math.max(confirmedHypotheses.get(h.nodeId) ?? 0, h.depth));
+    if (h.status === "open" && outcome === null)
+      hypotheses.set(h.nodeId, { id: h.id, depth: h.depth, p: probabilityOf(h, reliability, { safeguard: tripped }), kind: h.kind, rawScore: h.rawScore, reason: h.reason });
+  }
+
   const homeFacts = new Map<string, number>();
   for (const m of store.listMemories({ status: "approved" })) if (m.homeNodeId) homeFacts.set(m.homeNodeId, (homeFacts.get(m.homeNodeId) ?? 0) + 1);
 
@@ -83,6 +102,8 @@ export function loadSnapshot(store: Store): TreeSnapshot {
     topics,
     all,
     homeFacts,
+    hypotheses,
+    confirmedHypotheses,
     roots,
     rootOf,
     knowledge,

@@ -10,12 +10,12 @@ export interface TreeNode {
   parentId: string | null;
   root: RootKey | null;
   label: EntityKind;
-  /** lit: known (Knowledge: depth ≥ 1; elsewhere: approved facts). dark: known not to. unlit: neither. */
-  state: "lit" | "dark" | "unlit";
+  /** lit: known (Knowledge: depth ≥ 1; elsewhere: approved facts). dark: known not to. probable: a guess. unlit: none. */
+  state: "lit" | "dark" | "probable" | "unlit";
   mode: string;
   depth: number | null;
   basis: string | null;
-  via: "own" | "inherited" | "gap" | null;
+  via: "own" | "inherited" | "gap" | "hypothesis" | null;
   from: string | null;
   boundary: boolean;
   /** An inferred node a foundation probe confirmed. */
@@ -23,6 +23,9 @@ export interface TreeNode {
   frontier: boolean;
   /** Approved memories living in the node. */
   facts: number;
+  /** For a probable node: the open hypothesis and its calibrated probability. */
+  p: number | null;
+  hypothesis: { depth: number; p: number; kind: string; reason: string } | null;
 }
 
 /** Every live node (roots excluded); frontier nodes only with `all`. */
@@ -35,9 +38,15 @@ export function treeNodes(t: TreeSnapshot, opts: { all?: boolean } = {}): TreeNo
       const knowledge = t.knowledge.has(n.id);
       const d = answerMode(t, n.id);
       const facts = t.homeFacts.get(n.id) ?? 0;
+      const guess = t.hypotheses.get(n.id) ?? null;
+      const saidNo = t.negatives.some((x) => x.topicIds.includes(n.id));
       const state: TreeNode["state"] = knowledge
-        ? d.depth === null
-          ? "unlit"
+        ? d.depth === null || d.from?.via === "hypothesis"
+          ? saidNo
+            ? "dark"
+            : guess
+              ? "probable"
+              : "unlit"
           : d.depth === 0
             ? "dark"
             : "lit"
@@ -54,13 +63,19 @@ export function treeNodes(t: TreeSnapshot, opts: { all?: boolean } = {}): TreeNo
         state,
         mode: d.mode,
         depth: d.depth,
-        basis: d.from ? (d.from.via === "gap" ? "gap" : (t.approved.get(d.from.nodeId)?.basis ?? null)) : null,
+        basis: !d.from
+          ? null
+          : d.from.via === "gap" || d.from.via === "hypothesis"
+            ? d.from.via
+            : (t.approved.get(d.from.nodeId)?.basis ?? (t.confirmedHypotheses.has(d.from.nodeId) ? "probed" : null)),
         via: d.from?.via ?? null,
         from: d.from ? name(d.from.nodeId) : null,
         boundary: d.boundary || n.boundaryTier === 3,
         confirmed: t.confirmed.has(n.id),
         frontier: n.frontier,
         facts,
+        p: guess?.p ?? null,
+        hypothesis: guess ? { depth: guess.depth, p: guess.p, kind: guess.kind, reason: guess.reason } : null,
       };
     });
 }
@@ -70,7 +85,11 @@ export function nodeStatus(v: TreeNode): string {
   const knowledge = v.root === "knowledge" || (v.root === null && v.label === "topic");
   const lit = !knowledge
     ? `${v.facts} fact${v.facts === 1 ? "" : "s"}`
-    : v.depth === null
+    : v.state === "probable" && v.hypothesis
+      ? `probable ${v.hypothesis.depth} (p ${v.hypothesis.p.toFixed(2)}, ${v.hypothesis.kind})`
+      : v.state === "dark" && v.depth === null
+        ? "dark (you said so)"
+        : v.depth === null
       ? "not lit"
       : v.via === "gap"
         ? `gap: fine up to ${v.depth}`

@@ -17,6 +17,7 @@ import * as exm from "./exemplars.ts";
 import * as spans from "./spans.ts";
 import * as tree from "./tree.ts";
 import * as probes from "./probes.ts";
+import * as hyp from "./hypotheses.ts";
 import type { SpanContent, SpanData, SpanSink } from "@standin/trace";
 import { consolidate, purge, type ConsolidationReport } from "./consolidate.ts";
 
@@ -41,6 +42,8 @@ import type {
   Actor,
   EdgeKind,
   Gap,
+  Hypothesis,
+  HypothesisStatus,
   RootKey,
   Topic,
   TopicEdge,
@@ -370,6 +373,39 @@ export class Store {
     return tree.deleteTopic(this, id);
   }
 
+  // ---- hypotheses ---------------------------------------------------------
+
+  insertHypothesis(h: hyp.NewHypothesis): Hypothesis {
+    return hyp.insertHypothesis(this, h);
+  }
+
+  getHypothesis(id: string): Hypothesis {
+    return hyp.getHypothesis(this, id);
+  }
+
+  listHypotheses(f?: { status?: HypothesisStatus; nodeId?: string }): Hypothesis[] {
+    return hyp.listHypotheses(this, f);
+  }
+
+  settleHypothesis(id: string): Hypothesis {
+    return hyp.setHypothesisStatus(this, id, "settled");
+  }
+
+  withdrawHypothesis(id: string): Hypothesis {
+    return hyp.setHypothesisStatus(this, id, "withdrawn");
+  }
+
+  // ---- small settings -------------------------------------------------------
+
+  getKv(key: string): string | null {
+    const r = this.db.prepare("SELECT value FROM kv WHERE key = ?").get(key) as Row | undefined;
+    return r ? String(r.value) : null;
+  }
+
+  setKv(key: string, value: string): void {
+    this.db.prepare("INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(key, value);
+  }
+
   roots(): Topic[] {
     return tree.roots(this);
   }
@@ -414,7 +450,7 @@ export class Store {
   listSessions(): ReviewSession[] {
     return probes.listSessions(this);
   }
-  insertProbe(p: Omit<Probe, "id" | "createdAt" | "releasedAt">): Probe {
+  insertProbe(p: Parameters<typeof probes.insertProbe>[1]): Probe {
     return probes.insertProbe(this, p);
   }
   getProbe(id: string): Probe {
@@ -423,8 +459,8 @@ export class Store {
   listProbes(f?: { nodeId?: string; kind?: ProbeKind }): Probe[] {
     return probes.listProbes(this, f);
   }
-  showProbe(probeId: string, sessionId: string, predictedMode: AnswerModeName): ProbeResponse {
-    return probes.showProbe(this, probeId, sessionId, predictedMode);
+  showProbe(probeId: string, sessionId: string, predictedMode: AnswerModeName, p?: { predictedP: number; priorP: number }): ProbeResponse {
+    return probes.showProbe(this, probeId, sessionId, predictedMode, p);
   }
   getResponse(id: string): ProbeResponse {
     return probes.getResponse(this, id);

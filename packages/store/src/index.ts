@@ -5,3 +5,4 @@ export { bigrams, contentHash, dice, normalizeName, normalizeText } from "./text
 export { SHARED_ENTITY_BOOST, UNVERIFIED_SOURCES, type InsertContext, type Neighbor, type NewMemory, type SourceSummary } from "./memories.ts";
 export type { ConsolidationReport } from "./consolidate.ts";
 export type { RunSummary, UsageRow } from "./spans.ts";
+export type { NewHypothesis } from "./hypotheses.ts";

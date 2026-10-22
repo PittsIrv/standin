@@ -33,30 +33,23 @@ describe("standin map", () => {
     const refreshed = await run("map", "refresh", "--demo-llm");
     expect(refreshed.code).toBe(0);
     expect(refreshed.out).toContain("seeded Computer science");
-    expect(refreshed.out).toMatch(/proposed \d+ lighting change/);
+    expect(refreshed.out).toMatch(/hypotheses: \+\d+/);
     expect(refreshed.out).toContain("Next: standin queue");
 
-    const queueText = (await run("queue")).out;
-    expect(queueText).toContain("why: core of your background");
-    expect(queueText).toContain("Approving lights its whole branch: 6 parts in the tree.");
-    const queue = JSON.parse((await run("queue", "--json")).out) as { memory: { id: string; statement: string } }[];
-    expect(queue.map((i) => i.memory.statement)).toContain("I've used Algorithms and can get things done with it.");
-    for (const i of queue) await run("approve", i.memory.id);
-
     const text = (await run("map")).out;
-    expect(text).toMatch(/Computer science {2}lit 2 \(predicted\)/);
-    expect(text).toMatch(/\n {4}Algorithms {2}lit 2 \(predicted\)/);
+    expect(text).toMatch(/Computer science {2}probable 2 \(p 0\.50, background\)/);
+    expect(text).toMatch(/\n {4}Algorithms {2}probable 2 \(p 0\.50, background\)/);
     expect(text).toMatch(/Board games {2}not lit/);
     for (const root of ["Knowledge", "Work", "Background", "People", "Views", "Life"]) expect(text).toMatch(new RegExp(`^${root}$`, "m"));
     expect(text).toMatch(/^ {2}Projects {2}0 facts\n {4}Kite {2}\d+ facts?$/m);
 
     const nodes = (JSON.parse((await run("map", "--json")).out) as { nodes: Node[] }).nodes;
     expect(nodes.find((n) => n.name === "reinforcement learning theory")).toMatchObject({ parent: "Machine learning", mode: "brief", depth: 2, via: "own" });
-    expect(nodes.find((n) => n.name === "Algorithms")).toMatchObject({ mode: "brief", via: "own", root: "knowledge", label: "topic", state: "lit" });
+    expect(nodes.find((n) => n.name === "Algorithms")).toMatchObject({ mode: "decline", root: "knowledge", label: "topic", state: "probable", p: 0.5 });
     expect(nodes.find((n) => n.name === "Kite")).toMatchObject({ root: "work", label: "project", state: "lit", parent: "Projects" });
 
     const again = await run("map", "refresh", "--demo-llm");
-    expect(again.out).toMatch(/proposed 0 lighting changes/);
+    expect(again.out).toMatch(/hypotheses: \+0/);
   });
 
   it("rejects an unknown subcommand", async () => {
@@ -92,8 +85,34 @@ describe("standin map calibration", () => {
     const shown = (await run("map")).out;
     expect(shown).toContain("Calibration (map score): fixed 1/2 (50%), rotating 1/1 (100%)");
     expect(shown).not.toContain("Presented");
-    expect((await run("map", "--private")).out).toContain("Presented score (private): fixed 1/2 (50%), rotating 1/1 (100%)");
+    const priv = (await run("map", "--private")).out;
+    expect(priv).toContain("Presented score (private): fixed 1/2 (50%), rotating 1/1 (100%)");
+    expect(priv).toContain("Hypothesis calibration: not enough held-out hypothesis answers yet");
     const json = JSON.parse((await run("map", "--json")).out) as { calibration: { map: { fixed: { n: number } } } };
     expect(json.calibration.map.fixed.n).toBe(2);
+  });
+});
+
+describe("standin map hypothesis calibration", () => {
+  it("compares calibrated and prior-only guesses on held-out answers, privately", async () => {
+    const home = join(mkdtempSync(join(tmpdir(), "standin-cli-")), "home");
+    const run = async (...argv: string[]) => {
+      const out: string[] = [];
+      const code = await runCli(argv, { stdout: (s) => out.push(s), stderr: () => {}, env: { STANDIN_HOME: home }, sleep: async () => {} });
+      return { code, out: out.join("\n") };
+    };
+    await run("init", "--name", "T");
+    const store = openStore({ path: join(home, "standin.db") });
+    const session = store.startSession(10);
+    for (const rating of ["know", "no_idea"] as const) {
+      const node = store.ensureTopic(`n-${rating}`);
+      const h = store.insertHypothesis({ nodeId: node.id, depth: 2, rawScore: "medium", kind: "part", path: [node.id], reason: "r" });
+      const p = store.insertProbe({ nodeId: node.id, checkOf: null, kind: "hypothesis", difficulty: 2, question: "?", holdout: "fixed", hypothesisId: h.id });
+      store.rateResponse(store.showProbe(p.id, session.id, "decline", { predictedP: 0.9, priorP: 0.5 }).id, rating, false);
+    }
+    store.close();
+    const priv = (await run("map", "--private")).out;
+    expect(priv).toContain("Hypothesis calibration: Brier 0.41 (calibrated) vs 0.25 (prior) over 2 held-out answers; using prior-only probabilities");
+    expect((await run("map")).out).not.toContain("Hypothesis calibration");
   });
 });

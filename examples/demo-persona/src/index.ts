@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { ScriptedLLM, type GenerateObjectRequest } from "@standin/llm";
 import { defaultRoot, type EntityKind, type ObservationInput } from "@standin/schema";
-import { EXTRACTIONS, PLACEMENTS, RECONCILIATIONS, SEED } from "./fixtures.ts";
+import { EXTRACTIONS, HYPOTHESES, PLACEMENTS, RECONCILIATIONS, SEED } from "./fixtures.ts";
 
 export const DEMO_PERSONA_NAME = "Lin Qiao";
 
@@ -84,6 +84,7 @@ export function demoLLM(): ScriptedLLM {
     if (req.purpose === "place") return placements(req.prompt);
     if (req.purpose === "home") return homes(req.prompt);
     if (req.purpose === "split") return { children: [] };
+    if (req.purpose === "hypothesize") return HYPOTHESES;
     const rule = RECONCILIATIONS[candidateStatement(req.prompt)];
     if (rule) {
       const [action, targetStatement] = rule;
