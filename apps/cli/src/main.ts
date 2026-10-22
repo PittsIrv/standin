@@ -1,3 +1,4 @@
+import { SecretFoundError } from "@standin/airlock";
 import { parseArgs } from "node:util";
 import { LLMError } from "@standin/llm";
 import { AmbiguousIdError, InvalidTransitionError, NotFoundError, type Clock } from "@standin/store";
@@ -54,6 +55,8 @@ Commands:
   map refresh [--demo-llm]                       place new topics, seed from background, propose lighting (calls the map model)
   consolidate                                    expire memories whose validity has ended
   purge --before ISO                             delete raw text and trace text for observations compacted before ISO
+  scan [--purge] [--json]                        find secrets and contact details stored before the guard, by place, masked
+                                                 (--purge: delete or cut each one; can't be undone)
   usage [--since ISO] [--by role|model]          model calls, tokens and cost
   traces [--since ISO] [--kind K] [--limit N]    recent runs (compaction, import, ...)
   trace <id> | --last [--content]                one run as a tree of steps
@@ -85,7 +88,8 @@ export async function runCli(argv: string[], io: CliIO): Promise<number> {
       err instanceof AmbiguousIdError ||
       err instanceof InvalidTransitionError ||
       err instanceof CliError ||
-      err instanceof LLMError
+      err instanceof LLMError ||
+      err instanceof SecretFoundError
     ) {
       io.stderr(`error: ${err.message}`);
       return 1;

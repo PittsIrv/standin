@@ -1,4 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
+import { clean } from "@standin/airlock";
 import {
   ObservationInput,
   newId,
@@ -22,6 +23,14 @@ import * as qs from "./questions.ts";
 import * as quiz from "./quiz.ts";
 import type { SpanContent, SpanData, SpanSink } from "@standin/trace";
 import { consolidate, purge, type ConsolidationReport } from "./consolidate.ts";
+import { purgeStored, scanStored, type StoredFinding } from "./scan.ts";
+
+/**
+ * The personal-data guard's one checkpoint (spec §3): text a person typed is refused if it holds a secret, and text
+ * a model wrote has any secret cut. Contact details are cut from both.
+ */
+const typed = (text: string) => clean(text, "refuse").text;
+const written = (text: string) => clean(text, "cut").text;
 
 export interface QueueDecision {
   itemId: string;
@@ -104,6 +113,7 @@ export class Store {
   /** Idempotent: identical content from the same source kind returns the existing observation. */
   addObservation(input: ObservationInputT): Observation {
     const o = ObservationInput.parse(input);
+    o.text = typed(o.text);
     const hash = contentHash(o.sourceKind, normalizeText(o.text));
     const existing = this.db.prepare("SELECT * FROM observations WHERE content_hash = ?").get(hash) as Row | undefined;
     if (existing) return rowToObservation(existing);
@@ -129,7 +139,7 @@ export class Store {
 
   /** The observation `addObservation` would dedupe this content against, if any (still found after its text is purged). */
   findObservationByContent(sourceKind: string, text: string): Observation | null {
-    const hash = contentHash(sourceKind, normalizeText(text));
+    const hash = contentHash(sourceKind, normalizeText(written(text)));
     const row = this.db.prepare("SELECT * FROM observations WHERE content_hash = ?").get(hash) as Row | undefined;
     return row ? rowToObservation(row) : null;
   }
@@ -241,7 +251,7 @@ export class Store {
   // ---- memories -----------------------------------------------------------
 
   insertMemory(input: mem.NewMemory, ctx: mem.InsertContext): Memory {
-    return mem.insertMemory(this, input, ctx);
+    return mem.insertMemory(this, { ...input, statement: written(input.statement) }, ctx);
   }
   addCorroboration(memoryId: string, observationId: string): Memory {
     return mem.addCorroboration(this, memoryId, observationId);
@@ -265,7 +275,7 @@ export class Store {
     return mem.memoryEvents(this, id);
   }
   approve(id: string, edits?: { statement?: string; tier?: Tier }): Memory {
-    return mem.approve(this, id, edits);
+    return mem.approve(this, id, edits?.statement === undefined ? edits : { ...edits, statement: typed(edits.statement) });
   }
   reject(id: string, note?: string, actor?: Actor): Memory {
     return mem.reject(this, id, note ?? null, actor);
@@ -295,7 +305,7 @@ export class Store {
   // ---- exemplars ----------------------------------------------------------
 
   insertExemplar(input: { observationId: string; text: string; register: Register }): Exemplar | null {
-    return exm.insertExemplar(this, input);
+    return exm.insertExemplar(this, { ...input, text: written(input.text) });
   }
   approveExemplar(id: string): Exemplar {
     return exm.approveExemplar(this, id);
@@ -318,6 +328,14 @@ export class Store {
     return purge(this, before);
   }
 
+  /** Secrets and contact details already stored, by where they are (personal-data guard §4). */
+  scanStored(): StoredFinding[] {
+    return scanStored(this);
+  }
+  purgeStored(): { observations: number; spanContent: number; rewritten: number } {
+    return purgeStored(this);
+  }
+
   // ---- review decisions ---------------------------------------------------
 
   recordQueueDecision(d: QueueDecision): void {
@@ -329,10 +347,10 @@ export class Store {
   // ---- knowledge tree -----------------------------------------------------
 
   ensureTopic(name: string, definition?: string | null): Topic {
-    return tree.ensureTopic(this, name, definition ?? null);
+    return tree.ensureTopic(this, written(name), definition ? written(definition) : null);
   }
   ensureNode(name: string, label: EntityKind, definition?: string | null): Topic {
-    return tree.ensureNode(this, name, label, definition ?? null);
+    return tree.ensureNode(this, written(name), label, definition ? written(definition) : null);
   }
 
   homeParent(id: string): string | null {
@@ -365,11 +383,11 @@ export class Store {
   }
 
   describeTopic(id: string, d: { definition: string | null; examples: string[] }): Topic {
-    return tree.describeTopic(this, id, d);
+    return tree.describeTopic(this, id, { definition: d.definition === null ? null : typed(d.definition), examples: d.examples.map(typed) });
   }
 
   renameTopic(id: string, name: string): Topic {
-    return tree.renameTopic(this, id, name);
+    return tree.renameTopic(this, id, typed(name));
   }
 
   moveTopic(id: string, parentId: string | null, source?: TopicEdge["source"]): TopicEdge | null {
@@ -492,7 +510,7 @@ export class Store {
     return qs.setQuestionStatus(this, id, status);
   }
   addQuizAnswer(q: quiz.NewQuizAnswer): QuizAnswer {
-    return quiz.addQuizAnswer(this, q);
+    return quiz.addQuizAnswer(this, { ...q, personAnswer: typed(q.personAnswer) });
   }
   rateQuizAnswer(id: string, rating: QuizRating): QuizAnswer {
     return quiz.rateQuizAnswer(this, id, rating);
@@ -501,7 +519,7 @@ export class Store {
     return quiz.listQuizAnswers(this);
   }
   addPreferencePair(p: { question: string; standinAnswer: string; personAnswer: string }): PreferencePair {
-    return quiz.addPreferencePair(this, p);
+    return quiz.addPreferencePair(this, { ...p, personAnswer: typed(p.personAnswer) });
   }
   listPreferencePairs(): PreferencePair[] {
     return quiz.listPreferencePairs(this);
@@ -525,7 +543,7 @@ export class Store {
     return probes.rateResponse(this, id, rating, spotCheck);
   }
   answerSpotCheck(id: string, answer: string, observationId: string): ProbeResponse {
-    return probes.answerSpotCheck(this, id, answer, observationId);
+    return probes.answerSpotCheck(this, id, typed(answer), observationId);
   }
   judgeResponse(id: string, judged: "gap" | "not_gap"): ProbeResponse {
     return probes.judgeResponse(this, id, judged);

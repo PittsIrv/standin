@@ -17,6 +17,7 @@ ingest (read-only) → L0 observations → compaction → L1 memories → airloc
 - **Memories, not chunks.** Atomic, sourced, tiered memories: `fact`, `competence`, `stance`, `negative`.
 - **Knows what you don't know.** Competence-gated knowledge and explicit negative memories. Unknowns are answered "not on record" instead of guessed.
 - **Default-deny airlock.** Raw data stays local. Only approved memories are published.
+- **It never needs your passwords.** Text that looks like a password, API key, card number or ID number is refused before it is stored or sent to a model, and contact details are cut on every way in.
 - **Bitemporal.** Every memory records when it was true and when it was recorded, so you can ask what the standin knew as of any date.
 - **No guessed weights.** The review queue follows plain rules you can read in one sentence, and each memory shows its sources instead of a made-up confidence score. Where a number does change outcomes (duplicate search), it is measured, not guessed.
 - **English only, for now.** People talk differently in different languages, so the standin learns one voice at a time.
@@ -112,7 +113,7 @@ pnpm standin review        # the review page: rate concepts, then look at and ed
 `standin review` opens a private page on your machine (`--lan` adds a QR code for your phone). Nothing tests your knowledge: you tell the standin how well you know each concept, one click per card. The page has five tabs: **Questions**, **Add**, **Ask**, **Forest** and **Boundaries**.
 
 - **Stop whenever you like.** Every answer is saved the moment you give it; close the tab or press Ctrl-C. The next `standin review` picks up where you left off, starting with the card you were looking at. When the questions run out, the page shows you your forest.
-- **It starts with you.** Until the standin knows your background, the page opens on **Add** with your introduction, and you can add more there any time: type a few sentences, add files (PDF, Word, Markdown or text), or add your website and tick which of its pages (or linked PDFs, like a résumé) to read too. Everything is turned into text in code (lines a PDF broke mid-sentence are joined back up), contact details are removed, and nothing is stored yet: sources you leave without confirming are dropped.
+- **It starts with you.** Until the standin knows your background, the page opens on **Add** with your introduction, and you can add more there any time: type a few sentences, add files (PDF, Word, Markdown or text), or add your website and tick which of its pages (or linked PDFs, like a résumé) to read too. Everything is turned into text in code (lines a PDF broke mid-sentence are joined back up), contact details and anything that looks like a secret are removed, and nothing is stored yet: sources you leave without confirming are dropped.
   - **Read with proof.** The `map` model reads each section into short statements, each with a kind (education, occupation, project, publication, skill, routine, goal, relationship, …, or one it names) and the exact words it rests on. Code finds those words in the source; a statement it can't find is dropped, and so is anything about a sensitive subject.
   - **You confirm.** Statements are grouped by source; fix, re-kind or remove any, see the words behind each, then approve. Only sources you kept a statement from are stored, as text.
   - **Then guesses.** One pass over everything you approved names the knowledge it implies, each concept citing its evidence (publication, job, project, course, degree, skills list or self-description). Guesses take the depth the model picked and the strength of their best evidence, never lighting: "I research RL" guesses RL at "Know well", and your first cards confirm them. Skip the introduction if you like, or add to it any time.
@@ -211,6 +212,18 @@ To view traces in Jaeger, Arize Phoenix, or Langfuse, point standin at their OTL
 ```
 
 Prompts and outputs are stored apart from the trace structure. Locally they are kept, like raw observation text, until you run `standin purge --before <date>` (or set `consolidation.purgeAfterDays`). They leave your machine only if you set `exportContent: true`.
+
+## Secrets and contact details
+
+Your standin needs to know what you did and what you think, not how to log in as you. Every way text comes in is checked before anything is stored or sent to a model:
+
+- **Text you type** (`standin tell`, `observe`, `interview import`, `ask`, and every box on the review page) is refused if it holds something that looks like a secret, with where it is: `This looks like a GitHub token (line 2: “my token is •••”)`. The review page warns as you type, checking the draft on your own machine, and won't save until it's gone. An interview sheet is imported whole or not at all.
+- **Files and web pages** you add have the secret cut instead, and the page lists what was cut before you confirm.
+- **Contact details** (emails, phone numbers, street addresses) are cut everywhere.
+- **What counts:** provider keys from [gitleaks](https://github.com/gitleaks/gitleaks)' rules (ported by `scripts/port-gitleaks.mjs`), unknown keys next to a word like "token" when the value looks random, passwords and PINs after "password is" or "password:", private keys, card numbers (Luhn), IBANs, Chinese resident IDs, and US Social Security numbers.
+- **Already stored?** `standin scan` lists anything found in your database and private files, by place and masked; `standin scan --purge` removes it.
+
+No message ever prints the secret it found.
 
 ## Your data stays out of this repo
 

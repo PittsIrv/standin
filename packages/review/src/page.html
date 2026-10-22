@@ -82,6 +82,10 @@ section[hidden] { display: none !important; }
 .why { color: var(--muted); font-size: 15px; margin: 0 0 18px; padding-left: 14px; border-left: 2px solid var(--line); border-radius: 0; }
 .done { text-align: center; padding-top: 10vh; }
 .error { color: var(--danger); font-size: 14px; margin-top: 8px; }
+.guard p { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
+.guard p.secret { color: var(--danger); font-size: 14px; }
+.guard button { display: inline; min-height: 0; margin: 0; padding: 0 4px; border: 0; background: none; color: var(--focus); text-decoration: underline; font-size: inherit; cursor: pointer; }
+[aria-invalid="true"] { border-color: var(--danger); outline-color: var(--danger); }
 
 /* Ask, and the self-quiz */
 #ask { flex: 1; overflow: auto; padding: 32px 16px; }
@@ -225,6 +229,79 @@ async function api(path, body) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
   return data;
+}
+
+/**
+ * Warns while you type (personal-data guard §3). Half a second after the last keystroke the local server checks the
+ * draft: nothing is stored and no model sees it. A secret disables `saves` until it is gone; a contact gets a note,
+ * since it is cut when saved. The server checks again on save, so a fast click is still refused.
+ */
+const CHECK_DELAY = 500;
+const blockers = new Map(); // save button → boxes holding a secret
+function guard(box, saves, after = box) {
+  const note = document.createElement("div");
+  note.className = "guard";
+  note.setAttribute("role", "status");
+  after.insertAdjacentElement("afterend", note);
+  let timer = 0;
+  let seq = 0;
+  const mark = (secret) => {
+    box.setAttribute("aria-invalid", secret ? "true" : "false");
+    for (const b of saves.filter(Boolean)) {
+      const set = blockers.get(b) ?? new Set();
+      secret ? set.add(box) : set.delete(box);
+      blockers.set(b, set);
+    }
+    unblock();
+  };
+  const check = async () => {
+    const mine = ++seq;
+    const text = box.value;
+    if (!text.trim()) {
+      note.innerHTML = "";
+      return mark(false);
+    }
+    let found;
+    try {
+      found = (await api("/api/check", { text })).findings;
+    } catch {
+      return; // the check is a convenience; saving checks again
+    }
+    if (mine !== seq || !box.isConnected) return;
+    const secrets = found.filter((f) => f.kind === "secret");
+    const contacts = found.filter((f) => f.kind === "contact");
+    mark(secrets.length > 0);
+    note.innerHTML = [
+      ...secrets.map((f, i) => `<p class="secret">This looks like a ${esc(f.label)}: “${esc(f.context)}”. Your standin never needs it; remove it to save. <button type="button" data-at="${i}">Show me</button></p>`),
+      contacts.length ? `<p>${contacts.length === 1 ? `The ${esc(contacts[0].label)}` : `${contacts.length} contact details`} will be removed when you save.</p>` : "",
+    ].join("");
+    for (const b of note.querySelectorAll("[data-at]")) b.onclick = () => {
+      const f = secrets[Number(b.dataset.at)];
+      box.focus();
+      box.setSelectionRange(f.start, f.end);
+    };
+  };
+  box.addEventListener("input", () => {
+    clearTimeout(timer);
+    timer = setTimeout(check, CHECK_DELAY);
+  });
+  if (box.value.trim()) check();
+  return () => box.getAttribute("aria-invalid") === "true";
+}
+
+/** Re-enables a save button once no box still on the page holds a secret (a removed row no longer counts). */
+function unblock() {
+  for (const [b, set] of blockers) {
+    for (const x of set) if (!x.isConnected) set.delete(x);
+    // Only undo a disable the guard made, so a button busy with a request stays disabled.
+    if (set.size > 0) {
+      b.disabled = true;
+      b.dataset.guarded = "1";
+    } else if (b.dataset.guarded) {
+      b.disabled = false;
+      delete b.dataset.guarded;
+    }
+  }
 }
 
 function banner(text) {
@@ -380,7 +457,8 @@ function renderCard() {
         $("#stmt").outerHTML = `<input id="stmtEdit" style="width:100%;margin:10px 0 14px" value="${esc(it.statement)}" aria-label="Statement">`;
         const input = $("#stmtEdit");
         input.focus();
-        input.onkeydown = (e) => { if (e.key === "Enter" && input.value.trim()) decide("approve", input.value.trim()); };
+        const blocked = guard(input, [$("#edit")]);
+        input.onkeydown = (e) => { if (e.key === "Enter" && input.value.trim() && !blocked()) decide("approve", input.value.trim()); };
         $("#edit").textContent = "Approve edit";
         $("#edit").onclick = () => input.value.trim() && decide("approve", input.value.trim());
       };
@@ -427,6 +505,7 @@ function renderAsk() {
   </div>`;
   const input = $("#askText");
   input.focus();
+  guard(input, [$("#askGo")], $("#askForm"));
   $("#askForm").onsubmit = async (e) => {
     e.preventDefault();
     const q = input.value.trim();
@@ -454,6 +533,7 @@ function renderQuiz(qz) {
   </div>`;
   const box = $("#quizText");
   box.oninput = () => (drafts[qz.caseId] = box.value);
+  guard(box, [$("#quizGo")]);
   $("#quizSkip").onclick = () => act(() => api("/api/quiz/skip", { caseId: qz.caseId }));
   $("#quizGo").onclick = async () => {
     const answer = box.value.trim();
@@ -494,6 +574,7 @@ function renderQuestion(q) {
   </div>`;
   const box = $("#answerText");
   box.oninput = () => (drafts[q.questionId] = box.value);
+  guard(box, [$("#readAnswer")]);
   $("#notNow").onclick = () => act(() => api("/api/question/skip", { questionId: q.questionId }));
   $("#dismissQ").onclick = () => act(() => api("/api/question/dismiss", { questionId: q.questionId }));
   $("#readAnswer").onclick = async () => {
@@ -543,12 +624,13 @@ async function renderIntro() {
     </div>
     <div class="intro-row"><input id="siteUrl" placeholder="Your website, e.g. lin.example" aria-label="Your website"><button id="addSite">Add website</button></div>
     ${siteLinks.length ? `<div class="links"><p class="note">Also read these pages from your site?</p>${siteLinks.map((l, i) => `<label><input type="checkbox" data-link="${i}"> ${esc(l.title)} <span class="small">${esc(l.url)}</span></label>`).join("")}<button id="addPages">Add ticked pages</button></div>` : ""}
-    ${sources.length ? `<ul class="sources">${sources.map((s) => `<li><span><b>${esc(SOURCE_KIND[s.kind])}</b> ${esc(s.ref)}<span class="small"> · ${s.chars.toLocaleString()} characters${s.contactsRemoved ? ` · ${s.contactsRemoved} contact detail${s.contactsRemoved === 1 ? "" : "s"} removed` : ""}</span></span><button class="ghost" data-remove="${esc(s.id)}">Remove</button></li>`).join("")}</ul>` : ""}
+    ${sources.length ? `<ul class="sources">${sources.map((s) => `<li><span><b>${esc(SOURCE_KIND[s.kind])}</b> ${esc(s.ref)}<span class="small"> · ${s.chars.toLocaleString()} characters${s.contactsRemoved ? ` · ${s.contactsRemoved} contact detail${s.contactsRemoved === 1 ? "" : "s"} removed` : ""}${(s.secretsRemoved || []).map((x) => ` · ${x.count} ${esc(x.label)}${x.count === 1 ? "" : "s"} removed`).join("")}</span></span><button class="ghost" data-remove="${esc(s.id)}">Remove</button></li>`).join("")}</ul>` : ""}
     <div class="actions" style="margin-top:14px"><button id="readIntro" class="primary">Read ${sources.length > 1 ? "them" : "it"}</button>${adding ? "" : `<button id="skipIntro" class="ghost">Skip for now</button>`}</div>
     <p class="status-line" id="introStatus" role="status"></p>
     <div class="error" id="cardError"></div>
   </div>`;
   const box = $("#introText");
+  guard(box, [$("#readIntro")]);
   const fail = (e) => { $("#cardError").textContent = e.message; $("#introStatus").textContent = ""; };
   const busy = (text) => { $("#cardError").textContent = ""; $("#introStatus").textContent = text; };
   box.oninput = () => (introText = box.value);
@@ -653,7 +735,12 @@ function renderStatements(reading, o = {
     <div class="actions"><button id="confirmIntro" class="primary"${total ? "" : " disabled"}>Looks right</button><button id="backIntro" class="ghost">Back</button></div>
     <div class="error" id="cardError"></div>
   </div>`;
-  for (const b of document.querySelectorAll(".statements .remove")) b.onclick = () => b.closest("li").remove();
+  for (const b of document.querySelectorAll(".statements .remove"))
+    b.onclick = () => {
+      b.closest("li").remove();
+      unblock();
+    };
+  for (const li of document.querySelectorAll(".statements li")) guard(li.querySelector("textarea"), [$("#confirmIntro")], li.querySelector(".st-row"));
   for (const b of document.querySelectorAll(".quote-toggle"))
     b.onclick = () => {
       const q = b.closest("li").querySelector(".quote");
@@ -1122,6 +1209,8 @@ async function openPanel(id) {
         fail(e);
       }
     };
+    // Each note goes under its row, not inside it.
+    for (const [box, save] of [["#rename", "#doRename"], ["#defn", "#doDescribe"], ["#examples", "#doDescribe"], ["#childName", "#doAdd"]]) guard($(box), [$(save)], $(box).closest(".row"));
     $("#closePanel").onclick = () => { panel.hidden = true; selected = null; drawForest(); };
     $("#doRename").onclick = () => { const name = $("#rename").value.trim(); if (!name) return fail(new Error("Give it a name first.")); edit("/api/tree/rename", { nodeId: id, name }); };
     $("#doDescribe").onclick = () => edit("/api/tree/describe", { nodeId: id, definition: $("#defn").value.trim() || null, examples: $("#examples").value.split(",").map((e) => e.trim()).filter(Boolean) });

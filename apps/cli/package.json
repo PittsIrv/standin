@@ -11,6 +11,7 @@
     ".": "./src/main.ts"
   },
   "dependencies": {
+    "@standin/airlock": "workspace:*",
     "@standin/compaction": "workspace:*",
     "@standin/demo-persona": "workspace:*",
     "@standin/evals": "workspace:*",

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { answerMode, computeLighting, loadSnapshot } from "../src/index.ts";
+import { SecretFoundError } from "@standin/airlock";
 import { world } from "./session-helpers.ts";
 
 describe("a concept-card session", () => {
@@ -217,5 +218,25 @@ describe("questions about your life", () => {
     expect(await restarted.answerQuestion(q.id, [{ ...read.statements[0]!, statement: "They are Miso and Tofu." }])).toEqual({ saved: 0, dropped: [] });
     expect(w.store.getQuestion(q.id).status).toBe("open");
     expect(w.store.listMemories({})).toEqual([]);
+  });
+});
+
+describe("secrets on the way in (personal-data guard)", () => {
+  const TOKEN = "ghp_" + "aB3kQ9zX7mW2pL5vR8tY4nC6aB3kQ9zX7mW2".slice(0, 36);
+
+  it("refuses an answer with a secret before any model sees it", async () => {
+    const w = world();
+    const s = await w.start();
+    const q = w.store.addQuestion({ nodeId: w.store.ensureNode("Pets", "other").id, text: "Any pets?" });
+    await expect(s.readAnswer(q.id, `Yes. Also my password is Hunter2!`)).rejects.toThrow(SecretFoundError);
+  });
+
+  it("refuses typed introduction text, but cuts a secret from a file and says so", async () => {
+    const w = world();
+    const s = await w.start();
+    expect(() => s.addSource("intro", "your introduction", `I'm Lin. token ${TOKEN}`)).toThrow(SecretFoundError);
+    const sum = s.addSource("file", "cv.pdf", `Lin Qiao\nGitHub token ${TOKEN}\nmail lin@example.edu`);
+    expect(sum).toMatchObject({ contactsRemoved: 1, secretsRemoved: [{ label: "GitHub token", count: 1 }] });
+    expect(s.introSources()[0]).toMatchObject({ secretsRemoved: [{ label: "GitHub token", count: 1 }] });
   });
 });

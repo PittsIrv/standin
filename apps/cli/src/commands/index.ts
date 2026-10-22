@@ -11,6 +11,7 @@ import { observeCommand } from "./observe.ts";
 import { outcomesCommand } from "./outcomes.ts";
 import { questionsCommand } from "./questions.ts";
 import { purgeCommand } from "./purge.ts";
+import { scanCommand } from "./scan.ts";
 import { queueCommand } from "./queue.ts";
 import { reviewCommand } from "./review.ts";
 import { tellCommand } from "./tell.ts";
@@ -39,6 +40,7 @@ export const commands: Record<string, Command> = {
   questions: questionsCommand,
   outcomes: outcomesCommand,
   consolidate: consolidateCommand,
+  scan: scanCommand,
   purge: purgeCommand,
   eval: evalCommand,
   usage: usageCommand,
