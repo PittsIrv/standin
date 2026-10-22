@@ -158,6 +158,8 @@ function own(text: string): Finding[] {
     if (g < 4 || looksLikePassword(m[4]!)) push("password", ...m.indices![g]!);
   }
   for (const m of text.matchAll(PRIVATE_KEY)) push("private-key", m.index, m.index + m[0].length);
+  // Before cards: an 18-digit ID can pass the Luhn check by chance, and the first finding on a span keeps its name.
+  for (const m of text.matchAll(CN_ID)) if (cnIdValid(m[0])) push("cn-resident-id", m.index, m.index + m[0].length);
   for (const m of text.matchAll(CARD)) {
     const digits = m[0].replace(/\D/g, "");
     if (digits.length >= 13 && digits.length <= 19 && /^[2-6]/.test(digits) && luhn(digits)) push("card-number", m.index, m.index + m[0].length);
@@ -173,14 +175,15 @@ function own(text: string): Finding[] {
       }
     }
   }
-  for (const m of text.matchAll(CN_ID)) if (cnIdValid(m[0])) push("cn-resident-id", m.index, m.index + m[0].length);
   for (const m of text.matchAll(SSN)) push("us-ssn", m.index, m.index + m[0].length);
   return out;
 }
 
 // ---- contacts (moved from @standin/intake; intro-sources spec §3) ---------
 
-const EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)*\.[A-Za-z]{2,}\b/g;
+// Starts only where a word starts, and the local part is at most 64 characters (RFC 5321): without both, a long
+// run of letters with no "@" makes every position re-scan the rest of the run.
+const EMAIL = /(?<![\w.+-])[\w.+-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63}){0,8}\.[A-Za-z]{2,24}\b/g;
 const ADDRESS = /\b\d{1,6}\s+(?:[A-Z][a-z]+\s+){1,4}(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Way|Place|Pl|Terrace)\b\.?/g;
 // International (+…), North American ((412) 555-0100, 412-555-0100) and Chinese mobile numbers. Dates, version
 // strings and paper ids have other shapes, so they are left alone.

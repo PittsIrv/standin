@@ -194,3 +194,30 @@ describe("contact patterns don't eat dates and ids", () => {
     expect(contactsIn(text)).toEqual([phone]);
   });
 });
+
+describe("speed on hostile input (no catastrophic backtracking in JavaScript)", () => {
+  it.each([
+    ["a long run of letters", "a".repeat(100_000)],
+    ["a long run of digits", "1".repeat(100_000)],
+    ["a long base64 blob", "QUJD".repeat(25_000)],
+    ["a finding after a long blob", "a".repeat(100_000) + " password: Hunter2!"],
+  ])("scans and describes %s in under a second", (_, text) => {
+    const t = performance.now();
+    describeAll(text, scan(text));
+    expect(performance.now() - t).toBeLessThan(1000);
+  });
+});
+
+describe("a Chinese ID that also passes the card check", () => {
+  it("is named as an ID", () => {
+    const W = [7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2];
+    const luhn = (d: string) => [...d].reverse().reduce((s, c, i) => s + (i % 2 ? ((n) => (n > 9 ? n - 9 : n))(Number(c) * 2) : Number(c)), 0) % 10 === 0;
+    let id = "";
+    for (let seq = 100; seq < 999 && !id; seq++) {
+      const body = `44010419900307${seq}`;
+      const check = "10X98765432"[W.reduce((s, w, i) => s + w * Number(body[i]), 0) % 11]!;
+      if (check !== "X" && luhn(body + check)) id = body + check;
+    }
+    expect(labels(`ID ${id}`)).toEqual(["Chinese resident ID"]);
+  });
+});

@@ -3,6 +3,7 @@ import { REMOVED, scan, type Finding } from "./scan.ts";
 const MASK = "•••";
 /** Words of context shown on each side of a finding; none of the finding itself (spec §6). */
 export const CONTEXT_WORDS = 4;
+const CONTEXT_CHARS = 200;
 
 /** A finding as it may be shown: where it is and the words around it, never the matched text. */
 export interface Described {
@@ -29,8 +30,9 @@ export function describeAll(text: string, findings: Finding[]): Described[] {
   return findings.map((f) => {
     const before = text.slice(0, f.start);
     const pos = maskedAt.get(f)!;
-    const left = masked.slice(0, pos).match(new RegExp(`(?:\\S+\\s+){0,${CONTEXT_WORDS}}$`))![0];
-    const right = masked.slice(pos + MASK.length).match(new RegExp(`^(?:\\s*\\S+){0,${CONTEXT_WORDS}}`))![0];
+    // A window around the finding, so a long unbroken blob beside it can't make the word match slow.
+    const left = masked.slice(Math.max(0, pos - CONTEXT_CHARS), pos).match(new RegExp(`(?:\\S+\\s+){0,${CONTEXT_WORDS}}$`))![0];
+    const right = masked.slice(pos + MASK.length, pos + MASK.length + CONTEXT_CHARS).match(new RegExp(`^(?:\\s*\\S+){0,${CONTEXT_WORDS}}`))![0];
     return {
       label: f.label,
       kind: f.kind,
