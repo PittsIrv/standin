@@ -1,3 +1,4 @@
+import { askCommand } from "./ask.ts";
 import { compactCommand } from "./compact.ts";
 import { consolidateCommand } from "./consolidate.ts";
 import { approveCommand, expireCommand, keepCommand, rejectCommand, retractCommand } from "./decide.ts";
@@ -34,6 +35,7 @@ export const commands: Record<string, Command> = {
   memories: memoriesCommand,
   map: mapCommand,
   review: reviewCommand,
+  ask: askCommand,
   questions: questionsCommand,
   outcomes: outcomesCommand,
   consolidate: consolidateCommand,

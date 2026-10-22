@@ -47,6 +47,9 @@ importers:
       '@standin/schema':
         specifier: workspace:*
         version: link:../../packages/schema
+      '@standin/speak':
+        specifier: workspace:*
+        version: link:../../packages/speak
       '@standin/store':
         specifier: workspace:*
         version: link:../../packages/store

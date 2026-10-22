@@ -46,6 +46,8 @@ Commands:
                                                  (--private adds the presented score; --all shows frontier nodes)
   review [--port P] [--lan] [--demo-llm]          rate concepts, review proposals and edit your world tree in a local page
                                                  (--lan: reachable from your phone, with a QR code; Ctrl-C stops)
+  ask "<question>" [--work] [--demo-llm]         answer as a visitor would be answered: the reply, its state and citations
+                                                 (--work: what it looked at, filtered and checked, and the cost)
   questions [--sheet]                            open questions about your life (--sheet: an answer sheet for interview import)
   outcomes export [--out F]                      text-free records of settled guesses, to a local file (needs sharing.outcomes)
   outcomes priors <file> | --clear               load (or clear) default reliabilities, capped per cell

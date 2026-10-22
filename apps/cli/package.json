@@ -19,6 +19,7 @@
     "@standin/models": "workspace:*",
     "@standin/review": "workspace:*",
     "@standin/schema": "workspace:*",
+    "@standin/speak": "workspace:*",
     "@standin/store": "workspace:*",
     "@standin/trace": "workspace:*",
     "tsx": "^4",
