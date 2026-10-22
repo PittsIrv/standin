@@ -118,7 +118,7 @@ Each run is written to `~/.standin/evals/runs/<time>.json` and summarized as a t
 
 - **The card.** A quiz card shows a visitor-style question and a box for the person's answer. After they submit, it shows the standin's reply (a fresh `answerTurn`) and three ratings: **Same**, **Partly**, **Wrong**. **Skip** passes.
 - **Questions** come from the private `known` and `not-on-record` cases that have never been quizzed. With no cases, there are no quiz cards, and the Ask tab suggests `standin eval build`.
-- **Cadence** (decision 90). Every **10th** card (`quiz.every`). When other cards run out, quiz cards come after open questions and before the approval queue.
+- **Cadence** (decision 90). Every **10th** card (`selfQuiz.every`; "quiz" already names the probe questions in code). When other cards run out, quiz cards come after open questions and before the approval queue.
 - **Stored.** A new `quiz_answers` table holds `{ id, caseId, question, personAnswer, standinReply, state, rating, sessionId, at }`.
   - **Wrong** also saves a preference pair `(question, standin reply, person's answer)`.
   - The person's answer becomes an observation (source kind `answer`, its reference the case) and goes through compaction to the approval queue, so a correction lands as a reviewable fact.
@@ -129,7 +129,7 @@ Each run is written to `~/.standin/evals/runs/<time>.json` and summarized as a t
 - **`packages/speak`** (new): route, awaken, filter, state, speak, check, `answerTurn`. It depends on knowledge, store, models and schema. The future Worker imports it.
 - **`packages/evals`** (new): case types, builders, runner, graders, baseline, and the repo cases.
 - **Store:** migration 13 adds `quiz_answers`.
-- **Config:** `answer { awakenBudget: 20, seeds: 3, candidates: 10, exemplars: 3, exemplarChars: 600 }`, `quiz { every: 10 }`, `evals { perSuite: 20, regression: 5 }`.
+- **Config:** `answer { awakenBudget: 20, seeds: 3, candidates: 10, exemplars: 3, exemplarChars: 600 }`, `selfQuiz { every: 10 }`, `evals { perSuite: 20, regression: 5 }`.
 
 ## 9. Decisions log
 
