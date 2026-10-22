@@ -105,6 +105,22 @@ export const Config = z.object({
       priorCap: z.number().positive().default(10),
     })
     .prefault({}),
+  /** Questions about gaps in the person's world (questions spec §5). Starting values. */
+  questions: z
+    .object({
+      perRefresh: z.number().int().nonnegative().default(3),
+      open: z.number().int().nonnegative().default(10),
+      /** A question comes as every n-th card. */
+      every: z.number().int().min(2).default(5),
+    })
+    .prefault({}),
+  /** What the person agrees to share. Everything is off until they turn it on. */
+  sharing: z
+    .object({
+      /** Allows `standin outcomes export`: text-free records of settled guesses, written to a local file. */
+      outcomes: z.boolean().default(false),
+    })
+    .prefault({}),
 });
 export type Config = z.infer<typeof Config>;
 export type ConfigInput = z.input<typeof Config>;

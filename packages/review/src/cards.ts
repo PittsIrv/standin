@@ -1,5 +1,5 @@
 import { reviewQueue, type QueueGroup, type ReviewItem } from "@standin/compaction";
-import type { CardSession, ClaimDecision, ShownCard } from "@standin/knowledge";
+import type { CardSession, ClaimDecision, ShownCard, ShownQuestion } from "@standin/knowledge";
 import type { Config, MemoryKind } from "@standin/schema";
 import type { SourceSummary, Store } from "@standin/store";
 
@@ -23,6 +23,7 @@ export type Card =
   | { type: "intro" }
   | { type: "card"; card: ShownCard }
   | { type: "keep-lower"; decision: ClaimDecision }
+  | { type: "question"; question: ShownQuestion }
   | { type: "proposal"; item: QueueCard }
   | { type: "done" };
 
@@ -43,8 +44,9 @@ export function queueCard(store: Store, i: ReviewItem): QueueCard {
 }
 
 /**
- * The one card to show now, first match wins (concept-cards spec §4, §6a): the card on screen (so a reload shows it
- * again), the introduction, a keep-or-lower decision, the next concept card, the review queue, then done.
+ * The one card to show now, first match wins (concept-cards spec §4, §6a; questions spec §2): the card on screen (so a
+ * reload shows it again), the introduction, a keep-or-lower decision, a question when one is due (every 5th card), the
+ * next concept card, any open question once those run out, the review queue, then done.
  */
 export async function nextCard(session: CardSession, store: Store, config: Config): Promise<Card> {
   const current = session.current();
@@ -52,8 +54,12 @@ export async function nextCard(session: CardSession, store: Store, config: Confi
   if (session.needsIntro()) return { type: "intro" };
   const decision = session.keepLowerDue();
   if (decision) return { type: "keep-lower", decision };
+  const due = session.questionDue();
+  if (due) return { type: "question", question: due };
   const card = await session.next();
   if (card) return { type: "card", card };
+  const question = session.anyQuestion();
+  if (question) return { type: "question", question };
   const item = reviewQueue(store, config)[0];
   if (item) return { type: "proposal", item: queueCard(store, item) };
   return { type: "done" };

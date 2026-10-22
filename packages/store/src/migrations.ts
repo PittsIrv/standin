@@ -396,6 +396,18 @@ const MIGRATIONS: Migration[] = [
   ALTER TABLE topics ADD COLUMN anchor TEXT;
   CREATE INDEX topics_anchor ON topics(anchor) WHERE anchor IS NOT NULL;
   `,
+  `
+  -- Questions: gaps in the person's world the standin asks about (never facts).
+  CREATE TABLE questions (
+    id TEXT PRIMARY KEY,
+    node_id TEXT NOT NULL REFERENCES entities(id),
+    text TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('open', 'answered', 'dismissed')),
+    created_at TEXT NOT NULL,
+    decided_at TEXT
+  );
+  CREATE INDEX questions_status ON questions(status, created_at);
+  `,
 ];
 
 /** Applies pending migrations up to `target` (default: all of them). */

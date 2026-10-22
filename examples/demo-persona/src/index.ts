@@ -146,6 +146,18 @@ export function demoLLM(): ScriptedLLM {
     }
     if (req.purpose === "seed") return seed(req.prompt);
     if (req.purpose === "intro") return intro(req.prompt);
+    // Questions: how a project turned out, or what the pets in a node's facts are called.
+    if (req.purpose === "question")
+      return {
+        questions: req.prompt.split(/\n(?=\[\d+\])/).flatMap((block) => {
+          const head = /^\[(\d+)\] (.+) \((\w+), in \w+\)$/m.exec(block);
+          if (!head) return [];
+          const node = Number(head[1]);
+          const pet = /\b(cats|dogs|cat|dog)\b/i.exec(block)?.[1]?.toLowerCase();
+          if (pet) return [{ node, question: pet.endsWith("s") ? `What are your ${pet}' names?` : `What is your ${pet}'s name?` }];
+          return head[3] === "project" ? [{ node, question: `How did ${head[2]} turn out?` }] : [];
+        }),
+      };
     // Anchoring: the best-ranked candidate, which the code lists first.
     if (req.purpose === "anchor")
       return { anchors: [...req.prompt.matchAll(/^\[(\d+)\][^\n]*\n {2}(\d+) /gm)].map((m) => ({ concept: Number(m[1]), subfield: m[2]! })) };

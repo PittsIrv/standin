@@ -13,7 +13,7 @@ const SKIPPED = "intro.skipped";
 /** A source waiting to be read: its text is already free of contact details, and nothing is stored yet. */
 export interface IntroSource {
   id: string;
-  kind: "intro" | "file" | "website";
+  kind: "intro" | "file" | "website" | "answer";
   /** "your introduction", a file name, or a URL. */
   ref: string;
   text: string;
@@ -85,7 +85,7 @@ export async function readSource(map: LLM, source: IntroSource, personaName: str
  * text, contact details already removed); each statement an approved background fact with its kind, quote and dates.
  * Sensitive and empty statements are dropped, and ones already known are skipped. At most 40.
  */
-export function saveIntro(store: Store, sources: IntroSource[], statements: ConfirmedStatement[]): { saved: Memory[]; dropped: string[] } {
+export function saveIntro(store: Store, sources: IntroSource[], statements: ConfirmedStatement[], opts: { homeNodeId?: string } = {}): { saved: Memory[]; dropped: string[] } {
   const known = new Set(store.listMemories({ kind: "fact" }).filter((m) => m.status !== "rejected").map((m) => normalizeName(m.statement)));
   const byId = new Map(sources.map((s) => [s.id, s]));
   const dropped: string[] = [];
@@ -122,7 +122,12 @@ export function saveIntro(store: Store, sources: IntroSource[], statements: Conf
         ...(c.end ? { end: c.end } : {}),
         ...(c.current ? { current: true } : {}),
       };
-      const m = store.insertMemory({ kind: "fact", statement: c.statement, tier: 1, isCurrentState: c.current, attrs }, { sourceObservationIds: [observationFor(c.sourceId)], entityIds: [], actor: "person" });
+      const m = store.insertMemory({ kind: "fact", statement: c.statement, tier: 1, isCurrentState: c.current, attrs }, {
+        sourceObservationIds: [observationFor(c.sourceId)],
+        entityIds: opts.homeNodeId ? [opts.homeNodeId] : [],
+        actor: "person",
+        ...(opts.homeNodeId ? { homeNodeId: opts.homeNodeId } : {}),
+      });
       return store.approve(m.id);
     });
     return { saved, dropped };

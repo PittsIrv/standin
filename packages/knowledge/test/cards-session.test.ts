@@ -153,3 +153,69 @@ describe("leaving and coming back", () => {
     expect(w.store.getResponse(left.responseId).level).toBe(4);
   });
 });
+
+describe("questions about your life", () => {
+  const withQuestion = (w: ReturnType<typeof world>) => {
+    const pets = w.store.ensureNode("Pets", "pet");
+    w.store.addEdge({ from: pets.id, to: w.store.root("life").id, kind: "part_of", source: "placement" });
+    return { pets, q: w.store.addQuestion({ nodeId: pets.id, text: "What are your cats' names?" }) };
+  };
+
+  it("comes as every 5th card, and stays on screen until it's dealt with", async () => {
+    const w = world();
+    for (const t of ["A", "B", "C", "D", "E"]) w.guess(t, 2);
+    const { q } = withQuestion(w);
+    const s = await w.start();
+    for (let i = 0; i < 4; i++) {
+      expect(s.questionDue()).toBeNull();
+      s.answer((await s.next())!.responseId, 4);
+    }
+    expect(s.questionDue()).toMatchObject({ questionId: q.id, text: "What are your cats' names?", node: "Pets", path: ["Life"] });
+    expect(s.questionDue()?.questionId).toBe(q.id);
+    s.skipQuestion(q.id);
+    expect(s.questionDue()).toBeNull();
+    expect(s.anyQuestion()).toBeNull();
+    expect(w.store.getQuestion(q.id).status).toBe("open");
+  });
+
+  it("is asked before the queue once the knowledge cards run out, and can be dismissed for good", async () => {
+    const w = world();
+    const { q } = withQuestion(w);
+    const s = await w.start();
+    expect(await s.next()).toBeNull();
+    expect(s.anyQuestion()?.questionId).toBe(q.id);
+    s.dismissQuestion(q.id);
+    expect(w.store.getQuestion(q.id).status).toBe("dismissed");
+    expect(s.anyQuestion()).toBeNull();
+  });
+
+  it("reads an answer like the introduction, and stores what you confirm as facts on the question's node", async () => {
+    const w = world();
+    const { pets, q } = withQuestion(w);
+    const s = await w.start();
+    const read = await s.readAnswer(q.id, "They are Miso and Tofu. Call me at 412-555-0199.");
+    expect(read.statements.map((x) => x.statement)).toEqual(["They are Miso and Tofu."]);
+    expect(read.contacts).toBe(1);
+    expect(w.store.listMemories({})).toEqual([]);
+    const r = await s.answerQuestion(q.id, [{ ...read.statements[0]!, statement: "My cats are Miso and Tofu.", kind: "relationship" }]);
+    expect(r).toEqual({ saved: 1, dropped: [] });
+    const fact = w.store.listMemories({ status: "approved" })[0]!;
+    expect([fact.statement, fact.homeNodeId, fact.attrs]).toEqual(["My cats are Miso and Tofu.", pets.id, expect.objectContaining({ kind: "relationship" })]);
+    const obs = w.store.memorySources(fact.id)[0]!;
+    expect([obs.sourceKind, obs.sourceRef]).toEqual(["answer", "What are your cats' names?"]);
+    expect(w.store.getQuestion(q.id).status).toBe("answered");
+    expect(s.anyQuestion()).toBeNull();
+  });
+
+  it("saves nothing, and keeps the question open, when every statement is sensitive or the answer was never read here", async () => {
+    const w = world();
+    const { q } = withQuestion(w);
+    const s = await w.start();
+    const read = await s.readAnswer(q.id, "I take them to church.");
+    expect(await s.answerQuestion(q.id, read.statements)).toEqual({ saved: 0, dropped: [] });
+    const restarted = await w.start();
+    expect(await restarted.answerQuestion(q.id, [{ ...read.statements[0]!, statement: "They are Miso and Tofu." }])).toEqual({ saved: 0, dropped: [] });
+    expect(w.store.getQuestion(q.id).status).toBe("open");
+    expect(w.store.listMemories({})).toEqual([]);
+  });
+});

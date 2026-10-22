@@ -34,6 +34,7 @@ describe("standin map", () => {
     expect(refreshed.code).toBe(0);
     expect(refreshed.out).toContain("seeded Computer science");
     expect(refreshed.out).toMatch(/anchored in the OpenAlex frame: .*Computer science/);
+    expect(refreshed.out).toMatch(/asked \d+ new questions? about your world/);
     expect(refreshed.out).toMatch(/hypotheses: \+\d+/);
     expect(refreshed.out).toContain("Next: standin queue");
 
