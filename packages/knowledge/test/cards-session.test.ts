@@ -206,4 +206,16 @@ describe("questions about your life", () => {
     expect(w.store.getQuestion(q.id).status).toBe("answered");
     expect(s.anyQuestion()).toBeNull();
   });
+
+  it("saves nothing, and keeps the question open, when every statement is sensitive or the answer was never read here", async () => {
+    const w = world();
+    const { q } = withQuestion(w);
+    const s = await w.start();
+    const read = await s.readAnswer(q.id, "I take them to church.");
+    expect(await s.answerQuestion(q.id, read.statements)).toEqual({ saved: 0, dropped: [] });
+    const restarted = await w.start();
+    expect(await restarted.answerQuestion(q.id, [{ ...read.statements[0]!, statement: "They are Miso and Tofu." }])).toEqual({ saved: 0, dropped: [] });
+    expect(w.store.getQuestion(q.id).status).toBe("open");
+    expect(w.store.listMemories({})).toEqual([]);
+  });
 });
