@@ -57,6 +57,11 @@ Commands:
   usage [--since ISO] [--by role|model]          model calls, tokens and cost
   traces [--since ISO] [--kind K] [--limit N]    recent runs (compaction, import, ...)
   trace <id> | --last [--content]                one run as a tree of steps
+  eval build [--demo-llm]                        write private test cases from your store to $STANDIN_HOME/evals/cases.jsonl
+                                                 (edit freely; add "edited": true to keep a case through rebuilds)
+  eval run [--suite S] [--cases F] [--baseline] [--demo-llm]
+                                                 answer every case as a visitor would be answered and grade it; exit 1 on
+                                                 any leak or a quality drop of more than 5 points (--baseline: reset it)
   eval dedup                                     recall@1/4/8 of each duplicate-search method on the labeled set
 
 List commands accept --json.`;

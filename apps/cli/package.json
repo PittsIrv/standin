@@ -13,6 +13,7 @@
   "dependencies": {
     "@standin/compaction": "workspace:*",
     "@standin/demo-persona": "workspace:*",
+    "@standin/evals": "workspace:*",
     "@standin/interview": "workspace:*",
     "@standin/knowledge": "workspace:*",
     "@standin/llm": "workspace:*",

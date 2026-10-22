@@ -29,6 +29,9 @@ importers:
       '@standin/demo-persona':
         specifier: workspace:*
         version: link:../../examples/demo-persona
+      '@standin/evals':
+        specifier: workspace:*
+        version: link:../../packages/evals
       '@standin/interview':
         specifier: workspace:*
         version: link:../../packages/interview
