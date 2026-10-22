@@ -8,13 +8,15 @@
 :root {
   --bg: #e9eeec; --panel: #f7f9f8; --ink: #1d2624; --muted: #5d6a66; --line: #c9d3cf;
   --lit: #d9932b; --lit-ink: #6b430b; --life: #2f8f83; --dark-node: #8a948f; --danger: #a8322a; --focus: #2f6fb3;
+  --bark: #7a6f5f; --ground: #dde4df;
   --ui: "Avenir Next", "Seravek", "Segoe UI", system-ui, sans-serif;
   --read: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root { --bg: #14201c; --panel: #1b2925; --ink: #e4ece8; --muted: #9db0a9; --line: #2f413b;
-    --lit: #f0b452; --lit-ink: #f6d39a; --life: #4fbfb0; --dark-node: #5f6e69; --danger: #ef7a6f; --focus: #7fb2ec; color-scheme: dark; }
+    --lit: #f0b452; --lit-ink: #f6d39a; --life: #4fbfb0; --dark-node: #5f6e69; --danger: #ef7a6f; --focus: #7fb2ec;
+    --bark: #a39782; --ground: #1a2823; color-scheme: dark; }
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
@@ -43,7 +45,7 @@ main { flex: 1; min-height: 0; display: flex; }
 section[hidden] { display: none !important; }
 
 /* Session */
-#session { flex: 1; overflow: auto; padding: 32px 16px; }
+#session, #add { flex: 1; overflow: auto; padding: 32px 16px; }
 .card { max-width: 40rem; margin: 0 auto; }
 .topic { color: var(--muted); font-size: 15px; }
 .topic b { color: var(--ink); font-weight: 600; }
@@ -59,7 +61,6 @@ section[hidden] { display: none !important; }
 .includes { margin: -6px 0 18px; font-size: 15px; line-height: 1.5; }
 .includes b { font-weight: 600; margin-right: 4px; }
 .statements { list-style: none; padding: 0; margin: 0 0 18px; }
-.add-intro { max-width: 40rem; margin: 28px auto 0; text-align: center; }
 .intro-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
 .intro-row input { flex: 1; min-width: 12rem; }
 .intro-row .small, .card .small { color: var(--muted); font-size: 13px; }
@@ -91,16 +92,25 @@ section[hidden] { display: none !important; }
 .tools label { display: flex; align-items: center; gap: 6px; font-size: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 0 12px; min-height: 44px; }
 .legend { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; }
 .legend svg { vertical-align: -3px; margin-right: 4px; }
-.edge { fill: none; stroke: var(--line); stroke-width: 1.4; }
-.link { fill: none; stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 4; opacity: .7; }
-.label { font: 14px var(--ui); fill: var(--ink); }
+.soil { fill: var(--ground); }
+.groundline { stroke: var(--bark); stroke-width: 1.2; opacity: .5; }
+.bark { fill: none; stroke: var(--bark); stroke-linecap: round; }
+.bud { fill: var(--bg); stroke: var(--bark); stroke-width: 1.4; }
+.trunk { cursor: zoom-in; }
+.treename { font: 600 17px var(--read); fill: var(--ink); letter-spacing: .01em; }
+.vine { fill: none; stroke: var(--life); stroke-width: 1.2; stroke-dasharray: 2 4; }
+.label { font: 13px var(--ui); fill: var(--ink); paint-order: stroke; stroke: var(--bg); stroke-width: 3px; stroke-linejoin: round; }
 .label.unlit, .label.frontier { fill: var(--muted); }
-.rootlabel { font: 600 16px var(--ui); fill: var(--ink); }
-.chev { font: 12px var(--ui); fill: var(--muted); cursor: pointer; }
+.label.minor { opacity: 0; transition: opacity .15s; }
+.near .label.minor, .tree.focus .label.minor, .node:hover .label.minor, .node:focus-visible .label.minor, .node.selected .label.minor { opacity: 1; }
+#forest .label.crowded { opacity: 0; }
+#forest .node:hover .label.crowded, #forest .node:focus-visible .label.crowded, #forest .node.selected .label.crowded { opacity: 1; }
 .node { cursor: pointer; outline: none; }
 .node:focus-visible circle.core { stroke: var(--focus); stroke-width: 3; }
 .node.selected .label { font-weight: 600; }
-.node.target circle.core, .rootgroup.target text { stroke: var(--focus); stroke-width: 3; }
+.node.selected circle.core { stroke: var(--ink); stroke-width: 2; }
+.node.target circle.core, .trunk.target .bark { stroke: var(--focus); }
+.node.target circle.core { stroke-width: 3; }
 .halo { fill: var(--lit); }
 #ghost { position: fixed; pointer-events: none; padding: 4px 10px; border-radius: 8px; background: var(--ink); color: var(--bg); font-size: 14px; display: none; z-index: 5; }
 
@@ -132,6 +142,9 @@ section[hidden] { display: none !important; }
 }
 @media (prefers-reduced-motion: no-preference) {
   .halo { transition: opacity .3s; }
+  /* The one moment of motion: the first time the forest opens, it grows from the trunk outward. */
+  .grow .branch, .grow .node { animation: grow .5s both; animation-delay: calc(var(--d) * 110ms); }
+  @keyframes grow { from { opacity: 0; } }
 }
 </style>
 </head>
@@ -139,44 +152,42 @@ section[hidden] { display: none !important; }
 <header>
   <h1>standin review</h1>
   <nav role="tablist">
-    <button role="tab" data-tab="session" aria-selected="true">Session</button>
+    <button role="tab" data-tab="session" aria-selected="true">Questions</button>
+    <button role="tab" data-tab="add" aria-selected="false">Add</button>
     <button role="tab" data-tab="forest" aria-selected="false">Forest</button>
     <button role="tab" data-tab="boundaries" aria-selected="false">Boundaries</button>
-    <button role="tab" data-tab="queue" aria-selected="false">Queue</button>
   </nav>
   <span class="progress" id="progress"></span>
-  <button id="finish" title="Finish the session (f)">Finish<kbd>f</kbd></button>
 </header>
 <div id="banner" role="status"><span id="bannerText"></span><button id="bannerClose" class="ghost">Dismiss</button></div>
 <main>
   <section id="session" role="tabpanel"></section>
+  <section id="add" role="tabpanel" hidden></section>
   <section id="forestTab" role="tabpanel" hidden>
     <div id="canvas">
-      <svg id="forest" aria-label="Your world tree"></svg>
+      <svg id="forest" aria-label="Your forest: one tree for each part of your world"></svg>
       <div class="tools">
         <button id="fit">Fit</button>
-        <label><input type="checkbox" id="frontier"> Show frontier</label>
+        <label><input type="checkbox" id="frontier"> Show unexplored</label>
       </div>
       <div class="legend" aria-hidden="true">
-        <span><svg width="16" height="16"><circle style="fill:var(--lit)" cx="8" cy="8" r="7" opacity=".35"/><circle style="fill:var(--lit)" cx="8" cy="8" r="5"/></svg>lit (brighter = deeper)</span>
-        <span><svg width="16" height="16"><circle style="fill:var(--lit);stroke:var(--lit)" cx="8" cy="8" r="6" fill-opacity=".4" stroke-dasharray="2 2" stroke-width="1.5"/></svg>probable (fill = probability)</span>
+        <span><svg width="16" height="16"><circle style="fill:var(--lit)" cx="8" cy="8" r="7" opacity=".35"/><circle style="fill:var(--lit)" cx="8" cy="8" r="5"/></svg>you know it (brighter = deeper)</span>
+        <span><svg width="16" height="16"><circle style="fill:var(--lit);stroke:var(--lit)" cx="8" cy="8" r="6" fill-opacity=".4" stroke-dasharray="2 2" stroke-width="1.5"/></svg>guessed (fill = how likely)</span>
         <span><svg width="16" height="16"><circle style="fill:var(--life)" cx="8" cy="8" r="6"/></svg>has facts</span>
-        <span><svg width="16" height="16"><circle style="fill:var(--dark-node)" cx="8" cy="8" r="6"/></svg>dark</span>
-        <span><svg width="16" height="16"><circle style="stroke:var(--dark-node)" cx="8" cy="8" r="5.5" fill="none" stroke-width="1.5"/></svg>not lit</span>
+        <span><svg width="16" height="16"><circle style="fill:var(--dark-node)" cx="8" cy="8" r="6"/></svg>you don't know it</span>
+        <span><svg width="16" height="16"><circle style="stroke:var(--dark-node)" cx="8" cy="8" r="5.5" fill="none" stroke-width="1.5"/></svg>not asked yet</span>
       </div>
     </div>
     <aside id="panel" hidden></aside>
     <div id="ghost"></div>
   </section>
   <section id="boundaries" class="list" role="tabpanel" hidden><div></div></section>
-  <section id="queue" class="list" role="tabpanel" hidden><div></div></section>
 </main>
 <script>
 "use strict";
 const TOKEN = new URLSearchParams(location.search).get("t") || "";
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-let finished = false;
 
 async function api(path, body) {
   const res = await fetch(path, {
@@ -202,12 +213,13 @@ function show(name) {
   tab = name;
   for (const b of document.querySelectorAll("nav button")) b.setAttribute("aria-selected", String(b.dataset.tab === name));
   $("#session").hidden = name !== "session";
+  $("#add").hidden = name !== "add";
   $("#forestTab").hidden = name !== "forest";
   $("#boundaries").hidden = name !== "boundaries";
-  $("#queue").hidden = name !== "queue";
-  if (name === "forest") loadForest();
+  if (name === "session") loadCard();
+  if (name === "add") renderIntro();
+  if (name === "forest") loadForest(true);
   if (name === "boundaries") loadBoundaries();
-  if (name === "queue") loadQueue();
 }
 for (const b of document.querySelectorAll("nav button")) b.onclick = () => show(b.dataset.tab);
 
@@ -222,12 +234,24 @@ const WHY = {
   area: "An area you haven't told us about yet.",
 };
 
+// The introduction is needed until the standin knows something about you (or you skip it).
+let introNeeded = false;
+// Whether a card was answered on this page, so running out of questions can open the forest.
+let answeredHere = false;
+
 async function loadCard() {
-  if (finished) return;
   try {
     const data = await api("/api/card");
     card = data.card;
     if (data.warnings?.length) banner(data.warnings.join(" · "));
+    introNeeded = card?.type === "intro";
+    if (introNeeded && tab === "session") return show("add");
+    if (card?.type === "done" && answeredHere) {
+      answeredHere = false;
+      banner("No more questions for now. Here is your forest.");
+      renderCard();
+      return show("forest");
+    }
     renderCard();
     const st = await api("/api/status");
     $("#progress").textContent = `${st.answered} answered`;
@@ -249,6 +273,7 @@ function buttons(list) {
 async function act(fn) {
   try {
     await fn();
+    answeredHere = true;
     await loadCard();
   } catch (e) {
     const el = $("#cardError");
@@ -261,7 +286,11 @@ function renderCard() {
   const c = card;
   keymap = {};
   if (!c) return;
-  if (c.type === "intro") return renderIntro(false);
+  if (c.type === "intro") {
+    root.innerHTML = `<div class="card done"><p class="statement">Start by introducing yourself.</p><p class="note">Your standin asks better questions once it knows a little about you.</p>${buttons([["Introduce yourself", "", "toAdd", "primary"]])}</div>`;
+    $("#toAdd").onclick = () => show("add");
+    return;
+  }
   if (c.type === "card") {
     const k = c.card;
     const why = k.reason === "part" ? WHY.part(k.parent) : WHY[k.reason];
@@ -323,11 +352,10 @@ function renderCard() {
       };
     }
   } else {
-    root.innerHTML = `<div class="card done"><p class="statement">Nothing left to ask.</p><p class="note">Look over the forest, or finish to settle this session's guesses.</p>${buttons([["Finish session", "f", "finish2", "primary"]])}</div>`;
-    $("#finish2").onclick = finish;
+    root.innerHTML = `<div class="card done"><p class="statement">No more questions for now.</p><p class="note">Your answers are saved. Look at your forest, or tell your standin more and it will find new things to ask.</p>${buttons([["See your forest", "", "toForest", "primary"], ["Add something", "", "toAdd2"]])}</div>`;
+    $("#toForest").onclick = () => show("forest");
+    $("#toAdd2").onclick = () => show("add");
   }
-  root.insertAdjacentHTML("beforeend", `<div class="add-intro"><button id="addIntro" class="ghost">Add to your introduction</button></div>`);
-  $("#addIntro").onclick = () => renderIntro(true);
 }
 
 // ---- the introduction: text, files and your website, then confirm what was read out of them ----
@@ -336,12 +364,12 @@ let siteLinks = [];
 const FACT_KINDS = ["education", "occupation", "project", "publication", "skill", "language", "award", "membership", "place", "characteristic", "routine", "goal", "experience", "relationship", "preference", "other"];
 const SOURCE_KIND = { intro: "Typed", file: "File", website: "Web page" };
 
-async function renderIntro(adding) {
-  keymap = {};
+async function renderIntro() {
+  const adding = !introNeeded;
   let sources = [];
   try { sources = (await api("/api/intro/sources")).sources; } catch {}
-  $("#session").innerHTML = `<div class="card">
-    <h2 class="concept">${adding ? "Add to your introduction" : "Introduce yourself"}</h2>
+  $("#add").innerHTML = `<div class="card">
+    <h2 class="concept">${adding ? "Add to what your standin knows" : "Introduce yourself"}</h2>
     <p class="definition">Tell your standin who you are: a few sentences, your résumé, or your website. It reads them, shows you what it found, and keeps only what you approve.</p>
     <textarea id="introText" rows="5" maxlength="20000" aria-label="Your introduction" placeholder="I'm a second-year CS PhD student. I work on reinforcement learning for robots, and before that I studied math.">${esc(introText)}</textarea>
     <div class="intro-row">
@@ -351,7 +379,7 @@ async function renderIntro(adding) {
     <div class="intro-row"><input id="siteUrl" placeholder="Your website, e.g. lin.example" aria-label="Your website"><button id="addSite">Add website</button></div>
     ${siteLinks.length ? `<div class="links"><p class="note">Also read these pages from your site?</p>${siteLinks.map((l, i) => `<label><input type="checkbox" data-link="${i}"> ${esc(l.title)} <span class="small">${esc(l.url)}</span></label>`).join("")}<button id="addPages">Add ticked pages</button></div>` : ""}
     ${sources.length ? `<ul class="sources">${sources.map((s) => `<li><span><b>${esc(SOURCE_KIND[s.kind])}</b> ${esc(s.ref)}<span class="small"> · ${s.chars.toLocaleString()} characters${s.contactsRemoved ? ` · ${s.contactsRemoved} contact detail${s.contactsRemoved === 1 ? "" : "s"} removed` : ""}</span></span><button class="ghost" data-remove="${esc(s.id)}">Remove</button></li>`).join("")}</ul>` : ""}
-    <div class="actions" style="margin-top:14px"><button id="readIntro" class="primary">Read ${sources.length > 1 ? "them" : "it"}</button><button id="skipIntro" class="ghost">${adding ? "Back to the cards" : "Skip for now"}</button></div>
+    <div class="actions" style="margin-top:14px"><button id="readIntro" class="primary">Read ${sources.length > 1 ? "them" : "it"}</button>${adding ? "" : `<button id="skipIntro" class="ghost">Skip for now</button>`}</div>
     <p class="status-line" id="introStatus" role="status"></p>
     <div class="error" id="cardError"></div>
   </div>`;
@@ -359,8 +387,14 @@ async function renderIntro(adding) {
   const fail = (e) => { $("#cardError").textContent = e.message; $("#introStatus").textContent = ""; };
   const busy = (text) => { $("#cardError").textContent = ""; $("#introStatus").textContent = text; };
   box.oninput = () => (introText = box.value);
-  $("#skipIntro").onclick = () => act(() => (adding ? Promise.resolve() : api("/api/intro/skip", {})));
-  for (const b of document.querySelectorAll("[data-remove]")) b.onclick = async () => { await api("/api/intro/remove", { sourceId: b.dataset.remove }).catch(fail); renderIntro(adding); };
+  if ($("#skipIntro")) $("#skipIntro").onclick = async () => {
+    try {
+      await api("/api/intro/skip", {});
+      introNeeded = false;
+      show("session");
+    } catch (e) { fail(e); }
+  };
+  for (const b of document.querySelectorAll("[data-remove]")) b.onclick = async () => { await api("/api/intro/remove", { sourceId: b.dataset.remove }).catch(fail); renderIntro(); };
   $("#introFile").onchange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -374,7 +408,7 @@ async function renderIntro(adding) {
         r.readAsDataURL(file);
       });
       await api("/api/intro/file", { name: file.name, data });
-      renderIntro(adding);
+      renderIntro();
     } catch (err) { fail(err); }
   };
   $("#addSite").onclick = async () => {
@@ -384,7 +418,7 @@ async function renderIntro(adding) {
     try {
       const r = await api("/api/intro/site", { url });
       siteLinks = r.links.slice(0, 20);
-      renderIntro(adding);
+      renderIntro();
     } catch (err) { fail(err); }
   };
   if ($("#addPages")) $("#addPages").onclick = async () => {
@@ -394,7 +428,7 @@ async function renderIntro(adding) {
     try {
       await api("/api/intro/pages", { urls });
       siteLinks = siteLinks.filter((l) => !urls.includes(l.url));
-      renderIntro(adding);
+      renderIntro();
     } catch (err) { fail(err); }
   };
   $("#readIntro").onclick = async () => {
@@ -406,7 +440,7 @@ async function renderIntro(adding) {
       } else if (!sources.length) return fail(new Error("Write a sentence or two, add a file, or add your website first."));
       $("#readIntro").disabled = true;
       busy("Reading… each statement is checked against its source.");
-      renderStatements(await api("/api/intro/read", {}), adding);
+      renderStatements(await api("/api/intro/read", {}));
     } catch (err) {
       fail(err);
       $("#readIntro").disabled = false;
@@ -414,7 +448,7 @@ async function renderIntro(adding) {
   };
 }
 
-function renderStatements(reading, adding) {
+function renderStatements(reading) {
   const all = new Map();
   const row = (st) => {
     all.set(st.id, st);
@@ -432,7 +466,7 @@ function renderStatements(reading, adding) {
     reading.contacts ? `${reading.contacts} contact detail${reading.contacts === 1 ? " was" : "s were"} removed` : "",
     reading.overLimit ? `${reading.overLimit} more past the limit of 40 (confirm these, then add the rest again)` : "",
   ].filter(Boolean);
-  $("#session").innerHTML = `<div class="card">
+  $("#add").innerHTML = `<div class="card">
     <h2 class="concept">Is this right?</h2>
     <p class="note">This is what your standin read, with the words each statement rests on. Fix, re-kind or remove anything; only what you keep is saved.</p>
     ${reading.groups.map((g) => `<h3 class="group">${esc(SOURCE_KIND[g.kind])} · ${esc(g.ref)}</h3>${g.statements.length ? `<ul class="statements">${g.statements.map(row).join("")}</ul>` : `<p class="small">Nothing to keep was found here.</p>`}`).join("")}
@@ -447,7 +481,7 @@ function renderStatements(reading, adding) {
       q.hidden = !q.hidden;
       b.setAttribute("aria-expanded", String(!q.hidden));
     };
-  $("#backIntro").onclick = () => renderIntro(adding);
+  $("#backIntro").onclick = () => renderIntro();
   $("#confirmIntro").onclick = async () => {
     const kept = [...document.querySelectorAll(".statements li")]
       .map((li) => {
@@ -463,7 +497,8 @@ function renderStatements(reading, adding) {
       const r = await api("/api/intro/confirm", { statements: kept });
       if (r.dropped.length) banner(`Left out ${r.dropped.length} statement${r.dropped.length === 1 ? "" : "s"} about a sensitive subject; your standin never guesses about those.`);
       siteLinks = [];
-      await loadCard();
+      introNeeded = false;
+      show("session");
     } catch (e) {
       $("#cardError").textContent = e.message;
       $("#confirmIntro").disabled = false;
@@ -473,10 +508,9 @@ function renderStatements(reading, adding) {
 }
 
 document.addEventListener("keydown", (e) => {
-  if (finished || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
   const t = e.target;
   if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT")) return;
-  if (e.key === "f") return finish();
   if (tab !== "session") return;
   const id = keymap[e.key];
   if (id && $(`#${id}`)) {
@@ -485,39 +519,24 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-async function finish() {
-  if (finished || !confirm("Finish this session?")) return;
-  try {
-    const { report } = await api("/api/finish", {});
-    finished = true;
-    for (const b of document.querySelectorAll("button")) b.disabled = true;
-    $("#bannerClose").disabled = false;
-    show("session");
-    $("#session").innerHTML = `<div class="card done"><p class="statement">Session finished.</p>
-      <p class="note">You answered ${report.answered} card${report.answered === 1 ? "" : "s"} and settled ${report.settled} guess${report.settled === 1 ? "" : "es"}.</p>
-      <p class="note">You can close this tab.</p></div>`;
-    $("#progress").textContent = "";
-  } catch (e) {
-    banner(e.message);
-  }
-}
-$("#finish").onclick = finish;
 
-// ---- the forest -------------------------------------------------------------------
+// ---- the forest, drawn as a grove: six trees on one ground line (review-page spec §4) -------------
 const SVGNS = "http://www.w3.org/2000/svg";
-const ROW = 30, ROOT_GAP = 46;
+const FAN_FROM = (200 * Math.PI) / 180, FAN_TO = (340 * Math.PI) / 180;
+const RING = 74, LEAF = 7, TREE_GAP = 50, NEAR = 1.1;
 let forest = null;
 let selected = null;
-const collapsed = new Set();
+let focusTree = null;
 let view = { x: 40, y: 40, k: 1 };
-let laid = null;
+let grove = null;
+let grown = false;
 
-async function loadForest() {
+/** Loads and draws the grove; `refit` frames it all again (on opening the tab, not after an edit). */
+async function loadForest(refit = false) {
   try {
-    const first = forest === null;
     forest = await api("/api/forest");
     drawForest();
-    if (first) fit();
+    if (refit) firstView();
     if (selected) openPanel(selected);
   } catch (e) {
     banner(e.message);
@@ -525,57 +544,87 @@ async function loadForest() {
 }
 $("#frontier").onchange = drawForest;
 
-function layout() {
-  const showFrontier = $("#frontier").checked;
-  const visible = forest.nodes.filter((n) => showFrontier || !n.frontier);
-  const kids = new Map();
-  for (const n of visible) if (n.parentId) kids.set(n.parentId, [...(kids.get(n.parentId) || []), n]);
-  for (const list of kids.values()) list.sort((a, b) => a.name.localeCompare(b.name));
-  const pos = new Map();
-  const depthOf = new Map();
-  let y = 0;
-  const place = (n, depth) => {
-    depthOf.set(n.id, depth);
-    const children = collapsed.has(n.id) ? [] : kids.get(n.id) || [];
-    if (children.length === 0) {
-      pos.set(n.id, { x: 0, y: y });
-      y += ROW;
-    } else {
-      for (const c of children) place(c, depth + 1);
-      const first = pos.get(children[0].id).y, last = pos.get(children[children.length - 1].id).y;
-      pos.set(n.id, { x: 0, y: (first + last) / 2 });
-    }
-  };
-  const roots = [];
-  for (const r of forest.roots) {
-    const top = { id: r.id, name: r.name, root: true };
-    const start = y;
-    if (!(kids.get(r.id) || []).length) { pos.set(r.id, { x: 0, y }); y += ROW; }
-    else place(top, 0);
-    roots.push({ ...r, y: pos.get(r.id).y, top: start });
-    y += ROOT_GAP;
-  }
-  const loose = visible.filter((n) => !n.parentId || (!pos.has(n.parentId) && !forest.roots.some((r) => r.id === n.parentId)));
-  for (const n of loose) if (!pos.has(n.id)) place(n, 0);
-  // Columns as wide as their widest label, so edges start after a label instead of crossing it.
-  const names = new Map([...forest.roots.map((r) => [r.id, r.name]), ...visible.map((n) => [n.id, n.name])]);
-  const widths = [];
-  const labelEnd = new Map();
-  for (const [id, depth] of depthOf) {
-    const w = textWidth(names.get(id) || "", depth === 0 && forest.roots.some((r) => r.id === id)) + ((kids.get(id) || []).length ? 30 : 18);
-    labelEnd.set(id, w);
-    widths[depth] = Math.max(widths[depth] || 0, w);
-  }
-  const colX = [0];
-  for (let d = 1; d < widths.length; d++) colX[d] = colX[d - 1] + (widths[d - 1] || 0) + 56;
-  for (const [id, depth] of depthOf) pos.get(id).x = colX[depth];
-  return { visible, kids, pos, roots, labelEnd, height: y, width: (colX.at(-1) || 0) + (widths.at(-1) || 0) };
+/** A small, stable number in [-1, 1] from a node's id, so each tree bends its own way and always the same way. */
+function wobble(id) {
+  let h = 2166136261;
+  for (const c of id) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+  return ((h >>> 0) % 2001) / 1000 - 1;
 }
 
-const measure = document.createElement("canvas").getContext("2d");
-function textWidth(text, bold) {
-  measure.font = `${bold ? "600 16px" : "14px"} ${getComputedStyle(document.body).fontFamily}`;
-  return measure.measureText(text).width;
+const branchWidth = (size) => Math.min(16, 1.5 + 1.3 * Math.sqrt(size));
+
+/** Every tree's layout: its trunk, and each node's place on a fan above it, in one coordinate space (the ground is y = 0). */
+function growGrove() {
+  const showFrontier = $("#frontier").checked;
+  const visible = forest.nodes.filter((n) => showFrontier || !n.frontier);
+  const byId = new Map(visible.map((n) => [n.id, n]));
+  const rootIds = new Set(forest.roots.map((r) => r.id));
+  const kids = new Map();
+  const loose = [];
+  for (const n of visible) {
+    if (n.parentId && (byId.has(n.parentId) || rootIds.has(n.parentId))) kids.set(n.parentId, [...(kids.get(n.parentId) || []), n]);
+    else loose.push(n);
+  }
+  for (const list of kids.values()) list.sort((a, b) => a.name.localeCompare(b.name));
+  const trees = forest.roots.map((r) => ({ id: r.id, name: r.name, root: true }));
+  if (loose.length) {
+    trees.push({ id: "__loose", name: "Not placed yet", root: false });
+    kids.set("__loose", loose.sort((a, b) => a.name.localeCompare(b.name)));
+  }
+  const leaves = new Map(), size = new Map(), depthOf = new Map();
+  const measure = (id, depth, seen) => {
+    if (seen.has(id)) return 0;
+    seen.add(id);
+    depthOf.set(id, depth);
+    const cs = kids.get(id) || [];
+    let l = 0, s = 1;
+    for (const c of cs) {
+      l += measure(c.id, depth + 1, seen);
+      s += size.get(c.id) || 0;
+    }
+    leaves.set(id, Math.max(1, l));
+    size.set(id, s);
+    return Math.max(1, l);
+  };
+  const pos = new Map(), out = [];
+  let cursor = 0;
+  for (const t of trees) {
+    const seen = new Set();
+    measure(t.id, 0, seen);
+    const nodes = [...seen].filter((id) => id !== t.id);
+    const maxDepth = Math.max(0, ...nodes.map((id) => depthOf.get(id)));
+    const ring = Math.max(RING, (26 * leaves.get(t.id)) / ((FAN_TO - FAN_FROM) * Math.max(1, maxDepth)));
+    const trunk = nodes.length ? Math.min(150, 56 + 9 * Math.sqrt(nodes.length)) : 34;
+    // Grow the tree around x = 0, then stand it next to the last one by the room its leaves (and their labels) take.
+    const crown = { x: 0, y: -trunk };
+    pos.set(t.id, { ...crown, angle: -Math.PI / 2 });
+    const place = (id, from, to) => {
+      const cs = kids.get(id) || [];
+      const total = cs.reduce((n, c) => n + leaves.get(c.id), 0);
+      let at = from;
+      for (const c of cs) {
+        const share = ((to - from) * leaves.get(c.id)) / total;
+        const angle = at + share / 2 + wobble(c.id) * share * 0.12;
+        const r = ring * depthOf.get(c.id) * (1 + wobble(c.id + "r") * 0.05);
+        pos.set(c.id, { x: crown.x + Math.cos(angle) * r, y: crown.y + Math.sin(angle) * r, angle });
+        place(c.id, at, at + share);
+        at += share;
+      }
+    };
+    place(t.id, FAN_FROM, FAN_TO);
+    // Room for each leaf's label too, on the side it points to (about 7 px a character).
+    const ext = nodes.map((id) => {
+      const p = pos.get(id), w = 16 + 7 * (byId.get(id)?.name.length ?? 0);
+      return Math.abs(Math.cos(p.angle)) < 0.2 || (kids.get(id) || []).length ? [p.x - w / 2, p.x + w / 2] : Math.cos(p.angle) >= -0.2 ? [p.x, p.x + w] : [p.x - w, p.x];
+    });
+    const left = nodes.length ? Math.min(-60, ...ext.map((e) => e[0])) - 20 : -55, right = nodes.length ? Math.max(60, ...ext.map((e) => e[1])) + 20 : 55;
+    const x = cursor - left;
+    for (const id of [t.id, ...nodes]) pos.get(id).x += x;
+    const xs = nodes.map((id) => pos.get(id).x);
+    out.push({ ...t, x, trunk, reach: [Math.min(x - 40, ...xs) - 30, Math.max(x + 40, ...xs) + 30], top: Math.max(trunk, ...nodes.map((id) => -pos.get(id).y)) + 40, left: cursor, right: cursor + right - left, nodes, size: size.get(t.id) });
+    cursor += right - left + TREE_GAP;
+  }
+  return { trees: out, kids, pos, size, depthOf, byId, width: cursor - TREE_GAP, height: Math.max(...out.map((t) => t.top)) };
 }
 
 function el(name, attrs, parent) {
@@ -592,71 +641,160 @@ function el(name, attrs, parent) {
 
 function nodeGlyph(g, n) {
   const knowledge = n.root === "knowledge" || (!n.root && n.label === "topic");
-  if (n.frontier) return el("circle", { class: "core", r: 4, fill: "none", stroke: "var(--dark-node)", "stroke-dasharray": "1.5 2" }, g);
+  if (n.frontier) return el("circle", { class: "core", r: 4, fill: "var(--bg)", stroke: "var(--dark-node)", "stroke-dasharray": "1.5 2" }, g);
   if (n.state === "lit" && knowledge) {
     const d = Math.max(1, Math.min(4, n.depth || 1));
-    el("circle", { class: "halo", r: 7 + d * 3, opacity: 0.08 + d * 0.05 }, g);
-    return el("circle", { class: "core", r: 7, fill: "var(--lit)", "fill-opacity": 0.35 + 0.15 * d }, g);
+    el("circle", { class: "halo", r: LEAF + d * 3, opacity: 0.08 + d * 0.05 }, g);
+    return el("circle", { class: "core", r: LEAF, fill: "var(--lit)", "fill-opacity": 0.35 + 0.15 * d }, g);
   }
-  if (n.state === "lit") return el("circle", { class: "core", r: 7, fill: "var(--life)" }, g);
-  if (n.state === "probable") return el("circle", { class: "core", r: 7, fill: "var(--lit)", "fill-opacity": n.p ?? 0.5, stroke: "var(--lit)", "stroke-width": 1.6, "stroke-dasharray": "3 2.5" }, g);
-  if (n.state === "dark") return el("circle", { class: "core", r: 7, fill: "var(--dark-node)" }, g);
-  return el("circle", { class: "core", r: 6.5, fill: "var(--bg)", stroke: "var(--dark-node)", "stroke-width": 1.6 }, g);
+  if (n.state === "lit") return el("circle", { class: "core", r: LEAF, fill: "var(--life)" }, g);
+  if (n.state === "probable") return el("circle", { class: "core", r: LEAF, fill: "var(--lit)", "fill-opacity": n.p ?? 0.5, stroke: "var(--lit)", "stroke-width": 1.6, "stroke-dasharray": "3 2.5" }, g);
+  if (n.state === "dark") return el("circle", { class: "core", r: LEAF, fill: "var(--dark-node)" }, g);
+  return el("circle", { class: "core", r: LEAF - 0.5, fill: "var(--bg)", stroke: "var(--dark-node)", "stroke-width": 1.6 }, g);
+}
+
+/** A branch that leaves its parent going up, then bends out toward its child. */
+function branchPath(a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  return `M${a.x},${a.y} C${a.x + dx * 0.15},${a.y + dy * 0.75} ${a.x + dx * 0.6},${b.y - dy * 0.08} ${b.x},${b.y}`;
+}
+
+function setView() {
+  $("#world")?.setAttribute("transform", `translate(${view.x},${view.y}) scale(${view.k})`);
+  $("#forest").classList.toggle("near", view.k >= NEAR);
 }
 
 function drawForest() {
   if (!forest) return;
-  laid = layout();
+  grove = growGrove();
   const svg = $("#forest");
   svg.innerHTML = "";
-  const world = el("g", { id: "world", transform: `translate(${view.x},${view.y}) scale(${view.k})` }, svg);
-  const byId = new Map(forest.nodes.map((n) => [n.id, n]));
-  // Tree edges, then cross-links (requires / related) between drawn nodes.
-  for (const n of laid.visible) {
-    const a = laid.pos.get(n.parentId), b = laid.pos.get(n.id);
-    if (!a || !b || collapsed.has(n.parentId)) continue;
-    const ax = a.x + (laid.labelEnd.get(n.parentId) || 8) + 6;
-    const mx = (ax + b.x) / 2;
-    el("path", { class: "edge", d: `M${ax},${a.y} C${mx},${a.y} ${mx},${b.y} ${b.x - 9},${b.y}` }, world);
+  const world = el("g", { id: "world" }, svg);
+  if (!grown) {
+    world.classList.add("grow");
+    grown = true;
   }
-  for (const l of forest.links) {
-    const a = laid.pos.get(l.from), b = laid.pos.get(l.to);
-    if (a && b) el("path", { class: "link", d: `M${a.x},${a.y} Q${(a.x + b.x) / 2 + 40},${(a.y + b.y) / 2} ${b.x},${b.y}` }, world);
-  }
-  for (const r of laid.roots) {
-    const g = el("g", { class: "rootgroup", "data-root": r.id, transform: `translate(0,${r.y})` }, world);
-    el("circle", { r: 9, fill: "var(--ink)" }, g);
-    const t = el("text", { class: "rootlabel", x: 16, y: 5 }, g);
-    t.textContent = r.name;
-  }
-  for (const n of laid.visible) {
-    const p = laid.pos.get(n.id);
-    if (!p) continue;
-    const g = el("g", { class: `node${selected === n.id ? " selected" : ""}`, "data-node": n.id, transform: `translate(${p.x},${p.y})`, tabindex: 0, role: "button", "aria-label": `${n.name}, ${n.state}` }, world);
-    nodeGlyph(g, n);
-    const hasKids = (laid.kids.get(n.id) || []).length > 0;
-    let x = 14;
-    if (hasKids) {
-      const ch = el("text", { class: "chev", x: 12, y: 4, "data-toggle": n.id }, g);
-      ch.textContent = collapsed.has(n.id) ? "▸" : "▾";
-      x = 26;
+  const { trees, kids, pos, size, depthOf, byId } = grove;
+  el("rect", { class: "soil", x: -4000, y: 0, width: grove.width + 8000, height: 46 }, world);
+  el("line", { class: "groundline", x1: -4000, y1: 0, x2: grove.width + 4000, y2: 0 }, world);
+  for (const t of trees) {
+    const g = el("g", { class: `tree${focusTree === t.id ? " focus" : ""}`, "data-tree": t.id }, world);
+    const hit = el("g", { class: "trunk", ...(t.root ? { "data-root": t.id } : {}), "data-zoom": t.id }, g);
+    if (!t.nodes.length) {
+      // A sapling: a root with nothing in it yet.
+      el("path", { class: "bark", d: `M${t.x},0 C${t.x - 2},-12 ${t.x + 2},-22 ${t.x},-${t.trunk}`, "stroke-width": 3 }, hit);
+      el("ellipse", { class: "bud", cx: t.x - 7, cy: -t.trunk + 2, rx: 6, ry: 3.5, transform: `rotate(-30 ${t.x - 7} ${-t.trunk + 2})` }, hit);
+      el("ellipse", { class: "bud", cx: t.x + 7, cy: -t.trunk - 2, rx: 6, ry: 3.5, transform: `rotate(30 ${t.x + 7} ${-t.trunk - 2})` }, hit);
+    } else {
+      const w = branchWidth(t.size);
+      const bend = wobble(t.id) * 8;
+      el("path", { class: "bark", d: `M${t.x},0 C${t.x + bend},${-t.trunk * 0.35} ${t.x - bend},${-t.trunk * 0.7} ${t.x},${-t.trunk}`, "stroke-width": w + 2 }, hit);
+      el("path", { class: "bark", d: `M${t.x - w * 0.9},2 Q${t.x},-6 ${t.x + w * 0.9},2`, "stroke-width": 3 }, hit);
     }
-    const label = el("text", { class: `label ${n.state}${n.frontier ? " frontier" : ""}`, x, y: 5 }, g);
-    label.textContent = n.name + (n.boundary ? " 🔒" : "");
+    const label = el("text", { class: "treename", x: t.x, y: 28, "text-anchor": "middle" }, hit);
+    label.textContent = t.name;
+    // Branches, thickest first so thin twigs sit on top.
+    const branches = [];
+    const walk = (id) => {
+      for (const c of kids.get(id) || []) {
+        if (!pos.has(c.id)) continue;
+        branches.push([id, c.id]);
+        walk(c.id);
+      }
+    };
+    walk(t.id);
+    branches.sort(([, a], [, b]) => (size.get(b) || 0) - (size.get(a) || 0));
+    for (const [from, to] of branches)
+      el("path", { class: "bark branch", d: branchPath(pos.get(from), pos.get(to)), "stroke-width": branchWidth(size.get(to) || 1), style: `--d:${depthOf.get(to) || 1}` }, g);
+    for (const id of t.nodes) {
+      const n = byId.get(id), p = pos.get(id);
+      if (!n || !p) continue;
+      const depth = depthOf.get(id) || 1;
+      const lg = el("g", { class: `node${selected === id ? " selected" : ""}`, "data-node": id, transform: `translate(${p.x},${p.y})`, tabindex: 0, role: "button", "aria-label": `${n.name}, ${n.state}`, style: `--d:${depth}` }, g);
+      nodeGlyph(lg, n);
+      // A leaf's name points away from the trunk; a fork's name sits under it, clear of the twigs growing out of it.
+      const fork = (kids.get(id) || []).some((c) => pos.has(c.id));
+      const right = Math.cos(p.angle) >= -0.2;
+      const up = Math.abs(Math.cos(p.angle)) < 0.2;
+      const text = el("text", {
+        class: `label ${n.state}${n.frontier ? " frontier" : ""}${depth > 1 ? " minor" : ""}`,
+        x: fork || up ? 0 : right ? 13 : -13,
+        y: fork ? 22 : up ? -14 : 5,
+        "text-anchor": fork || up ? "middle" : right ? "start" : "end",
+      }, lg);
+      text.textContent = n.name + (n.boundary ? " 🔒" : "");
+    }
   }
+  declutter(svg);
+  // Cross-links only for the leaf you're looking at, as vines.
+  if (selected && pos.has(selected))
+    for (const l of forest.links) {
+      if (l.from !== selected && l.to !== selected) continue;
+      const a = pos.get(l.from), b = pos.get(l.to);
+      if (a && b) el("path", { class: "vine", d: `M${a.x},${a.y} Q${(a.x + b.x) / 2},${Math.min(a.y, b.y) - 60} ${b.x},${b.y}` }, world);
+    }
+  setView();
+}
+
+/**
+ * Hides a label that would sit on one already placed (hovering or focusing its leaf still shows it): first-ring
+ * branches first, then what you know or we guessed, then the rest.
+ */
+function declutter(svg) {
+  const rank = (g) => {
+    const label = g.querySelector(".label");
+    return [label.classList.contains("minor") ? 1 : 0, /\b(lit|probable)\b/.test(label.getAttribute("class")) ? 0 : 1];
+  };
+  const placed = [];
+  const groups = [...svg.querySelectorAll(".node")].sort((a, b) => {
+    const [x, y] = [rank(a), rank(b)];
+    return x[0] - y[0] || x[1] - y[1];
+  });
+  for (const g of groups) {
+    const label = g.querySelector(".label");
+    const p = g.transform.baseVal.consolidate()?.matrix;
+    const b = label.getBBox();
+    const box = { x: b.x + (p?.e ?? 0) - 2, y: b.y + (p?.f ?? 0) - 1, w: b.width + 4, h: b.height + 2 };
+    const hit = placed.some((o) => box.x < o.x + o.w && o.x < box.x + box.w && box.y < o.y + o.h && o.y < box.y + box.h);
+    label.classList.toggle("crowded", hit);
+    if (!hit) placed.push(box);
+  }
+}
+
+/** Fits a box (in grove coordinates) into the canvas. */
+function frame(left, right, top) {
+  const box = $("#canvas").getBoundingClientRect();
+  const below = $(".legend").getBoundingClientRect().height + 30;
+  const w = right - left + 80, h = top + 90;
+  const k = Math.max(0.2, Math.min(1.6, (box.width - 40) / w, (box.height - below - 70) / h));
+  view = { k, x: (box.width - (right - left) * k) / 2 - left * k, y: box.height - below - 46 * k };
+  setView();
+}
+
+/** On opening the tab: the whole grove, or on a narrow screen, the biggest tree (Fit still shows them all). */
+function firstView() {
+  const biggest = grove?.trees.filter((t) => t.nodes.length).sort((a, b) => b.nodes.length - a.nodes.length)[0];
+  if (biggest && $("#canvas").getBoundingClientRect().width < 600) zoomToTree(biggest.id);
+  else fit();
 }
 
 function fit() {
-  if (!laid) return;
-  const box = $("#canvas").getBoundingClientRect();
-  const width = laid.width + 40;
-  const k = Math.max(0.35, Math.min(1.2, (box.width - 60) / width, (box.height - 120) / Math.max(laid.height, 1)));
-  view = { x: 30, y: 70, k };
-  drawForest();
+  if (!grove) return;
+  focusTree = null;
+  for (const t of document.querySelectorAll("#forest .tree")) t.classList.remove("focus");
+  frame(0, grove.width, grove.height);
 }
 $("#fit").onclick = fit;
 
-// Pan, zoom, select, collapse, and drag a node onto another to move it.
+function zoomToTree(id) {
+  const t = grove?.trees.find((x) => x.id === id);
+  if (!t) return;
+  focusTree = id;
+  for (const g of document.querySelectorAll("#forest .tree")) g.classList.toggle("focus", g.getAttribute("data-tree") === id);
+  frame(t.reach[0], t.reach[1], t.top);
+}
+
+// Pan, zoom, select, zoom to a tree, and drag a leaf onto another leaf or a tree to move it.
 (() => {
   const svg = $("#forest");
   const pointers = new Map();
@@ -677,32 +815,26 @@ $("#fit").onclick = fit;
       pan = drag = null;
       return;
     }
-    const toggle = e.target.closest("[data-toggle]");
-    if (toggle) {
-      const id = toggle.getAttribute("data-toggle");
-      collapsed.has(id) ? collapsed.delete(id) : collapsed.add(id);
-      drawForest();
-      return;
-    }
     const node = e.target.closest("[data-node]");
     if (node) drag = { id: node.getAttribute("data-node"), x: e.clientX, y: e.clientY, moving: false };
-    else {
-      pan = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y };
-      svg.classList.add("panning");
-    }
+    else pan = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y, moved: false, tree: e.target.closest("[data-zoom]")?.getAttribute("data-zoom") };
     svg.setPointerCapture(e.pointerId);
   });
   svg.addEventListener("pointermove", (e) => {
     if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pinch && pointers.size === 2) {
       const [a, b] = [...pointers.values()];
-      view.k = Math.max(0.3, Math.min(2.5, pinch.k * (Math.hypot(a.x - b.x, a.y - b.y) / pinch.d)));
-      return drawForest();
+      view.k = Math.max(0.2, Math.min(3, pinch.k * (Math.hypot(a.x - b.x, a.y - b.y) / pinch.d)));
+      return setView();
     }
     if (pan) {
+      if (Math.hypot(e.clientX - pan.x, e.clientY - pan.y) > 4) {
+        pan.moved = true;
+        svg.classList.add("panning");
+      }
       view.x = pan.vx + e.clientX - pan.x;
       view.y = pan.vy + e.clientY - pan.y;
-      $("#world")?.setAttribute("transform", `translate(${view.x},${view.y}) scale(${view.k})`);
+      setView();
     } else if (drag) {
       if (!drag.moving && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 6) {
         drag.moving = true;
@@ -723,7 +855,12 @@ $("#fit").onclick = fit;
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinch = null;
     svg.classList.remove("panning");
-    if (pan) pan = null;
+    if (pan) {
+      const p = pan;
+      pan = null;
+      if (!p.moved && p.tree) zoomToTree(p.tree);
+      return;
+    }
     if (!drag) return;
     const d = drag;
     drag = null;
@@ -745,11 +882,11 @@ $("#fit").onclick = fit;
     e.preventDefault();
     const box = svg.getBoundingClientRect();
     const mx = e.clientX - box.left, my = e.clientY - box.top;
-    const k = Math.max(0.3, Math.min(2.5, view.k * Math.exp(-e.deltaY * 0.0015)));
+    const k = Math.max(0.2, Math.min(3, view.k * Math.exp(-e.deltaY * 0.0015)));
     view.x = mx - ((mx - view.x) * k) / view.k;
     view.y = my - ((my - view.y) * k) / view.k;
     view.k = k;
-    $("#world")?.setAttribute("transform", `translate(${view.x},${view.y}) scale(${view.k})`);
+    setView();
   }, { passive: false });
   svg.addEventListener("keydown", (e) => {
     const node = e.target.closest?.("[data-node]");
@@ -770,6 +907,7 @@ function nodeOptions(exclude) {
 
 async function openPanel(id) {
   selected = id;
+  drawForest();
   const panel = $("#panel");
   panel.hidden = false;
   try {
@@ -827,16 +965,17 @@ async function openPanel(id) {
 
 function statusLine(n) {
   const knowledge = n.root === "knowledge" || (!n.root && n.label === "topic");
+  const level = (d) => `“${LEVEL_NAME[d] ?? d}”`;
   if (!knowledge) return `${n.facts} fact${n.facts === 1 ? "" : "s"} · ${n.label}${n.boundary ? " · boundary" : ""}`;
-  if (n.state === "probable" && n.hypothesis) return `Probable at level ${n.hypothesis.depth} (p ${n.hypothesis.p.toFixed(2)})`;
-  if (n.state === "dark") return n.depth === null ? "Dark: you said you don't know it" : "Dark";
-  if (n.depth === null) return "Not lit yet";
-  if (n.via === "gap") return `Gap: fine up to level ${n.depth}`;
-  if (n.via === "inherited") return `Lit at level ${n.depth}, inherited from ${n.from}`;
-  return `Lit at level ${n.depth} (${n.basis})${n.boundary ? " · boundary" : ""}`;
+  if (n.state === "probable" && n.hypothesis) return `Guessed: probably ${level(n.hypothesis.depth)} (p ${n.hypothesis.p.toFixed(2)})`;
+  if (n.state === "dark") return "You don't know it";
+  if (n.depth === null) return "Not asked yet";
+  if (n.via === "gap") return `A gap: fine up to ${level(n.depth)}`;
+  if (n.via === "inherited") return `You know it: ${level(n.depth)}, from ${n.from}`;
+  return `You know it: ${level(n.depth)} (${n.basis})${n.boundary ? " · boundary" : ""}`;
 }
 
-// ---- boundaries and queue -----------------------------------------------------------
+// ---- boundaries -----------------------------------------------------------
 async function loadBoundaries() {
   const box = $("#boundaries > div");
   try {
@@ -845,18 +984,6 @@ async function loadBoundaries() {
       ? `<p class="note">The standin deflects questions on these branches. Undo any you'd rather allow.</p><ul>${boundaries.map((b) => `<li><span>${esc(b.topic)}</span><button data-undo="${esc(b.nodeId)}">Undo</button></li>`).join("")}</ul>`
       : `<p class="empty">No boundaries. Rating a question “Wouldn't say” adds one.</p>`;
     for (const b of box.querySelectorAll("[data-undo]")) b.onclick = async () => { await api("/api/boundaries/undo", { nodeId: b.getAttribute("data-undo") }); loadBoundaries(); };
-  } catch (e) {
-    box.innerHTML = `<p class="error">${esc(e.message)}</p>`;
-  }
-}
-
-async function loadQueue() {
-  const box = $("#queue > div");
-  try {
-    const { items } = await api("/api/queue");
-    box.innerHTML = items.length
-      ? `<p class="note">In the order the session shows them. Decide them from the Session tab.</p><ul>${items.map((i) => `<li><span>${esc(i.statement)}</span><span class="small">${i.stillTrue ? "still true?" : esc(i.group)}</span></li>`).join("")}</ul>`
-      : `<p class="empty">Nothing waiting for review.</p>`;
   } catch (e) {
     box.innerHTML = `<p class="error">${esc(e.message)}</p>`;
   }

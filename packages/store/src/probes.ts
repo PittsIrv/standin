@@ -112,6 +112,13 @@ export function showProbe(
   return getResponse(s, id);
 }
 
+/** Moves a shown, unanswered card into a later session, keeping its prediction (review-page spec §3). */
+export function carryResponse(s: Store, id: string, sessionId: string): ProbeResponse {
+  if (getResponse(s, id).rating !== null) throw new AlreadyRatedError(id);
+  s.db.prepare("UPDATE probe_responses SET session_id = ? WHERE id = ? AND rating IS NULL").run(sessionId, id);
+  return getResponse(s, id);
+}
+
 export function getResponse(s: Store, id: string): ProbeResponse {
   const r = s.db.prepare("SELECT * FROM probe_responses WHERE id = ?").get(id) as Row | undefined;
   if (!r) throw new NotFoundError("probe response", id);

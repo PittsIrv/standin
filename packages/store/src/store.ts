@@ -466,6 +466,9 @@ export class Store {
   showProbe(probeId: string, sessionId: string, predictedMode: AnswerModeName, p?: { predictedP: number; priorP: number }): ProbeResponse {
     return probes.showProbe(this, probeId, sessionId, predictedMode, p);
   }
+  carryResponse(id: string, sessionId: string): ProbeResponse {
+    return probes.carryResponse(this, id, sessionId);
+  }
   answerCard(id: string, answer: number | "wouldnt_say"): ProbeResponse {
     return probes.answerCard(this, id, answer);
   }
