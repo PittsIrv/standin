@@ -27,6 +27,16 @@ describe("building cases from the person's store", () => {
     expect(boundary.find((c) => c.expect.forbidden)?.expect).toEqual({ state: "any", forbidden: ["in 2027"] });
   });
 
+  it("writes no competence case for a concept with something on record, and asks visible concepts first", async () => {
+    const s = linStore();
+    const rust = node(s, "Rust", "knowledge");
+    fact(s, rust.id, "I write my engines in Rust.");
+    const hidden = node(s, "Borrow checker", "knowledge");
+    s.setTopic(hidden.id, { frontier: true });
+    const cases = (await buildCases(s, writer(), "Lin", { perSuite: 20 })).filter((c) => c.suite === "competence");
+    expect(cases.map((c) => c.question)).toEqual(["Can you explain Quantum computing?", "Can you explain Borrow checker?"]);
+  });
+
   it("caps each suite and keeps cases the person edited", async () => {
     const s = linStore();
     const work = s.listTopics().find((t) => t.name === "Game AI")!;

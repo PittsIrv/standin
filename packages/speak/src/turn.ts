@@ -54,7 +54,7 @@ export const TEMPLATES = {
   deflected: () => "That's something I keep private, so I won't go into it here. If it matters, ask me directly.",
   notOnRecord: (reason: NotOnRecordReason) =>
     reason === "competence"
-      ? "That's outside what I know well, so I'd rather not explain it as me. Ask me directly if you want my take."
+      ? "That's not something I can speak to here. Best to ask me directly."
       : "I'm not sure I've told my standin about that. Best to ask me directly.",
 };
 

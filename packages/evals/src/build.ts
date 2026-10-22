@@ -44,7 +44,11 @@ export async function buildCases(store: Store, judge: LLM, personaName: string, 
     if (!isSensitive(c.question)) built.push({ id: `not-on-record:${x.id}`, suite: "not-on-record", question: c.question.trim(), expect: { state: "not_on_record" }, from: x.id });
   }
 
-  for (const id of [...t.knowledge].filter((id) => !underBoundary(store, id) && answerMode(t, id).mode === "decline").slice(0, n)) {
+  // Only concepts with nothing on record: where a fact exists, a grounded reply about it is right, not a failure.
+  const said = (id: string) => [...store.nodeMemories(id), ...store.topicMemories(id)].some((m) => allowed(m, now));
+  const declined = [...t.knowledge].filter((id) => !underBoundary(store, id) && answerMode(t, id).mode === "decline" && !said(id));
+  declined.sort((a, b) => Number(t.topics.get(a)?.frontier ?? false) - Number(t.topics.get(b)?.frontier ?? false));
+  for (const id of declined.slice(0, n)) {
     const name = store.getTopic(id).name;
     built.push({ id: `competence:${id}`, suite: "competence", question: `Can you explain ${name}?`, expect: { state: "not_on_record", reason: "competence" }, from: id });
   }

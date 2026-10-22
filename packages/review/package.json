@@ -9,10 +9,16 @@
   },
   "dependencies": {
     "@standin/compaction": "workspace:*",
+    "@standin/evals": "workspace:*",
     "@standin/intake": "workspace:*",
     "@standin/knowledge": "workspace:*",
     "@standin/schema": "workspace:*",
+    "@standin/speak": "workspace:*",
     "@standin/store": "workspace:*",
     "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@standin/demo-persona": "workspace:*",
+    "@standin/trace": "workspace:*"
   }
 }

@@ -42,6 +42,11 @@ export class QuizDeck {
     return readCases(this.deps.casesPath).cases.filter((c) => (c.suite === "known" || c.suite === "not-on-record") && !quizzed.has(c.id) && !this.skipped.has(c.id));
   }
 
+  /** Quiz questions not yet answered or skipped. */
+  left(): number {
+    return this.pool().length;
+  }
+
   /** A quiz card when one is due after `answeredSince` other cards, or the one already on screen. */
   due(answeredSince: number): QuizCard | null {
     if (this.shown) return this.shown;

@@ -1,11 +1,12 @@
 import { queuePlace, reviewQueue } from "@standin/compaction";
 import { loadSnapshot, MAX_INTRO_STATEMENTS, nodeDetail, treeNodes, type FinishReport } from "@standin/knowledge";
 import { fetchPage, fileToText, IntakeError, LIMITS } from "@standin/intake";
-import { EntityKind, FactKind, ROOTS } from "@standin/schema";
+import { EntityKind, FactKind, QuizRating, ROOTS } from "@standin/schema";
+import { answerTurn } from "@standin/speak";
 import { NameTakenError } from "@standin/store";
 import { z } from "zod";
 import { nextCard, queueCard } from "./cards.ts";
-import type { Route, ReviewServerOptions } from "./server.ts";
+import { UnavailableError, type Route, type ReviewServerOptions } from "./server.ts";
 
 const Id = z.string().min(1).max(64);
 /** A 10 MB file, base64-encoded, plus the JSON around it. */
@@ -16,7 +17,7 @@ export function registerRoutes(o: ReviewServerOptions, route: Route, _finish: ()
   const { session, store, config } = o;
 
   // ---- the session -----------------------------------------------------------
-  route("GET", "/api/card", async () => ({ card: await nextCard(session, store, config), warnings: session.warnings.splice(0) }));
+  route("GET", "/api/card", async () => ({ card: await nextCard(session, store, config, o.quiz), warnings: session.warnings.splice(0) }));
   route("POST", "/api/answer", ({ body }) => {
     const b = z.object({ responseId: Id, answer: z.union([z.number().int().min(0).max(4), z.literal("wouldnt_say")]) }).parse(body);
     session.answer(b.responseId, b.answer);
@@ -86,6 +87,28 @@ export function registerRoutes(o: ReviewServerOptions, route: Route, _finish: ()
   });
   route("POST", "/api/intro/skip", () => {
     session.skipIntro();
+  });
+
+  // ---- asking as a visitor, and the self-quiz (answering spec §4, §7) ----
+  route("POST", "/api/ask", async ({ body }) => {
+    const b = z.object({ question: z.string().trim().min(1).max(500) }).parse(body);
+    if (!o.turn) throw new UnavailableError("Asking isn't available in this session.");
+    return answerTurn(o.turn, b.question);
+  });
+  const deck = () => {
+    if (!o.quiz) throw new UnavailableError("The self-quiz isn't available in this session.");
+    return o.quiz;
+  };
+  route("POST", "/api/quiz/answer", ({ body }) => {
+    const b = z.object({ caseId: z.string().min(1).max(200), answer: z.string().trim().min(1).max(LIMITS.textChars) }).parse(body);
+    return deck().answer(b.caseId, b.answer, session.sessionId);
+  });
+  route("POST", "/api/quiz/rate", ({ body }) => {
+    const b = z.object({ quizId: Id, rating: QuizRating }).parse(body);
+    deck().rate(b.quizId, b.rating);
+  });
+  route("POST", "/api/quiz/skip", ({ body }) => {
+    deck().skip(z.object({ caseId: z.string().min(1).max(200) }).parse(body).caseId);
   });
 
   // ---- questions about the person's life: answered like the introduction, put off, or dismissed ----

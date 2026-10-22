@@ -202,6 +202,9 @@ importers:
       '@standin/compaction':
         specifier: workspace:*
         version: link:../compaction
+      '@standin/evals':
+        specifier: workspace:*
+        version: link:../evals
       '@standin/intake':
         specifier: workspace:*
         version: link:../intake
@@ -211,12 +214,22 @@ importers:
       '@standin/schema':
         specifier: workspace:*
         version: link:../schema
+      '@standin/speak':
+        specifier: workspace:*
+        version: link:../speak
       '@standin/store':
         specifier: workspace:*
         version: link:../store
       zod:
         specifier: ^4.6.5
         version: 4.6.5
+    devDependencies:
+      '@standin/demo-persona':
+        specifier: workspace:*
+        version: link:../../examples/demo-persona
+      '@standin/trace':
+        specifier: workspace:*
+        version: link:../trace
 
   packages/schema:
     dependencies:

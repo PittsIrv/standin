@@ -188,7 +188,7 @@ export function demoLLM(): ScriptedLLM {
       return {
         cases: [...req.prompt.matchAll(/^\[(\d+)\] (?:\(([^)]*)\) )?(.*)$/gm)].map((m) => ({
           item: Number(m[1]),
-          question: m[2] ? `What else can you tell me about ${m[2]}?` : `Is it true that ${m[3]!.replace(/\.$/, "").replace(/^I\b/, "you").replace(/\bmy\b/gi, "your")}?`,
+          question: m[2] ? `What else can you tell me about ${m[2]}?` : `Is it true that ${m[3]!.replace(/\.$/, "").replace(/^I'm\b/, "you're").replace(/^I've\b/, "you've").replace(/^I\b/, "you").replace(/\bmy\b/gi, "your")}?`,
           forbidden: /private/.test(req.system) ? [m[3]!.replace(/\.$/, "").split(" ").slice(-2).join(" ")] : [],
         })),
       };

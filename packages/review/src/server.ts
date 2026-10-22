@@ -2,7 +2,9 @@ import { IntakeError, TooLargeError, type FetchOptions } from "@standin/intake";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import type { QuizDeck } from "@standin/evals";
 import type { CardSession, FinishReport } from "@standin/knowledge";
+import type { TurnDeps } from "@standin/speak";
 import type { Config } from "@standin/schema";
 import { AlreadyRatedError, CycleError, InvalidTransitionError, NameTakenError, NotFoundError, RootEditError, type Store } from "@standin/store";
 import { ZodError } from "zod";
@@ -17,6 +19,10 @@ export interface ReviewServerOptions {
   token?: string;
   /** The probability a probable node needs before the standin speaks to it. */
   speakAt?: number;
+  /** One visitor turn, for the Ask tab; without it, asking is unavailable. */
+  turn?: TurnDeps;
+  /** The self-quiz deck; without it, no quiz cards. */
+  quiz?: QuizDeck;
   /** How websites are fetched for the introduction (tests inject a fake network). */
   fetchOptions?: FetchOptions;
 }
@@ -85,12 +91,16 @@ async function readBody(req: IncomingMessage, limit: number): Promise<unknown> {
   }
 }
 
+/** A feature this session wasn't started with. */
+export class UnavailableError extends Error {}
+
 function statusFor(err: unknown): number {
   if (err instanceof BodyError) return err.status;
   if (err instanceof TooLargeError) return 413;
   if (err instanceof IntakeError) return 422;
   if (err instanceof ZodError) return 400;
   if (err instanceof NotFoundError) return 404;
+  if (err instanceof UnavailableError) return 409;
   if (err instanceof AlreadyRatedError || err instanceof InvalidTransitionError || err instanceof NameTakenError || err instanceof CycleError || err instanceof RootEditError)
     return 409;
   return 500;
@@ -144,7 +154,7 @@ export async function startReviewServer(o: ReviewServerOptions, register?: (rout
 
   route("GET", "/api/status", () => {
     const answered = o.store.listResponses({ sessionId: o.session.sessionId, rated: true }).length;
-    return { sessionId: o.session.sessionId, answered, finished: finishing !== null };
+    return { sessionId: o.session.sessionId, answered, finished: finishing !== null, quiz: o.quiz ? { ...o.quiz.agreement(), left: o.quiz.left() } : null };
   });
   route("POST", "/api/finish", async () => ({ report: await finish(), warnings: o.session.warnings.splice(0) }));
   register?.(route, finish);

@@ -1,11 +1,13 @@
 import { networkInterfaces } from "node:os";
 import { reviewQueue } from "@standin/compaction";
+import { QuizDeck } from "@standin/evals";
 import { CardSession } from "@standin/knowledge";
 import { startReviewServer } from "@standin/review";
 import { renderUnicodeCompact } from "uqr";
 import { CliError } from "../errors.ts";
 import { loadInstance } from "../home.ts";
-import { instanceModels, instanceTracer } from "../runtime.ts";
+import { instanceModels, instanceTracer, instanceTurn } from "../runtime.ts";
+import { casesPath } from "./eval.ts";
 import { flag, str, type Command } from "./shared.ts";
 
 /** The first non-internal IPv4 address: where a phone on the same network can reach this machine. */
@@ -45,7 +47,9 @@ export const reviewCommand: Command = {
         questions: config.questions,
       });
       for (const w of session.warnings.splice(0)) ctx.io.stdout(`warning: ${w}`);
-      const server = await startReviewServer({ session, store, config, host: lan ? "0.0.0.0" : "127.0.0.1", port, speakAt: config.hypotheses.speakAt });
+      const turn = instanceTurn(store, config, tracer, models);
+      const quiz = new QuizDeck({ store, casesPath: casesPath(ctx.home), turn, every: config.selfQuiz.every });
+      const server = await startReviewServer({ session, store, config, host: lan ? "0.0.0.0" : "127.0.0.1", port, speakAt: config.hypotheses.speakAt, turn, quiz });
       const url = publicHost ? server.url.replace("//0.0.0.0:", `//${publicHost}:`) : server.url;
       ctx.io.stdout(`Review page: ${url}`);
       if (publicHost) {
