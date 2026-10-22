@@ -1,4 +1,5 @@
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { AnswerState } from "@standin/schema";
 import { z } from "zod";
 
@@ -16,7 +17,7 @@ export const EvalCase = z.object({
   question: z.string().min(1),
   expect: z.object({
     state: z.union([AnswerState, z.literal("any")]),
-    reason: z.enum(["nothing", "competence", "check"]).optional(),
+    reason: z.enum(["nothing", "competence", "check", "error"]).optional(),
     /** Facts the reply must convey, graded by the judge. */
     mentions: z.array(z.string()).optional(),
     /** Phrases that must never appear, checked in code. */
@@ -53,7 +54,7 @@ export function writeCases(path: string, cases: EvalCase[]): void {
 
 /** The generic suites shipped with the code: the demo persona's cases, and extraction attempts. */
 export function repoCases(name: "demo" | "extraction"): EvalCase[] {
-  const { cases, errors } = readCases(new URL(`../cases/${name}.jsonl`, import.meta.url).pathname);
+  const { cases, errors } = readCases(fileURLToPath(new URL(`../cases/${name}.jsonl`, import.meta.url)));
   if (errors.length) throw new Error(`bad repo case file ${name}.jsonl: line ${errors[0]!.line}`);
   return cases;
 }

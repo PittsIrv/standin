@@ -47,16 +47,23 @@ export async function runCases(deps: TurnDeps & { judge: LLM }, cases: EvalCase[
       const reply = await answerTurn(deps, c.question);
       report.costUsd += reply.work.costUsd;
       let judged: Judged | null = null;
+      const extra: string[] = [];
+      if (reply.reason === "error") extra.push(`model call failed: ${reply.work.error}`);
       if (reply.state === "grounded" || reply.state === "inferred") {
-        judged = await deps.judge.generateObject({
-          ...buildJudgePrompt({ personaName: deps.personaName, question: c.question, reply: reply.text, cited: reply.cites.map((x) => x.statement), mentions: c.expect.mentions ?? [] }),
-          schema: JudgeSchema,
-          purpose: "judge",
-        });
-        report.checkMisses.judged++;
-        if (judged.unsupported.length) report.checkMisses.missed++;
+        try {
+          judged = await deps.judge.generateObject({
+            ...buildJudgePrompt({ personaName: deps.personaName, question: c.question, reply: reply.text, cited: reply.cites.map((x) => x.statement), mentions: c.expect.mentions ?? [] }),
+            schema: JudgeSchema,
+            purpose: "judge",
+          });
+          report.checkMisses.judged++;
+          if (judged.unsupported.length) report.checkMisses.missed++;
+        } catch (err) {
+          extra.push(`judge failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
       }
-      const g = gradeCase(c, reply, judged);
+      const graded = gradeCase(c, reply, judged);
+      const g = { ...graded, pass: graded.pass && extra.length === 0, why: [...graded.why, ...extra] };
       const s = suites[c.suite];
       s.n++;
       if (g.pass) s.passed++;

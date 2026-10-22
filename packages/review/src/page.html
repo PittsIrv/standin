@@ -404,7 +404,7 @@ function replyView(r) {
   const left = {};
   for (const f of w.filtered) left[f.reason] = (left[f.reason] || 0) + 1;
   const model = w.checks.model === null ? "not needed" : typeof w.checks.model === "string" ? w.checks.model : w.checks.model.supported ? "every claim is in the cited facts" : `unsupported: ${w.checks.model.unsupported.join("; ")}`;
-  const why = r.reason === "competence" ? " (not a topic you know well)" : r.reason === "check" ? " (a check stopped the reply)" : "";
+  const why = r.reason === "competence" ? " (not a topic you know well)" : r.reason === "check" ? " (a check stopped the reply)" : r.reason === "error" ? ` (a model call failed: ${w.error})` : "";
   return `<div class="reply"><p>${esc(r.text)}</p>
     <div class="meta"><span class="badge ${r.state}">${STATE_NAME[r.state]}</span>${r.cites.map((c) => `<span class="chip">${esc(c.statement)} <i>${esc(c.node)}</i></span>`).join("")}</div></div>
     <details class="work"><summary>How it answered${esc(why)}</summary><ul>

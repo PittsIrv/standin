@@ -120,6 +120,23 @@ describe("one turn", () => {
     expect(String(r.work.checks.model)).toMatch(/overloaded/);
   });
 
+  it("falls back to not on record, never an error, when the route or speak call fails", async () => {
+    const s = store();
+    const pets = node(s, "Pets", "life", "pet");
+    fact(s, pets.id, "I have two cats.");
+    const failing = (purpose: string) => {
+      const { d } = deps(s, grounded);
+      const inner = d.answer;
+      d.answer = { generateObject: (req) => (req.purpose === purpose ? Promise.reject(new Error("overloaded")) : inner.generateObject(req)) };
+      return d;
+    };
+    for (const purpose of ["route", "speak"]) {
+      const r = await answerTurn(failing(purpose), "Do you have cats?");
+      expect(r).toMatchObject({ state: "not_on_record", reason: "error", cites: [] });
+      expect(r.work.error).toMatch(/overloaded/);
+    }
+  });
+
   it("refuses general knowledge where every Knowledge seed declines, and says why", async () => {
     const s = store();
     node(s, "Chess engines", "knowledge");

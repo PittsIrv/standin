@@ -21,7 +21,8 @@ export interface TurnDeps {
   limits: Limits;
 }
 
-export type NotOnRecordReason = "nothing" | "competence" | "check";
+/** Why a reply is not on record; `error` when a model call failed (the visitor still gets a reply, never an error). */
+export type NotOnRecordReason = "nothing" | "competence" | "check" | "error";
 
 /** "Show your work": what the turn looked at and decided (architecture §8). */
 export interface Work {
@@ -33,6 +34,8 @@ export interface Work {
   /** The speaker's own reply when a check rejected it, so the person can see what was stopped. */
   rejected: string | null;
   checks: { code: string | null; model: CheckOut | string | null };
+  /** A failed route or speak call. */
+  error: string | null;
   modelCalls: number;
   costUsd: number;
   ms: number;
@@ -93,7 +96,7 @@ function contextItems(a: Awakened, t: ReturnType<typeof loadSnapshot>): ContextI
 export async function answerTurn(deps: TurnDeps, question: string): Promise<Reply> {
   const { store, tracer, limits } = deps;
   const started = Date.now();
-  const work: Work = { candidates: [], seeds: [], context: [], filtered: [], exemplars: 0, rejected: null, checks: { code: null, model: null }, modelCalls: 0, costUsd: 0, ms: 0 };
+  const work: Work = { candidates: [], seeds: [], context: [], filtered: [], exemplars: 0, rejected: null, checks: { code: null, model: null }, error: null, modelCalls: 0, costUsd: 0, ms: 0 };
   let traceId = "";
   const reply = await tracer.run("ask", { "standin.ask.chars": question.length }, async (run) => {
     traceId = run.traceId;
@@ -102,13 +105,24 @@ export async function answerTurn(deps: TurnDeps, question: string): Promise<Repl
       return r;
     };
     const notOnRecord = (reason: NotOnRecordReason) => done({ text: TEMPLATES.notOnRecord(reason), state: "not_on_record", reason, cites: [], general: false });
+    /** A model call that fails ends the turn as "not on record", with the error kept in `work`. */
+    const call = async <T>(fn: () => Promise<T>): Promise<T | null> => {
+      try {
+        return await fn();
+      } catch (err) {
+        work.error = err instanceof Error ? err.message : String(err);
+        run.setAttribute("standin.ask.error", work.error);
+        return null;
+      }
+    };
 
     // 1. Route.
     const cands = candidates(store, question, limits.candidates);
     work.candidates = cands.map((c) => c.name);
     if (cands.length === 0) return notOnRecord("nothing");
     const listed = cands.map((topic) => ({ topic, place: topic.rootKey ? "a root" : `in ${store.rootOf(topic.id) ?? "no tree yet"}` }));
-    const routed = await deps.answer.generateObject({ ...buildRoutePrompt(question, listed), schema: RouteSchema, purpose: "route" });
+    const routed = await call(() => deps.answer.generateObject({ ...buildRoutePrompt(question, listed), schema: RouteSchema, purpose: "route" }));
+    if (!routed) return notOnRecord("error");
     const seedIds = [...new Set(routed.seeds.filter((n) => n >= 1 && n <= cands.length).map((n) => cands[n - 1]!.id))].slice(0, limits.seeds);
     if (seedIds.length === 0) return notOnRecord("nothing");
 
@@ -129,11 +143,14 @@ export async function answerTurn(deps: TurnDeps, question: string): Promise<Repl
     const canary = `cnry_${randomBytes(6).toString("hex")}`;
     const examples = exemplars(store, question, limits.exemplars, limits.exemplarChars);
     work.exemplars = examples.length;
-    const out = await deps.answer.generateObject({
-      ...buildSpeakPrompt({ personaName: deps.personaName, question, seeds: a.seeds, items, exemplars: examples, canary, generalAllowed }),
-      schema: SpeakSchema,
-      purpose: "speak",
-    });
+    const out = await call(() =>
+      deps.answer.generateObject({
+        ...buildSpeakPrompt({ personaName: deps.personaName, question, seeds: a.seeds, items, exemplars: examples, canary, generalAllowed }),
+        schema: SpeakSchema,
+        purpose: "speak",
+      }),
+    );
+    if (!out) return notOnRecord("error");
     if (out.state === "not_on_record") return notOnRecord("nothing");
 
     // 6. Check in code.
