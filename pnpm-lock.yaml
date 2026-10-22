@@ -23,6 +23,9 @@ importers:
 
   apps/cli:
     dependencies:
+      '@standin/airlock':
+        specifier: workspace:*
+        version: link:../../packages/airlock
       '@standin/compaction':
         specifier: workspace:*
         version: link:../../packages/compaction
@@ -74,6 +77,8 @@ importers:
       '@standin/schema':
         specifier: workspace:*
         version: link:../../packages/schema
+
+  packages/airlock: {}
 
   packages/compaction:
     dependencies:
@@ -151,6 +156,9 @@ importers:
 
   packages/knowledge:
     dependencies:
+      '@standin/airlock':
+        specifier: workspace:*
+        version: link:../airlock
       '@standin/intake':
         specifier: workspace:*
         version: link:../intake
@@ -199,6 +207,9 @@ importers:
 
   packages/review:
     dependencies:
+      '@standin/airlock':
+        specifier: workspace:*
+        version: link:../airlock
       '@standin/compaction':
         specifier: workspace:*
         version: link:../compaction
@@ -260,6 +271,9 @@ importers:
 
   packages/store:
     dependencies:
+      '@standin/airlock':
+        specifier: workspace:*
+        version: link:../airlock
       '@standin/schema':
         specifier: workspace:*
         version: link:../schema
