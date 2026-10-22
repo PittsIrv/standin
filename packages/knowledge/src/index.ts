@@ -14,7 +14,7 @@ export { refresh, type RefreshReport } from "./refresh.ts";
 export { checkSplit, expandNode, MAX_SPLIT, MIN_SPLIT } from "./probing/expand.ts";
 export { ExpandSchema } from "./probing/schemas.ts";
 export { buildExpandPrompt } from "./probing/prompts.ts";
-export { CardSession, type IntroReading, type IntroSourceSummary, type CardSessionDeps, type ClaimDecision, type FinishReport, type ShownCard } from "./cards/session.ts";
+export { CardSession, type IntroReading, type IntroSourceSummary, type CardSessionDeps, type ClaimDecision, type FinishReport, type ShownCard, type ShownQuestion, type AnswerReading } from "./cards/session.ts";
 export { nodeStatus, renderForest, treeNodes, type TreeNode } from "./tree-view.ts";
 export { isSensitive, SENSITIVE_CATEGORIES } from "./hypotheses/sensitive.ts";
 export { checkHypothesis, established, MAX_HOPS } from "./hypotheses/guards.ts";

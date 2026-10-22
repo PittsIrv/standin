@@ -311,6 +311,8 @@ function renderCard() {
       keymap.s = "skip";
       $("#skip").onclick = () => act(() => api("/api/skip", { parentId: k.parentId }));
     }
+  } else if (c.type === "question") {
+    return renderQuestion(c.question);
   } else if (c.type === "keep-lower") {
     const d = c.decision;
     root.innerHTML = `<div class="card">
@@ -358,11 +360,55 @@ function renderCard() {
   }
 }
 
+// ---- a question about your life: answered like the introduction, put off, or dismissed -----------------
+const drafts = {};
+
+function renderQuestion(q) {
+  const root = $("#session");
+  root.innerHTML = `<div class="card">
+    <div class="topic">${[...q.path, q.node].map(esc).join(" › ")}</div>
+    <h2 class="concept">${esc(q.text)}</h2>
+    <p class="note">A question, not a guess: your standin never fills this in itself. What you write is read into statements you check before anything is saved.</p>
+    <textarea id="answerText" rows="3" maxlength="20000" aria-label="Your answer">${esc(drafts[q.questionId] || "")}</textarea>
+    ${buttons([["Read it", "", "readAnswer", "primary"], ["Not now", "n", "notNow"], ["Don't ask this", "", "dismissQ", "ghost"]])}
+    <p class="status-line" id="introStatus" role="status"></p>
+  </div>`;
+  const box = $("#answerText");
+  box.oninput = () => (drafts[q.questionId] = box.value);
+  $("#notNow").onclick = () => act(() => api("/api/question/skip", { questionId: q.questionId }));
+  $("#dismissQ").onclick = () => act(() => api("/api/question/dismiss", { questionId: q.questionId }));
+  $("#readAnswer").onclick = async () => {
+    const text = box.value.trim();
+    if (!text) return ($("#cardError").textContent = "Write an answer first, or choose Not now.");
+    $("#readAnswer").disabled = true;
+    $("#cardError").textContent = "";
+    $("#introStatus").textContent = "Reading… each statement is checked against your answer.";
+    try {
+      const r = await api("/api/question/read", { questionId: q.questionId, text });
+      renderStatements({ groups: [{ kind: "answer", ref: q.text, statements: r.statements }], notFound: r.notFound, sensitive: r.sensitive, contacts: r.contacts }, {
+        into: "#session",
+        busy: "Saving…",
+        send: (statements) => api("/api/question/confirm", { questionId: q.questionId, statements }),
+        back: () => renderQuestion(q),
+        done: () => {
+          delete drafts[q.questionId];
+          answeredHere = true;
+          loadCard();
+        },
+      });
+    } catch (e) {
+      $("#cardError").textContent = e.message;
+      $("#introStatus").textContent = "";
+      $("#readAnswer").disabled = false;
+    }
+  };
+}
+
 // ---- the introduction: text, files and your website, then confirm what was read out of them ----
 let introText = "";
 let siteLinks = [];
 const FACT_KINDS = ["education", "occupation", "project", "publication", "skill", "language", "award", "membership", "place", "characteristic", "routine", "goal", "experience", "relationship", "preference", "other"];
-const SOURCE_KIND = { intro: "Typed", file: "File", website: "Web page" };
+const SOURCE_KIND = { intro: "Typed", file: "File", website: "Web page", answer: "Your answer" };
 
 async function renderIntro() {
   const adding = !introNeeded;
@@ -448,7 +494,21 @@ async function renderIntro() {
   };
 }
 
-function renderStatements(reading) {
+/**
+ * The confirm screen, for the introduction and for a question's answer: the statements read, each editable with its
+ * kind and the words it rests on. `o` says where it goes, what "Looks right" sends, and what "Back" does.
+ */
+function renderStatements(reading, o = {
+  into: "#add",
+  busy: "Setting up your guesses…",
+  send: (statements) => api("/api/intro/confirm", { statements }),
+  back: () => renderIntro(),
+  done: () => {
+    siteLinks = [];
+    introNeeded = false;
+    show("session");
+  },
+}) {
   const all = new Map();
   const row = (st) => {
     all.set(st.id, st);
@@ -466,7 +526,7 @@ function renderStatements(reading) {
     reading.contacts ? `${reading.contacts} contact detail${reading.contacts === 1 ? " was" : "s were"} removed` : "",
     reading.overLimit ? `${reading.overLimit} more past the limit of 40 (confirm these, then add the rest again)` : "",
   ].filter(Boolean);
-  $("#add").innerHTML = `<div class="card">
+  $(o.into).innerHTML = `<div class="card">
     <h2 class="concept">Is this right?</h2>
     <p class="note">This is what your standin read, with the words each statement rests on. Fix, re-kind or remove anything; only what you keep is saved.</p>
     ${reading.groups.map((g) => `<h3 class="group">${esc(SOURCE_KIND[g.kind])} · ${esc(g.ref)}</h3>${g.statements.length ? `<ul class="statements">${g.statements.map(row).join("")}</ul>` : `<p class="small">Nothing to keep was found here.</p>`}`).join("")}
@@ -481,7 +541,7 @@ function renderStatements(reading) {
       q.hidden = !q.hidden;
       b.setAttribute("aria-expanded", String(!q.hidden));
     };
-  $("#backIntro").onclick = () => renderIntro();
+  $("#backIntro").onclick = o.back;
   $("#confirmIntro").onclick = async () => {
     const kept = [...document.querySelectorAll(".statements li")]
       .map((li) => {
@@ -492,13 +552,11 @@ function renderStatements(reading) {
       .filter((s) => s.statement);
     if (!kept.length) return ($("#cardError").textContent = "Keep at least one statement, or go back.");
     $("#confirmIntro").disabled = true;
-    $("#confirmIntro").textContent = "Setting up your guesses…";
+    $("#confirmIntro").textContent = o.busy;
     try {
-      const r = await api("/api/intro/confirm", { statements: kept });
+      const r = await o.send(kept);
       if (r.dropped.length) banner(`Left out ${r.dropped.length} statement${r.dropped.length === 1 ? "" : "s"} about a sensitive subject; your standin never guesses about those.`);
-      siteLinks = [];
-      introNeeded = false;
-      show("session");
+      o.done();
     } catch (e) {
       $("#cardError").textContent = e.message;
       $("#confirmIntro").disabled = false;

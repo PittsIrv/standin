@@ -67,6 +67,23 @@ export interface ShownCard {
   done: number;
 }
 
+/** An open question about the person's life, as a card shows it (questions spec §2). */
+export interface ShownQuestion {
+  questionId: string;
+  text: string;
+  /** The node it is about, and the names from the root down to it. */
+  node: string;
+  path: string[];
+}
+
+/** An answer read into statements for the person to confirm, with counts of what was left out. */
+export interface AnswerReading {
+  statements: ReadStatement[];
+  notFound: number;
+  sensitive: number;
+  contacts: number;
+}
+
 export interface ClaimDecision {
   claimNodeId: string;
   topic: string;
@@ -94,6 +111,12 @@ export class CardSession {
   private settledHere = 0;
   private sourceCount = 0;
   private readonly pending = new Map<string, { source: IntroSource; contactsRemoved: number; read: Awaited<ReturnType<typeof readSource>> | null }>();
+  /** Knowledge cards answered since the last question, the question on screen, and the ones put off this session. */
+  private sinceQuestion = 0;
+  private shownQuestion: string | null = null;
+  private readonly putOff = new Set<string>();
+  /** Answers read but not yet confirmed, by question: in memory only, like the introduction's sources. */
+  private readonly answers = new Map<string, IntroSource>();
 
   private constructor(
     private readonly deps: CardSessionDeps,
@@ -322,6 +345,7 @@ export class CardSession {
     const { store } = this.deps;
     if (answer !== "wouldnt_say" && (!Number.isInteger(answer) || answer < 0 || answer > 4)) throw new RangeError("an answer is a level from 0 to 4");
     const response = store.answerCard(responseId, answer);
+    this.sinceQuestion++;
     const probe = store.getProbe(response.probeId);
     if (answer === "wouldnt_say") store.setTopic(probe.nodeId, { boundaryTier: 3 });
     // Lighting a branch must not override what the person said they don't know inside it: carve that out now.
@@ -338,6 +362,75 @@ export class CardSession {
       store.settleHypothesis(h.id);
       this.settledHere++;
     }
+  }
+
+  /** The question on screen, or a new one once every n-th card is due (questions spec §2). */
+  questionDue(): ShownQuestion | null {
+    if (this.shownQuestion) {
+      if (this.deps.store.getQuestion(this.shownQuestion).status === "open") return this.showQuestion(this.shownQuestion);
+      this.shownQuestion = null;
+    }
+    return this.sinceQuestion >= (this.deps.questions?.every ?? 5) - 1 ? this.anyQuestion() : null;
+  }
+
+  /** The oldest open question not put off this session, shown now; null if there is none. */
+  anyQuestion(): ShownQuestion | null {
+    const next = this.deps.store.listQuestions({ status: "open" }).find((q) => !this.putOff.has(q.id));
+    if (!next) return null;
+    this.sinceQuestion = 0;
+    this.shownQuestion = next.id;
+    return this.showQuestion(next.id);
+  }
+
+  private showQuestion(id: string): ShownQuestion {
+    const { store } = this.deps;
+    const q = store.getQuestion(id);
+    const path: string[] = [];
+    const seen = new Set<string>();
+    for (let at = store.homeParent(q.nodeId); at && !seen.has(at); at = store.homeParent(at)) {
+      seen.add(at);
+      path.unshift(store.getTopic(at).name);
+    }
+    return { questionId: id, text: q.text, node: store.getTopic(q.nodeId).name, path };
+  }
+
+  /** "Not now": not asked again this session. */
+  skipQuestion(id: string): void {
+    this.putOff.add(id);
+    if (this.shownQuestion === id) this.shownQuestion = null;
+  }
+
+  /** "Don't ask this": never asked again. */
+  dismissQuestion(id: string): void {
+    this.deps.store.setQuestionStatus(id, "dismissed");
+    if (this.shownQuestion === id) this.shownQuestion = null;
+  }
+
+  /** Reads an answer like the introduction (decision 81): quote-checked statements to confirm; nothing is stored yet. */
+  async readAnswer(id: string, text: string): Promise<AnswerReading> {
+    const q = this.deps.store.getQuestion(id);
+    const { text: clean, removed } = stripContacts(unwrap(text.trim()));
+    const source: IntroSource = { id: `answer:${id}`, kind: "answer", ref: q.text, text: clean };
+    this.answers.set(id, source);
+    const read = await this.traced("question.read", () => readSource(this.deps.map, source, this.deps.personaName));
+    return { ...read, contacts: removed };
+  }
+
+  /** Stores the confirmed statements as facts on the question's node, with the answer as their source; the question is answered. */
+  async answerQuestion(id: string, statements: ConfirmedStatement[]): Promise<{ saved: number; dropped: string[] }> {
+    const { store } = this.deps;
+    const source = this.answers.get(id);
+    if (!source) return { saved: 0, dropped: [] };
+    return this.traced("question.answer", async () => {
+      const q = store.getQuestion(id);
+      const { saved, dropped } = saveIntro(store, [source], statements.map((s) => ({ ...s, sourceId: source.id })), { homeNodeId: q.nodeId });
+      if (saved.length > 0) {
+        store.setQuestionStatus(id, "answered");
+        this.answers.delete(id);
+        if (this.shownQuestion === id) this.shownQuestion = null;
+      }
+      return { saved: saved.length, dropped };
+    });
   }
 
   /** "That's enough here": nothing more under this concept is asked. */

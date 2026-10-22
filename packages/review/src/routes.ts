@@ -87,6 +87,30 @@ export function registerRoutes(o: ReviewServerOptions, route: Route, _finish: ()
   route("POST", "/api/intro/skip", () => {
     session.skipIntro();
   });
+
+  // ---- questions about the person's life: answered like the introduction, put off, or dismissed ----
+  const Question = z.object({ questionId: Id });
+  const known = (id: string) => store.getQuestion(id);
+  route("POST", "/api/question/read", ({ body }) => {
+    const b = Question.extend({ text: z.string().trim().min(1).max(LIMITS.textChars) }).parse(body);
+    known(b.questionId);
+    return session.readAnswer(b.questionId, b.text);
+  });
+  route("POST", "/api/question/confirm", ({ body }) => {
+    const b = Question.extend({ statements: z.array(Confirmed).max(MAX_INTRO_STATEMENTS) }).parse(body);
+    known(b.questionId);
+    return session.answerQuestion(b.questionId, b.statements);
+  });
+  route("POST", "/api/question/skip", ({ body }) => {
+    const b = Question.parse(body);
+    known(b.questionId);
+    session.skipQuestion(b.questionId);
+  });
+  route("POST", "/api/question/dismiss", ({ body }) => {
+    const b = Question.parse(body);
+    known(b.questionId);
+    session.dismissQuestion(b.questionId);
+  });
   route("POST", "/api/claim", ({ body }) => {
     const b = z.object({ claimNodeId: Id, choice: z.enum(["keep", "lower"]) }).parse(body);
     session.decideClaim(b.claimNodeId, b.choice);

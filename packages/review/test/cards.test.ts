@@ -139,3 +139,43 @@ describe("concept cards over HTTP", () => {
     await server.finish();
   });
 });
+
+describe("questions over HTTP", () => {
+  it("asks an open question once the knowledge cards run out, reads the answer, and stores what you confirm", async () => {
+    let qid = "";
+    const { w, server, api } = await served({
+      setup: (w) => {
+        const pets = w.store.ensureNode("Pets", "pet");
+        w.store.addEdge({ from: pets.id, to: w.store.root("life").id, kind: "part_of", source: "placement" });
+        qid = w.store.addQuestion({ nodeId: pets.id, text: "What are your cats' names?" }).id;
+      },
+    });
+    expect((await api("/api/card")).json!.card).toEqual({ type: "question", question: { questionId: qid, text: "What are your cats' names?", node: "Pets", path: ["Life"] } });
+    expect((await api("/api/question/read", { questionId: qid, text: "" })).status).toBe(400);
+    const read = (await api("/api/question/read", { questionId: qid, text: "They are Miso and Tofu." })).json!;
+    expect(read.statements.map((s: { statement: string }) => s.statement)).toEqual(["They are Miso and Tofu."]);
+    expect((await api("/api/question/confirm", { questionId: qid, statements: read.statements })).json).toEqual({ saved: 1, dropped: [] });
+    expect(w.store.getQuestion(qid).status).toBe("answered");
+    expect((await api("/api/card")).json!.card).toEqual({ type: "done" });
+    await server.finish();
+  });
+
+  it("puts a question off for the session, or dismisses it for good", async () => {
+    const ids: string[] = [];
+    const { w, server, api } = await served({
+      setup: (w) => {
+        for (const name of ["Pets", "Kite"]) {
+          const n = w.store.ensureNode(name, name === "Pets" ? "pet" : "project");
+          w.store.addEdge({ from: n.id, to: w.store.root(name === "Pets" ? "life" : "work").id, kind: "part_of", source: "placement" });
+          ids.push(w.store.addQuestion({ nodeId: n.id, text: `About ${name}?` }).id);
+        }
+      },
+    });
+    await api("/api/question/skip", { questionId: ids[0] });
+    expect((await api("/api/card")).json!.card.question.questionId).toBe(ids[1]);
+    await api("/api/question/dismiss", { questionId: ids[1] });
+    expect((await api("/api/card")).json!.card).toEqual({ type: "done" });
+    expect(w.store.listQuestions({}).map((q) => q.status)).toEqual(["open", "dismissed"]);
+    await server.finish();
+  });
+});
