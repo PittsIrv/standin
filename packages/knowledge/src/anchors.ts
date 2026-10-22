@@ -76,15 +76,17 @@ function buildIndex(f: Frame): Index {
 
 /**
  * The subfields a concept most likely belongs to (anchors spec §2): ranked by the words they share with its name,
- * definition and examples, rarer words counting more and a subfield's own name counting double. Top 10, best first.
+ * definition and examples, rarer words counting more, and a word in the concept's name or the subfield's name counting
+ * double. Top 10, best first.
  */
 export function shortlist(concept: { name: string; definition: string | null; examples: string[] }): FrameSubfield[] {
   const { index } = framed();
-  const mine = new Set(words([concept.name, concept.definition ?? "", ...concept.examples].join(" ")));
+  const named = new Set(words(concept.name));
+  const mine = new Set([...named, ...words([concept.definition ?? "", ...concept.examples].join(" "))]);
   return index.bags
     .map((b) => {
       let score = 0;
-      for (const w of mine) if (b.all.has(w)) score += (index.idf.get(w) ?? 0) * (b.name.has(w) ? 2 : 1);
+      for (const w of mine) if (b.all.has(w)) score += (index.idf.get(w) ?? 0) * (b.name.has(w) ? 2 : 1) * (named.has(w) ? 2 : 1);
       return { sub: b.sub, score };
     })
     .filter((x) => x.score > 0)
