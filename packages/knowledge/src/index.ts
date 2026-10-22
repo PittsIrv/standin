@@ -8,7 +8,7 @@ export { QuestionSchema, AnchorSchema, HomeSchema, HypothesizeSchema, IntroSchem
 export { placeNodes, seedBackground, unplacedNodes } from "./tasks.ts";
 export { askQuestions, QUESTION_LIMITS } from "./questions.ts";
 export { clearPriors, outcomeRecords, setPriors, type OutcomeRecord } from "./outcomes.ts";
-export { anchorConcepts, CANDIDATES, loadFrame, shortlist, type Frame, type FrameField, type FrameSubfield } from "./anchors.ts";
+export { anchorConcepts, CANDIDATES, loadFrame, shortlist, words, type Frame, type FrameField, type FrameSubfield } from "./anchors.ts";
 export { MAX_INTRO_STATEMENTS, needsIntro, readSource, saveIntro, skipIntro, type ConfirmedStatement, type IntroSource, type ReadStatement } from "./intro.ts";
 export { homeMemories, splitNodes } from "./organize.ts";
 export { refresh, type RefreshReport } from "./refresh.ts";

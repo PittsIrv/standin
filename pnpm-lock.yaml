@@ -190,6 +190,27 @@ importers:
         specifier: ^4.6.5
         version: 4.6.5
 
+  packages/speak:
+    dependencies:
+      '@standin/knowledge':
+        specifier: workspace:*
+        version: link:../knowledge
+      '@standin/llm':
+        specifier: workspace:*
+        version: link:../llm
+      '@standin/schema':
+        specifier: workspace:*
+        version: link:../schema
+      '@standin/store':
+        specifier: workspace:*
+        version: link:../store
+      '@standin/trace':
+        specifier: workspace:*
+        version: link:../trace
+      zod:
+        specifier: ^4.6.5
+        version: 4.6.5
+
   packages/store:
     dependencies:
       '@standin/schema':
