@@ -26,6 +26,7 @@ export function models() {
     if (req.purpose === "intro")
       return { statements: (/<source>\n([\s\S]*)\n<\/source>/.exec(req.prompt)?.[1] ?? "").split(/(?<=\.)\s+/).map((s) => ({ statement: s, quote: s, kind: "occupation" })) };
     if (req.purpose === "home") return { homes: [] };
+    if (req.purpose === "anchor") return { anchors: [] };
     return { merges: [], placements: [] };
   };
   return { map: new ScriptedLLM(handler) };

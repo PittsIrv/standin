@@ -1,6 +1,7 @@
 import type { LLM } from "@standin/llm";
 import type { Store } from "@standin/store";
 import type { Tracer } from "@standin/trace";
+import { anchorConcepts } from "./anchors.ts";
 import { syncStatedGaps } from "./gaps.ts";
 import { computeLighting } from "./lighting.ts";
 import { loadSnapshot } from "./snapshot.ts";
@@ -13,6 +14,8 @@ export interface RefreshReport {
   merged: number;
   /** Topics whose placement would have made a cycle. */
   refused: string[];
+  /** Top-level Knowledge concepts placed under their OpenAlex subfield. */
+  anchored: string[];
   /** Fields seeded from new background facts. */
   seeded: string[];
   /** Approved memories given a home node. */
@@ -26,7 +29,7 @@ export interface RefreshReport {
 }
 
 /**
- * `standin map refresh`: seed from background, place new nodes, home memories, split crowded nodes, record stated
+ * `standin map refresh`: seed from background, place new nodes, anchor top-level concepts in the OpenAlex frame, home memories, split crowded nodes, record stated
  * gaps, then guess what the person probably knows.
  * A failed model step is a warning; the steps after it still run on whatever the tree has.
  */
@@ -41,7 +44,7 @@ export async function refresh(o: {
   hypotheses?: { dropBelow: number; dropAfter: number };
 }): Promise<RefreshReport> {
   return o.tracer.run("map-refresh", {}, async (run) => {
-    const report: RefreshReport = { placed: 0, merged: 0, refused: [], seeded: [], homed: 0, split: [], gaps: 0, hypotheses: { added: 0, withdrawn: 0, rejected: [] }, warnings: [] };
+    const report: RefreshReport = { placed: 0, merged: 0, refused: [], anchored: [], seeded: [], homed: 0, split: [], gaps: 0, hypotheses: { added: 0, withdrawn: 0, rejected: [] }, warnings: [] };
     const step = async (label: string, fn: () => Promise<void>) => {
       try {
         await fn();
@@ -54,6 +57,9 @@ export async function refresh(o: {
     });
     await step("placing nodes", async () => {
       Object.assign(report, await placeNodes(o.store, o.map, o.personaName));
+    });
+    await step("anchoring concepts", async () => {
+      report.anchored = (await anchorConcepts(o.store, o.map, o.personaName)).anchored;
     });
     let grew = new Set<string>();
     await step("homing memories", async () => {

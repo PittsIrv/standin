@@ -96,6 +96,8 @@ When nothing fits, the model sets `kind: "other"` and names one in `kindLabel` (
 
 ## 5a. Anchors: OpenAlex for knowledge, ESCO for skills
 
+> **Superseded** by `2026-10-22-anchors.md` (decision 79): only the OpenAlex fields and subfields are used, as a frame; ESCO is dropped.
+
 A Knowledge concept is linked to a standard concept when one fits, so names, definitions and "Includes" come from a curated source instead of being invented.
 
 - **Data, local.** The OpenAlex hierarchy (domains, fields, subfields, topics, with descriptions and keywords) ships as a data file in the repo; it is CC0. ESCO skills are downloaded into the instance on first use by `standin anchors fetch`, so they are never committed until their licence is confirmed. No lookup ever leaves the machine.

@@ -11,6 +11,16 @@ describe("topics", () => {
     expect(store.getTopic(a.id)).toMatchObject({ name: "Reinforcement learning", definition: "Learning from rewards.", deletedAt: null });
     expect(store.listTopics().map((t) => t.id)).toEqual([a.id]);
   });
+
+  it("keeps an anchor on a node, finds the node by it, and moves a node without claiming the person did", () => {
+    const { store } = tempStore();
+    const cs = store.setTopic(store.ensureTopic("Computer Science").id, { anchor: "openalex:field:17" });
+    expect(store.findByAnchor("openalex:field:17")?.id).toBe(cs.id);
+    expect(store.findByAnchor("openalex:field:99")).toBeNull();
+    const rl = store.ensureTopic("RL");
+    expect(store.moveTopic(rl.id, cs.id, "anchor")).toMatchObject({ to: cs.id, source: "anchor" });
+    expect(store.moveTopic(rl.id, store.root("knowledge").id)).toMatchObject({ source: "person" });
+  });
 });
 
 describe("edges", () => {

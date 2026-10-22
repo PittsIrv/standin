@@ -2,7 +2,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { demoLLM } from "@standin/demo-persona";
-import { checkSplit, ExpandSchema, IntroSchema } from "@standin/knowledge";
+import { AnchorSchema, checkSplit, ExpandSchema, IntroSchema } from "@standin/knowledge";
 import { openStore } from "@standin/store";
 import { describe, expect, it } from "vitest";
 
@@ -29,5 +29,12 @@ describe("the demo's reading of a source", () => {
       "I like chess.",
       "I play weekly.",
     ]);
+  });
+});
+
+describe("the demo's anchoring", () => {
+  it("picks each concept's first candidate", async () => {
+    const prompt = "[1] Reinforcement learning: Learning from rewards.\n  1702 Artificial Intelligence (Computer Science)\n  2207 Control and Systems Engineering (Engineering)\n[2] Graphs\n  1703 Computational Theory and Mathematics (Computer Science)";
+    expect(await demoLLM().generateObject({ system: "", prompt, schema: AnchorSchema, purpose: "anchor" })).toEqual({ anchors: [{ concept: 1, subfield: "1702" }, { concept: 2, subfield: "1703" }] });
   });
 });

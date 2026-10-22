@@ -91,3 +91,8 @@ export const HypothesizeSchema = z.object({
   withdraw: z.array(z.string()),
 });
 export type Hypothesize = z.infer<typeof HypothesizeSchema>;
+
+/** For each numbered concept, the id of one subfield from its own candidates, or null when none fits (anchors spec). */
+export const AnchorSchema = z.object({
+  anchors: z.array(z.object({ concept: z.number().int(), subfield: z.string().nullable() })).default([]),
+});

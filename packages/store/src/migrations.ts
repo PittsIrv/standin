@@ -391,6 +391,11 @@ const MIGRATIONS: Migration[] = [
   -- Concrete parts: what each concept includes, as a JSON array of strings.
   ALTER TABLE topics ADD COLUMN examples TEXT NOT NULL DEFAULT '[]';
   `,
+  `
+  -- Anchors: the OpenAlex field or subfield a frame node stands for.
+  ALTER TABLE topics ADD COLUMN anchor TEXT;
+  CREATE INDEX topics_anchor ON topics(anchor) WHERE anchor IS NOT NULL;
+  `,
 ];
 
 /** Applies pending migrations up to `target` (default: all of them). */

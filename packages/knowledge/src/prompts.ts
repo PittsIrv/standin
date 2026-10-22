@@ -139,3 +139,21 @@ Reliability so far (evidence kind:raw score → share confirmed, outcomes):
 ${o.cells.join("\n")}`;
   return { system, prompt };
 }
+
+export function buildAnchorPrompt(
+  items: { topic: Pick<Topic, "name" | "definition" | "examples">; candidates: { id: string; name: string; fieldId: string }[] }[],
+  fields: { id: string; name: string }[],
+  personaName: string,
+): Prompt {
+  const fieldName = new Map(fields.map((f) => [f.id, f.name]));
+  const system = `You place things ${personaName} knows on a standard map of fields of study (OpenAlex): field, then subfield.
+For each numbered concept, pick the one subfield from its own candidate list that the concept belongs to, by the subfield's id. Pick by what the concept is, not by words it happens to share. Answer null when none fits: a game, a tool, a hobby, or a concept far from every candidate.
+Use each concept number exactly as given.`;
+  const prompt = items
+    .map(({ topic, candidates }, i) => {
+      const about = [topic.definition, topic.examples.length ? `Includes ${topic.examples.join(", ")}.` : ""].filter(Boolean).join(" ");
+      return `[${i + 1}] ${topic.name}${about ? `: ${about}` : ""}\n${candidates.map((c) => `  ${c.id} ${c.name} (${fieldName.get(c.fieldId) ?? "?"})`).join("\n")}`;
+    })
+    .join("\n");
+  return { system, prompt };
+}
