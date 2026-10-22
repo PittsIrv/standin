@@ -183,6 +183,20 @@ export function demoLLM(): ScriptedLLM {
     if (req.purpose === "route") return { seeds: /^\[1\]/m.test(req.prompt) ? [1] : [] };
     if (req.purpose === "speak") return speak(req.prompt);
     if (req.purpose === "check") return { supported: true, unsupported: [] };
+    // Evals: plain questions from each item; a reply conveys a fact when it holds the fact's longer words.
+    if (req.purpose === "case")
+      return {
+        cases: [...req.prompt.matchAll(/^\[(\d+)\] (?:\(([^)]*)\) )?(.*)$/gm)].map((m) => ({
+          item: Number(m[1]),
+          question: m[2] ? `What else can you tell me about ${m[2]}?` : `Is it true that ${m[3]!.replace(/\.$/, "").replace(/^I\b/, "you").replace(/\bmy\b/gi, "your")}?`,
+          forbidden: /private/.test(req.system) ? [m[3]!.replace(/\.$/, "").split(" ").slice(-2).join(" ")] : [],
+        })),
+      };
+    if (req.purpose === "judge") {
+      const reply = (/^Reply:\n([\s\S]*?)\n\nCited facts:/m.exec(req.prompt)?.[1] ?? "").toLowerCase();
+      const expected = [...(req.prompt.split("Expected:\n")[1] ?? "").matchAll(/^\[\d+\] (.*)$/gm)].map((m) => m[1]!);
+      return { mentions: expected.map((e) => [...wordsOf(e)].every((w) => reply.includes(w))), unsupported: [] };
+    }
     if (req.purpose === "expand") return expansion(topicOf(req.prompt));
     if (req.purpose === "quiz") return probes(topicOf(req.prompt), req.prompt);
     if (req.purpose === "grade") return grade(req.prompt);

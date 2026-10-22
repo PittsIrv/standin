@@ -1,10 +1,10 @@
 import { randomBytes } from "node:crypto";
-import { loadSnapshot, words } from "@standin/knowledge";
+import { loadSnapshot } from "@standin/knowledge";
 import type { LLM } from "@standin/llm";
 import type { AnswerState } from "@standin/schema";
 import type { Store } from "@standin/store";
 import type { Tracer } from "@standin/trace";
-import { awaken, candidates, type Awakened, type Limits } from "./awaken.ts";
+import { awaken, candidates, terms, type Awakened, type Limits } from "./awaken.ts";
 import { codeCheck } from "./check.ts";
 import { buildCheckPrompt, buildRoutePrompt, buildSpeakPrompt, type ContextItem } from "./prompts.ts";
 import { CheckSchema, RouteSchema, SpeakSchema, type CheckOut } from "./schemas.ts";
@@ -61,10 +61,10 @@ export const TEMPLATES = {
 /** Approved writing of the person's, most like the question first, each cut to `chars` (answering spec §6). */
 function exemplars(store: Store, question: string, n: number, chars: number): string[] {
   if (n === 0) return [];
-  const asked = new Set(words(question));
+  const asked = new Set(terms(question));
   return store
     .listExemplars({ status: "approved" })
-    .map((e, i) => ({ text: e.text, score: words(e.text).filter((w) => asked.has(w)).length, i }))
+    .map((e, i) => ({ text: e.text, score: terms(e.text).filter((w) => asked.has(w)).length, i }))
     .sort((a, b) => b.score - a.score || b.i - a.i)
     .slice(0, n)
     .map((e) => (e.text.length > chars ? `${e.text.slice(0, chars).trimEnd()}…` : e.text));

@@ -1,4 +1,4 @@
-import { answerMode, loadSnapshot, words, type AnswerMode, type TreeSnapshot } from "@standin/knowledge";
+import { answerMode, loadSnapshot, type AnswerMode, type TreeSnapshot } from "@standin/knowledge";
 import type { Memory, MemoryKind, RootKey, Tier, Topic } from "@standin/schema";
 import type { Store } from "@standin/store";
 
@@ -40,7 +40,24 @@ export interface Awakened {
   hidden: string[];
 }
 
-const allowed = (m: Memory, now: string) => m.status === "approved" && m.tier <= 2 && (m.validUntil === null || m.validUntil > now);
+// Words that say nothing about what a visitor is asking about.
+const STOP = new Set(
+  "a an and as at by for from in into of on or the to with i me my mine myself you your yours we our us it its is are was were be been being do does did doing have has had having what which who whom whose where when why how can could would should will shall may might must tell about please any some this that these those there here just also not no yes so if than then very really ever".split(
+    " ",
+  ),
+);
+
+/** Lower-case words of a question or a statement, a plural's "s" dropped, with nothing too short or too common. */
+export function terms(text: string): string[] {
+  return text
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .map((w) => (w.length > 3 && w.endsWith("s") && !w.endsWith("ss") ? w.slice(0, -1) : w))
+    .filter((w) => w.length > 1 && !STOP.has(w));
+}
+
+/** What a visitor may be told: approved, tier 1–2, not expired (the branch is checked separately). */
+export const allowed = (m: Memory, now: string) => m.status === "approved" && m.tier <= 2 && (m.validUntil === null || m.validUntil > now);
 
 /** The node and its home ancestors, nearest first. */
 function pathUp(store: Store, id: string): string[] {
@@ -49,7 +66,8 @@ function pathUp(store: Store, id: string): string[] {
   return path;
 }
 
-const underBoundary = (store: Store, id: string) => pathUp(store, id).some((n) => store.getTopic(n).boundaryTier === 3);
+/** The node or an ancestor is a tier-3 boundary. */
+export const underBoundary = (store: Store, id: string) => pathUp(store, id).some((n) => store.getTopic(n).boundaryTier === 3);
 
 /** Memories homed on a node or linked to it, without repeats. */
 function memoriesOf(store: Store, id: string): Memory[] {
@@ -65,12 +83,12 @@ function memoriesOf(store: Store, id: string): Memory[] {
  */
 export function candidates(store: Store, question: string, n = LIMITS.candidates): Topic[] {
   const now = store.nowIso();
-  const asked = new Set(words(question));
+  const asked = new Set(terms(question));
   if (asked.size === 0) return [];
   const bags = store.listTopics({ includeRoots: true }).map((t) => {
-    const name = new Set(words([t.name, ...t.aliases].join(" ")));
+    const name = new Set(terms([t.name, ...t.aliases].join(" ")));
     const seen = memoriesOf(store, t.id).filter((m) => allowed(m, now));
-    const rest = new Set(words([t.definition ?? "", ...t.examples, ...seen.map((m) => m.statement)].join(" ")));
+    const rest = new Set(terms([t.definition ?? "", ...t.examples, ...seen.map((m) => m.statement)].join(" ")));
     return { t, name, all: new Set([...name, ...rest]) };
   });
   const df = new Map<string, number>();
@@ -97,7 +115,7 @@ export function candidates(store: Store, question: string, n = LIMITS.candidates
 export function awaken(store: Store, question: string, seedIds: string[], opts: { budget: number; speakAt: number; snapshot?: TreeSnapshot }): Awakened {
   const t = opts.snapshot ?? loadSnapshot(store);
   const now = store.nowIso();
-  const asked = new Set(words(question));
+  const asked = new Set(terms(question));
   const related = store.listEdges("related");
   const seeds: Seed[] = [];
   const hypotheses: Awakened["hypotheses"] = [];
@@ -131,7 +149,7 @@ export function awaken(store: Store, question: string, seedIds: string[], opts: 
     for (const m of memoriesOf(store, nodeId)) {
       if (done.has(m.id)) continue;
       done.add(m.id);
-      const shared = words(m.statement).filter((w) => asked.has(w)).length;
+      const shared = terms(m.statement).filter((w) => asked.has(w)).length;
       if (!isSeed && shared === 0) continue;
       const reason: FilterReason | null =
         m.status !== "approved" ? "status" : m.tier > 2 ? "tier" : blocked ? "boundary" : m.validUntil !== null && m.validUntil <= now ? "expired" : null;
