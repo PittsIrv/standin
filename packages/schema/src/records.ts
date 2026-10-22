@@ -374,7 +374,6 @@ export const BACKGROUND_EVIDENCE = ["publication", "job", "project", "course", "
 export type EvidenceKind = z.infer<typeof EvidenceKind>;
 export const RawScore = z.enum(["low", "medium", "high"]);
 export type RawScore = z.infer<typeof RawScore>;
-/** A settled hypothesis's outcome (confirmed or refuted) is read from its probe responses, so a late grade can flip it. */
 export const QuestionStatus = z.enum(["open", "answered", "dismissed"]);
 export type QuestionStatus = z.infer<typeof QuestionStatus>;
 
@@ -389,6 +388,7 @@ export const Question = z.object({
 });
 export type Question = z.infer<typeof Question>;
 
+/** A settled hypothesis's outcome (confirmed or refuted) is read from its probe responses, so a late grade can flip it. */
 export const HypothesisStatus = z.enum(["open", "settled", "withdrawn"]);
 export type HypothesisStatus = z.infer<typeof HypothesisStatus>;
 

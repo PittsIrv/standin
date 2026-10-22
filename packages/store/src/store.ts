@@ -409,6 +409,9 @@ export class Store {
     return r ? String(r.value) : null;
   }
 
+  deleteKv(key: string): void {
+    this.db.prepare("DELETE FROM kv WHERE key = ?").run(key);
+  }
   setKv(key: string, value: string): void {
     this.db.prepare("INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(key, value);
   }

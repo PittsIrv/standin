@@ -73,6 +73,12 @@ async function importSheet(ctx: CommandContext): Promise<number> {
         else if (dryRun) rows.push({ key, status: "would add", observationId: null });
         else rows.push({ key, status: "added", observationId: store.addObservation(input).id });
       }
+      // An answer to an open question (from standin questions --sheet) answers it.
+      if (!dryRun)
+        for (const a of sheet.answers) {
+          const q = a.questionId.startsWith("qst_") ? store.listQuestions({ status: "open" }).find((x) => x.id === a.questionId) : undefined;
+          if (q) store.setQuestionStatus(q.id, "answered");
+        }
     });
   try {
     // A dry run writes nothing, its trace included.

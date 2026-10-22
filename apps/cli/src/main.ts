@@ -46,6 +46,9 @@ Commands:
                                                  (--private adds the presented score; --all shows frontier nodes)
   review [--port P] [--lan] [--demo-llm]          rate concepts, review proposals and edit your world tree in a local page
                                                  (--lan: reachable from your phone, with a QR code; Ctrl-C stops)
+  questions [--sheet]                            open questions about your life (--sheet: an answer sheet for interview import)
+  outcomes export [--out F]                      text-free records of settled guesses, to a local file (needs sharing.outcomes)
+  outcomes priors <file> | --clear               load (or clear) default reliabilities, capped per cell
   map refresh [--demo-llm]                       place new topics, seed from background, propose lighting (calls the map model)
   consolidate                                    expire memories whose validity has ended
   purge --before ISO                             delete raw text and trace text for observations compacted before ISO

@@ -7,6 +7,8 @@ import { interviewCommand } from "./interview.ts";
 import { mapCommand } from "./map.ts";
 import { memoriesCommand } from "./memories.ts";
 import { observeCommand } from "./observe.ts";
+import { outcomesCommand } from "./outcomes.ts";
+import { questionsCommand } from "./questions.ts";
 import { purgeCommand } from "./purge.ts";
 import { queueCommand } from "./queue.ts";
 import { reviewCommand } from "./review.ts";
@@ -32,6 +34,8 @@ export const commands: Record<string, Command> = {
   memories: memoriesCommand,
   map: mapCommand,
   review: reviewCommand,
+  questions: questionsCommand,
+  outcomes: outcomesCommand,
   consolidate: consolidateCommand,
   purge: purgeCommand,
   eval: evalCommand,

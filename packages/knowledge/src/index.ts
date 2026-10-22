@@ -7,6 +7,7 @@ export { buildHomePrompt, buildHypothesizePrompt, buildPlacePrompt, buildSeedPro
 export { QuestionSchema, AnchorSchema, HomeSchema, HypothesizeSchema, IntroSchema, PlaceSchema, SeedSchema, SplitSchema, type Home, type Place, type Seed, type Split } from "./schemas.ts";
 export { placeNodes, seedBackground, unplacedNodes } from "./tasks.ts";
 export { askQuestions, QUESTION_LIMITS } from "./questions.ts";
+export { clearPriors, outcomeRecords, setPriors, type OutcomeRecord } from "./outcomes.ts";
 export { anchorConcepts, CANDIDATES, loadFrame, shortlist, type Frame, type FrameField, type FrameSubfield } from "./anchors.ts";
 export { MAX_INTRO_STATEMENTS, needsIntro, readSource, saveIntro, skipIntro, type ConfirmedStatement, type IntroSource, type ReadStatement } from "./intro.ts";
 export { homeMemories, splitNodes } from "./organize.ts";
