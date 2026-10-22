@@ -70,4 +70,19 @@ describe("asking about gaps", () => {
     await askQuestions(busy, llm, "Lin");
     expect(llm.calls).toHaveLength(0);
   });
+
+  it("asks about facts filed on a root beyond Knowledge, but never on the Knowledge root", async () => {
+    const s = store();
+    const add = (root: RootKey, statement: string) => {
+      const o = s.addObservation({ sourceKind: "manual", sourceRef: "t", authorRole: "self", text: statement, occurredAt: "2026-09-01T00:00:00.000Z" });
+      const m = s.insertMemory({ kind: "fact", statement, tier: 1, isCurrentState: false, attrs: {} } as never, { sourceObservationIds: [o.id], entityIds: [], actor: "compaction", homeNodeId: s.root(root).id });
+      s.approve(m.id);
+    };
+    add("life", "I have two cats.");
+    add("knowledge", "I know Rust.");
+    const llm = asker((p) => [{ node: numberOf(p, "Life"), question: "What are your cats' names?" }]);
+    expect((await askQuestions(s, llm, "Lin")).asked).toBe(1);
+    expect(llm.calls[0]!.prompt).not.toMatch(/Rust/);
+    expect(s.listQuestions({})[0]!.nodeId).toBe(s.root("life").id);
+  });
 });

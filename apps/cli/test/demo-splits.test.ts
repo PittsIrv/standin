@@ -41,11 +41,12 @@ describe("the demo's anchoring", () => {
 
 describe("the demo's questions", () => {
   it("asks how a project turned out and what pets are called, and nothing else", async () => {
-    const prompt = "[1] Kite (project, in work)\n  - I built Kite.\n[2] Pets (pet, in life)\n  - I have two cats.\n[3] Mom (person, in people)\n  - My mom lives in Ohio.";
+    const prompt = "[1] Kite (project, in work)\n  - I built Kite.\n[2] Pets (pet, in life)\n  - I have two cats.\n[3] Mom (person, in people)\n  - My mom lives in Ohio.\n[4] Life (other, in life)\n  - I have a dog.\n  - I built a poker bot called Bluff.";
     expect(await demoLLM().generateObject({ system: "", prompt, schema: QuestionSchema, purpose: "question" })).toEqual({
       questions: [
         { node: 1, question: "How did Kite turn out?" },
-        { node: 2, question: "What are their names?" },
+        { node: 2, question: "What are your cats' names?" },
+        { node: 4, question: "What is your dog's name?" },
       ],
     });
   });
