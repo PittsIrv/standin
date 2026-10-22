@@ -52,22 +52,22 @@ describe("standin review", () => {
     const h = harness();
     await h.run("init", "--name", "T");
     h.claim();
-    const done = h.run("review", "--demo-llm", "--probes", "2", "--port", "0");
+    const done = h.run("review", "--demo-llm", "--port", "0");
     const url = await h.pageUrl();
     expect(url.hostname).toBe("127.0.0.1");
     const { card } = await call(url, "/api/card");
-    expect(card.type).toBe("probe");
-    await call(url, "/api/rate", { responseId: card.probe.responseId, rating: "no_idea" });
+    expect(card.type).toBe("card");
+    await call(url, "/api/answer", { responseId: card.card.responseId, answer: 0 });
     await call(url, "/api/finish", {});
     expect(await done).toBe(0);
-    expect(h.out.join("\n")).toMatch(/Finished: graded \d+ answers, released \d+ held-out probes, \d+ new voice samples, settled \d+ guesses\./);
+    expect(h.out.join("\n")).toMatch(/Finished: answered 1 card, settled 0 guesses\./);
   });
 
   it("finishes the session on Ctrl-C", async () => {
     const h = harness();
     await h.run("init", "--name", "T");
     h.claim();
-    const done = h.run("review", "--demo-llm", "--probes", "2", "--port", "0");
+    const done = h.run("review", "--demo-llm", "--port", "0");
     await h.pageUrl();
     h.interrupt();
     expect(await done).toBe(0);
@@ -77,10 +77,10 @@ describe("standin review", () => {
     store.close();
   });
 
-  it("rejects a bad --probes", async () => {
+  it("rejects a bad --port", async () => {
     const h = harness();
     await h.run("init", "--name", "T");
-    expect(await h.run("review", "--probes", "0")).toBe(1);
-    expect(h.err.join("\n")).toContain("--probes must be a positive integer");
+    expect(await h.run("review", "--port", "abc")).toBe(1);
+    expect(h.err.join("\n")).toContain("--port must be a port number");
   });
 });

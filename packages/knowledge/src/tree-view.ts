@@ -67,7 +67,9 @@ export function treeNodes(t: TreeSnapshot, opts: { all?: boolean } = {}): TreeNo
           ? null
           : d.from.via === "gap" || d.from.via === "hypothesis"
             ? d.from.via
-            : (t.approved.get(d.from.nodeId)?.basis ?? (t.confirmedHypotheses.has(d.from.nodeId) ? "probed" : null)),
+            : t.stated.has(d.from.nodeId)
+              ? "stated"
+              : (t.approved.get(d.from.nodeId)?.basis ?? (t.confirmedHypotheses.has(d.from.nodeId) ? "probed" : null)),
         via: d.from?.via ?? null,
         from: d.from ? name(d.from.nodeId) : null,
         boundary: d.boundary || n.boundaryTier === 3,
@@ -87,7 +89,7 @@ export function nodeStatus(v: TreeNode): string {
     ? `${v.facts} fact${v.facts === 1 ? "" : "s"}`
     : v.state === "probable" && v.hypothesis
       ? `probable ${v.hypothesis.depth} (p ${v.hypothesis.p.toFixed(2)}, ${v.hypothesis.kind})`
-      : v.state === "dark" && v.depth === null
+      : v.state === "dark" && (v.depth === null || (v.via === "own" && v.basis === "stated"))
         ? "dark (you said so)"
         : v.depth === null
       ? "not lit"
@@ -97,7 +99,9 @@ export function nodeStatus(v: TreeNode): string {
           ? "dark"
           : v.via === "inherited"
             ? `lit ${v.depth} (inherited from ${v.from})`
-            : `lit ${v.depth} (${v.basis}${v.confirmed ? ", confirmed" : ""})`;
+            : v.basis === "stated"
+              ? `lit ${v.depth} (you said)`
+              : `lit ${v.depth} (${v.basis}${v.confirmed ? ", confirmed" : ""})`;
   return [lit, v.boundary ? "boundary" : null, v.frontier ? "frontier" : null].filter(Boolean).join(" · ");
 }
 

@@ -462,6 +462,15 @@ export class Store {
   showProbe(probeId: string, sessionId: string, predictedMode: AnswerModeName, p?: { predictedP: number; priorP: number }): ProbeResponse {
     return probes.showProbe(this, probeId, sessionId, predictedMode, p);
   }
+  answerCard(id: string, answer: number | "wouldnt_say"): ProbeResponse {
+    return probes.answerCard(this, id, answer);
+  }
+
+  /** The latest concept-card level per node. */
+  stateds(): Map<string, { level: number; responseId: string; answeredAt: string }> {
+    return probes.stateds(this);
+  }
+
   getResponse(id: string): ProbeResponse {
     return probes.getResponse(this, id);
   }

@@ -118,8 +118,8 @@ export const MemoryStatus = z.enum(["proposed", "approved", "rejected", "superse
 export type MemoryStatus = z.infer<typeof MemoryStatus>;
 
 export const Depth = z.number().int().min(0).max(4);
-/** Where a node's lighting came from: the person's own words, a rule's inference, or probes. */
-export const DepthBasis = z.enum(["claimed", "predicted", "probed"]);
+/** Where a node's lighting came from: a claim, a rule's inference, probes, or a concept-card answer (`stated`). */
+export const DepthBasis = z.enum(["claimed", "predicted", "probed", "stated"]);
 export type DepthBasis = z.infer<typeof DepthBasis>;
 
 /** A competence memory lights a topic node. `basis` is set on proposals the knowledge map writes; a claim has none. */
@@ -227,6 +227,10 @@ export const Topic = z.object({
   rootKey: RootKey.nullable(),
   /** Created by expansion and not yet touched by the person, a claim or a probe: hidden from the tree view. */
   frontier: z.boolean(),
+  /** As a part of its parent: how advanced it is (1 basic – 4 expert); decides which answers walk down to it. */
+  partLevel: Depth.nullable().default(null),
+  /** The person said "that's enough here": no more of its parts are asked. */
+  walkStopped: z.boolean().default(false),
   definition: z.string().nullable(),
   expandedAt: IsoTime.nullable(),
   /** The background fact that seeded this topic, if any. */
@@ -276,8 +280,8 @@ export type Holdout = z.infer<typeof Holdout>;
 export const AnswerModeName = z.enum(["explain", "brief", "decline"]);
 export type AnswerModeName = z.infer<typeof AnswerModeName>;
 
-/** `foundation` and `discovery` are from before hypotheses; old rows keep them. */
-export const ProbeKind = z.enum(["claim", "followup", "foundation", "discovery", "hypothesis"]);
+/** `card` is a concept card; the others are quiz probes from before concept cards, kept so old rows still read. */
+export const ProbeKind = z.enum(["claim", "followup", "foundation", "discovery", "hypothesis", "card"]);
 export type ProbeKind = z.infer<typeof ProbeKind>;
 
 export const Probe = z.object({
@@ -316,6 +320,8 @@ export const ProbeResponse = z.object({
   /** For a hypothesis probe: its calibrated probability and the prior-only one, stored when shown. */
   predictedP: z.number().nullable().default(null),
   priorP: z.number().nullable().default(null),
+  /** For a concept card: the level the person gave (0–4); null for "wouldn't say" or a quiz probe. */
+  level: Depth.nullable().default(null),
 });
 export type ProbeResponse = z.infer<typeof ProbeResponse>;
 
@@ -347,6 +353,7 @@ export const ReviewSession = z.object({
   id: z.string(),
   startedAt: IsoTime,
   endedAt: IsoTime.nullable(),
-  size: z.number().int().positive(),
+  /** Questions planned; 0 means no cap (a concept-card session runs until nothing is left). */
+  size: z.number().int().nonnegative(),
 });
 export type ReviewSession = z.infer<typeof ReviewSession>;

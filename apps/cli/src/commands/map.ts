@@ -1,28 +1,19 @@
-import { calibration, loadSnapshot, refresh, renderForest, safeguard, treeNodes, type SetScore, type TreeSnapshot } from "@standin/knowledge";
+import { cardScores, loadSnapshot, refresh, renderForest, treeNodes } from "@standin/knowledge";
 import type { Store } from "@standin/store";
 import { CliError } from "../errors.ts";
 import { loadInstance } from "../home.ts";
 import { fmtUsd, instanceModels, instanceTracer } from "../runtime.ts";
 import { flag, json, type Command, type CommandContext } from "./shared.ts";
 
-const fmtSet = (s: SetScore) => `${s.agree}/${s.n}${s.score === null ? "" : ` (${Math.round(s.score * 100)}%)`}`;
-
-/** The map score always; the presented score only on request, since it shows how far you present beyond your ratings. */
-function calibrationLines(store: Store, t: TreeSnapshot, showPrivate: boolean, brierWindow: number): string[] {
-  const c = calibration(store, t);
-  const lines =
-    c.presented.fixed.n + c.presented.rotating.n === 0
-      ? ["Calibration: not enough held-out answers yet"]
-      : [`Calibration (map score): fixed ${fmtSet(c.map.fixed)}, rotating ${fmtSet(c.map.rotating)}`];
+/** Predict, then learn: how often the standin's prediction matched what you then said; the guess score only privately. */
+function scoreLines(store: Store, showPrivate: boolean, brierWindow: number): string[] {
+  const { map, guesses: g } = cardScores(store, brierWindow);
+  const lines = [map.n === 0 ? "Map score: no answers yet" : `Map score: ${map.agree}/${map.n} (${Math.round(map.score! * 100)}%) of your answers matched the standin's prediction`];
   if (!showPrivate) return lines;
-  if (c.presented.fixed.n + c.presented.rotating.n > 0)
-    lines.push(`Presented score (private): fixed ${fmtSet(c.presented.fixed)}, rotating ${fmtSet(c.presented.rotating)}`);
-  // Is learning from outcomes helping? Calibrated guesses against prior-only ones, on held-out answers.
-  const g = safeguard(store, brierWindow);
   lines.push(
     g.n === 0
-      ? "Hypothesis calibration: not enough held-out hypothesis answers yet"
-      : `Hypothesis calibration: Brier ${g.calibrated!.toFixed(2)} (calibrated) vs ${g.prior!.toFixed(2)} (prior) over ${g.n} held-out answer${g.n === 1 ? "" : "s"}${g.tripped ? "; using prior-only probabilities" : ""}`,
+      ? "Hypothesis calibration: not enough answers about guesses yet"
+      : `Hypothesis calibration: Brier ${g.calibrated!.toFixed(2)} (calibrated) vs ${g.prior!.toFixed(2)} (prior) over ${g.n} answer${g.n === 1 ? "" : "s"}${g.tripped ? "; using prior-only probabilities" : ""}`,
   );
   return lines;
 }
@@ -32,9 +23,9 @@ async function show(ctx: CommandContext): Promise<number> {
   try {
     const t = loadSnapshot(store, { brierWindow: config.hypotheses.brierWindow });
     if (flag(ctx, "json")) {
-      const c = calibration(store, t);
-      ctx.io.stdout(JSON.stringify({ nodes: treeNodes(t, { all: flag(ctx, "all") }), calibration: flag(ctx, "private") ? c : { map: c.map } }, null, 2));
-    } else ctx.io.stdout([renderForest(t, { all: flag(ctx, "all") }), "", ...calibrationLines(store, t, flag(ctx, "private"), config.hypotheses.brierWindow)].join("\n"));
+      const c = cardScores(store, config.hypotheses.brierWindow);
+      ctx.io.stdout(JSON.stringify({ nodes: treeNodes(t, { all: flag(ctx, "all") }), scores: flag(ctx, "private") ? c : { map: c.map } }, null, 2));
+    } else ctx.io.stdout([renderForest(t, { all: flag(ctx, "all") }), "", ...scoreLines(store, flag(ctx, "private"), config.hypotheses.brierWindow)].join("\n"));
     return 0;
   } finally {
     store.close();

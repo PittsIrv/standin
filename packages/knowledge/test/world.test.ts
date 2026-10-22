@@ -5,7 +5,7 @@ import { ScriptedLLM, type GenerateObjectRequest } from "@standin/llm";
 import type { EntityKind } from "@standin/schema";
 import { openStore } from "@standin/store";
 import { describe, expect, it } from "vitest";
-import { computeLighting, expandNode, loadSnapshot, nextTarget, placeNodes, seedBackground, unplacedNodes } from "../src/index.ts";
+import { computeLighting, expandNode, loadSnapshot, nextCardTarget, placeNodes, seedBackground, unplacedNodes } from "../src/index.ts";
 
 function setup() {
   const store = openStore({ path: join(mkdtempSync(join(tmpdir(), "standin-world-")), "db") });
@@ -55,7 +55,7 @@ describe("the world tree in the knowledge layer", () => {
     const lit = computeLighting(t);
     expect(lit.has(go.id)).toBe(false);
     expect(lit.get(store.ensureTopic("Rust").id)?.depth).toBe(3);
-    const target = nextTarget(t, { responses: [], children: new Map() }, new Set());
+    const target = nextCardTarget(t, { answered: new Set(), guessesAnswered: new Set() }, new Set());
     expect(typeof target === "string" ? target : target?.nodeId).not.toContain(go.id);
   });
 
@@ -63,7 +63,10 @@ describe("the world tree in the knowledge layer", () => {
     const { store } = setup();
     const rl = store.ensureTopic("RL");
     const existing = store.ensureTopic("Bandits");
-    const llm = new ScriptedLLM(() => ({ components: [{ name: "Bandits", definition: "." }, { name: "PPO", definition: "." }], prerequisites: [] }));
+    const llm = new ScriptedLLM(() => ({
+      components: ["Bandits", "PPO", "Q-learning"].map((name, i) => ({ name, definition: ".", level: i + 1 })),
+      prerequisites: [],
+    }));
     await expandNode(store, llm, rl.id, "Lin Qiao");
     expect(store.ensureTopic("PPO").frontier).toBe(true);
     expect(store.getTopic(existing.id).frontier).toBe(false);

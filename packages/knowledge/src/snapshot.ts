@@ -16,6 +16,8 @@ export interface TreeSnapshot {
   knowledge: Set<string>;
   /** Approved memories living in each node. */
   homeFacts: Map<string, number>;
+  /** The latest concept-card level the person gave each node (0–4): their own word, newest wins. */
+  stated: Map<string, number>;
   /** Open hypotheses per node, with their calibrated probability. */
   hypotheses: Map<string, { id: string; depth: number; p: number; kind: string; rawScore: string; reason: string }>;
   /** The highest depth a usable probe confirmed per node, from hypotheses. */
@@ -102,6 +104,7 @@ export function loadSnapshot(store: Store, opts: { brierWindow?: number } = {}):
     topics,
     all,
     homeFacts,
+    stated: new Map([...store.stateds()].filter(([id]) => topics.has(id)).map(([id, v]) => [id, v.level])),
     hypotheses,
     confirmedHypotheses,
     roots,

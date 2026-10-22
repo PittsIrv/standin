@@ -19,7 +19,10 @@ function verdict(r: Answered): "confirmed" | "refuted" | null {
  * and fixed ones never. Read, not stored, so a spot-check graded later can still flip it.
  */
 export function outcomeOf(h: Hypothesis, responses: Answered[]): "confirmed" | "refuted" | null {
-  const mine = responses.filter((r) => r.probe.hypothesisId === h.id && usableProbe(r.probe));
+  // A concept card settles a guess in one answer: the level given, against the level guessed.
+  const card = responses.find((r) => r.probe.kind === "card" && r.probe.hypothesisId === h.id && r.level !== null);
+  if (card) return card.level! >= h.depth ? "confirmed" : "refuted";
+  const mine = responses.filter((r) => r.probe.hypothesisId === h.id && r.probe.kind !== "card" && usableProbe(r.probe));
   const verdicts = mine.map(verdict).filter((v) => v !== null);
   if (verdicts.includes("refuted")) return "refuted";
   const confirmations = verdicts.length;
@@ -78,10 +81,14 @@ export interface Safeguard {
  * when each was shown against the prior-only one. If calibration scored worse, it is switched off until that changes.
  */
 export function safeguard(store: Store, window: number): Safeguard {
+  // Concept cards: every guess answer was predicted before it was shown, so all of them count (predict, then learn).
+  // Older quiz probes counted only when held out.
+  const cardVerdict = (r: Answered) => (r.level === null ? null : r.level >= store.getHypothesis(r.probe.hypothesisId!).depth ? "confirmed" : "refuted");
   const scored = store
     .listResponses({ rated: true })
-    .filter((r) => r.probe.kind === "hypothesis" && r.probe.holdout !== "none" && r.predictedP !== null && r.priorP !== null)
-    .map((r) => ({ r, v: verdict(r) }))
+    .filter((r) => r.predictedP !== null && r.priorP !== null && r.probe.hypothesisId !== null)
+    .filter((r) => r.probe.kind === "card" || (r.probe.kind === "hypothesis" && r.probe.holdout !== "none"))
+    .map((r) => ({ r, v: r.probe.kind === "card" ? cardVerdict(r) : verdict(r) }))
     .filter((x) => x.v !== null)
     .slice(-window);
   if (scored.length === 0) return { tripped: false, calibrated: null, prior: null, n: 0 };

@@ -14,6 +14,8 @@ function rowToTopic(r: Row): Topic {
     label: e.kind,
     rootKey: r.root_key ?? null,
     frontier: r.frontier === 1,
+    partLevel: r.part_level ?? null,
+    walkStopped: r.walk_stopped === 1,
     definition: r.definition ?? null,
     expandedAt: r.expanded_at ?? null,
     seedMemoryId: r.seed_memory_id ?? null,
@@ -47,7 +49,7 @@ const rowToGap = (r: Row): Gap =>
   });
 
 const TOPIC_SELECT =
-  "SELECT e.*, t.definition, t.expanded_at, t.seed_memory_id, t.boundary_tier, t.deleted_at, t.root_key, t.frontier FROM entities e JOIN topics t ON t.entity_id = e.id";
+  "SELECT e.*, t.definition, t.expanded_at, t.seed_memory_id, t.boundary_tier, t.deleted_at, t.root_key, t.frontier, t.part_level, t.walk_stopped FROM entities e JOIN topics t ON t.entity_id = e.id";
 
 /** The node for a name or alias with this label, created if absent. A deleted node is returned as it is (still deleted). */
 export function ensureNode(s: Store, name: string, label: EntityKind, definition: string | null = null): Topic {
@@ -90,11 +92,22 @@ export function listTopics(s: Store, opts: { includeDeleted?: boolean; includeRo
 export function setTopic(
   s: Store,
   id: string,
-  patch: { definition?: string; expandedAt?: string; seedMemoryId?: string; boundaryTier?: Tier | null; deletedAt?: string | null; frontier?: boolean },
+  patch: {
+    definition?: string;
+    expandedAt?: string;
+    seedMemoryId?: string;
+    boundaryTier?: Tier | null;
+    deletedAt?: string | null;
+    frontier?: boolean;
+    partLevel?: number | null;
+    walkStopped?: boolean;
+  },
 ): Topic {
   getTopic(s, id);
   const cols: [string, unknown][] = [
     ["frontier", patch.frontier === undefined ? undefined : patch.frontier ? 1 : 0],
+    ["walk_stopped", patch.walkStopped === undefined ? undefined : patch.walkStopped ? 1 : 0],
+    ["part_level", patch.partLevel],
     ["definition", patch.definition],
     ["expanded_at", patch.expandedAt],
     ["seed_memory_id", patch.seedMemoryId],

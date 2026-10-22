@@ -36,7 +36,7 @@ describe("review server", () => {
     const status = await api("/api/status");
     expect(status.status).toBe(200);
     expect(status.headers.get("cache-control")).toBe("no-store");
-    expect(status.json).toMatchObject({ total: 3 });
+    expect(status.json).toMatchObject({ answered: 0, finished: false });
     await server.finish();
   });
 

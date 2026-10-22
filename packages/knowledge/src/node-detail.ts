@@ -12,7 +12,7 @@ export interface NodeDetail {
   /** The open guess, with its evidence path as node names. */
   hypothesis: { depth: number; p: number; kind: string; reason: string; path: string[] } | null;
   /** Probes asked about the node, oldest first. */
-  history: { question: string; kind: string; difficulty: number; rating: string | null; grade: string | null; shownAt: string }[];
+  history: { question: string; kind: string; difficulty: number; rating: string | null; level: number | null; grade: string | null; shownAt: string }[];
   links: { id: string; kind: "requires" | "related"; other: { id: string; name: string }; direction: "out" | "in" }[];
 }
 
@@ -31,7 +31,7 @@ export function nodeDetail(store: Store, t: TreeSnapshot, nodeId: string): NodeD
     history: store
       .listResponses()
       .filter((r) => r.probe.nodeId === nodeId)
-      .map((r) => ({ question: r.probe.question, kind: r.probe.kind, difficulty: r.probe.difficulty, rating: r.rating, grade: r.grade, shownAt: r.shownAt })),
+      .map((r) => ({ question: r.probe.question, kind: r.probe.kind, difficulty: r.probe.difficulty, rating: r.rating, level: r.level, grade: r.grade, shownAt: r.shownAt })),
     links: store
       .listEdges()
       .filter((e) => e.kind !== "part_of" && (e.from === nodeId || e.to === nodeId))

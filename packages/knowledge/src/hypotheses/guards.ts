@@ -15,6 +15,7 @@ export function established(t: TreeSnapshot, nodeId: string): boolean {
     t.approved.get(nodeId)?.basis === "probed" ||
     t.gaps.some((g) => g.nodeId === nodeId) ||
     t.confirmedHypotheses.has(nodeId) ||
+    t.stated.has(nodeId) ||
     t.seeded.has(nodeId)
   );
 }
@@ -26,6 +27,7 @@ export function spokenFor(t: TreeSnapshot, nodeId: string): boolean {
     t.approved.get(nodeId)?.basis === "probed" ||
     t.gaps.some((g) => g.nodeId === nodeId) ||
     t.confirmedHypotheses.has(nodeId) ||
+    t.stated.has(nodeId) ||
     t.negatives.some((n) => n.topicIds.includes(nodeId))
   );
 }

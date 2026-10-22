@@ -381,6 +381,12 @@ const MIGRATIONS: Migration[] = [
   `,
   worldTree,
   hypotheses,
+  `
+  -- Concept cards: the level the person gave, each part's level, and walks the person stopped.
+  ALTER TABLE probe_responses ADD COLUMN level INTEGER;
+  ALTER TABLE topics ADD COLUMN part_level INTEGER;
+  ALTER TABLE topics ADD COLUMN walk_stopped INTEGER NOT NULL DEFAULT 0;
+  `,
 ];
 
 /** Applies pending migrations up to `target` (default: all of them). */

@@ -1,13 +1,13 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import type { FinishReport, ProbeSession } from "@standin/knowledge";
+import type { CardSession, FinishReport } from "@standin/knowledge";
 import type { Config } from "@standin/schema";
 import { AlreadyRatedError, CycleError, InvalidTransitionError, NameTakenError, NotFoundError, RootEditError, type Store } from "@standin/store";
 import { ZodError } from "zod";
 
 export interface ReviewServerOptions {
-  session: ProbeSession;
+  session: CardSession;
   store: Store;
   config: Config;
   /** 127.0.0.1 unless the person asked for the local network (`--lan`). */
@@ -133,8 +133,8 @@ export async function startReviewServer(o: ReviewServerOptions, register?: (rout
   };
 
   route("GET", "/api/status", () => {
-    const here = o.store.listResponses({ sessionId: o.session.sessionId });
-    return { sessionId: o.session.sessionId, done: here.length, total: o.session.size, finished: finishing !== null };
+    const answered = o.store.listResponses({ sessionId: o.session.sessionId, rated: true }).length;
+    return { sessionId: o.session.sessionId, answered, finished: finishing !== null };
   });
   route("POST", "/api/finish", async () => ({ report: await finish(), warnings: o.session.warnings.splice(0) }));
   register?.(route, finish);

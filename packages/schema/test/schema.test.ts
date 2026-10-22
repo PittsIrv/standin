@@ -277,3 +277,13 @@ describe("hypothesis schema", () => {
     expect(Hypothesis.parse({ id: "hyp_1", nodeId: "ent_1", depth: 2, rawScore: "medium", kind: "background", path: ["ent_0"], reason: "r", status: "open", createdAt: "2026-10-01T00:00:00.000Z", settledAt: null }).kind).toBe("background");
   });
 });
+
+describe("concept-card schema", () => {
+  it("adds stated lighting and card probes, and drops the quiz and grade roles", async () => {
+    const { ROLES, DepthBasis, ProbeKind } = await import("../src/index.ts");
+    expect(DepthBasis.options).toContain("stated");
+    expect(ProbeKind.options).toContain("card");
+    expect(Object.keys(ROLES)).not.toContain("quiz");
+    expect(Object.keys(ROLES)).not.toContain("grade");
+  });
+});

@@ -8,28 +8,15 @@ export { HomeSchema, HypothesizeSchema, PlaceSchema, SeedSchema, SplitSchema, ty
 export { placeNodes, seedBackground, unplacedNodes } from "./tasks.ts";
 export { homeMemories, splitNodes } from "./organize.ts";
 export { refresh, type RefreshReport } from "./refresh.ts";
-export { expandNode } from "./probing/expand.ts";
-export { assignHoldout, FIXED_SHARE, ROTATING_SHARE, writeProbes } from "./probing/quiz.ts";
-export { ExpandSchema, GradeSchema, QuizSchema } from "./probing/schemas.ts";
-export { buildExpandPrompt, buildGradePrompt, buildQuizPrompt } from "./probing/prompts.ts";
-export { CLAIM_PROBES, nextTarget, type ProbeState, type Target } from "./probing/plan.ts";
-export { collectGrades, submitGrades } from "./probing/grade.ts";
-export {
-  FIRST_SESSION_SIZE,
-  ProbeSession,
-  SESSION_SIZE,
-  SPOT_CHECK_RATE,
-  usable,
-  type ClaimDecision,
-  type FinishReport,
-  type Miss,
-  type SessionDeps,
-  type ShownProbe, type PendingSpotCheck,
-} from "./probing/session.ts";
-export { calibration, type Calibration, type SetScore } from "./probing/calibration.ts";
+export { checkSplit, expandNode, MAX_SPLIT, MIN_SPLIT } from "./probing/expand.ts";
+export { ExpandSchema } from "./probing/schemas.ts";
+export { buildExpandPrompt } from "./probing/prompts.ts";
+export { CardSession, type CardSessionDeps, type ClaimDecision, type FinishReport, type ShownCard } from "./cards/session.ts";
 export { nodeStatus, renderForest, treeNodes, type TreeNode } from "./tree-view.ts";
 export { isSensitive, SENSITIVE_CATEGORIES } from "./hypotheses/sensitive.ts";
 export { checkHypothesis, established, MAX_HOPS } from "./hypotheses/guards.ts";
 export { cellKey, cells, loadPriors, outcomeOf, probabilityOf, safeguard, type Cell, type Safeguard } from "./hypotheses/calibrate.ts";
 export { hypothesize, type HypothesizeReport } from "./hypotheses/hypothesize.ts";
 export { nodeDetail, type NodeDetail } from "./node-detail.ts";
+export { cardScores, type MapScore } from "./cards/score.ts";
+export { MIN_PARTS, nextCardTarget, type CardState, type CardTarget } from "./cards/plan.ts";
