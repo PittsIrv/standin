@@ -1,7 +1,7 @@
 import { Tier } from "@standin/schema";
 import { CliError } from "../errors.ts";
 import { loadInstance } from "../home.ts";
-import { queuePlace } from "./queue.ts";
+import { queuePlace } from "@standin/compaction";
 import { str, type Command, type CommandContext } from "./shared.ts";
 
 function targetId(ctx: CommandContext): string {

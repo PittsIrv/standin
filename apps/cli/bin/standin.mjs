@@ -22,4 +22,8 @@ process.exitCode = await runCli(process.argv.slice(2), {
   stderr: (s) => process.stderr.write(`${s}\n`),
   env: process.env,
   readStdin,
+  onInterrupt: (handler) => {
+    process.once("SIGINT", handler);
+    return () => process.off("SIGINT", handler);
+  },
 });

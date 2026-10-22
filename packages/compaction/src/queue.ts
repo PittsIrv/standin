@@ -40,3 +40,10 @@ export function reviewQueue(store: Store, config: Config): ReviewItem[] {
       a.memory.id.localeCompare(b.memory.id),
   );
 }
+
+/** Where an item sits in the review queue right now, for the decision log. */
+export function queuePlace(store: Store, config: Config, id: string): { group: QueueGroup | null; position: number | null } {
+  const items = reviewQueue(store, config);
+  const position = items.findIndex((i) => i.memory.id === id);
+  return position === -1 ? { group: null, position: null } : { group: items[position]!.group, position };
+}

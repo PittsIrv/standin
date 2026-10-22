@@ -17,9 +17,11 @@
     "@standin/knowledge": "workspace:*",
     "@standin/llm": "workspace:*",
     "@standin/models": "workspace:*",
+    "@standin/review": "workspace:*",
     "@standin/schema": "workspace:*",
     "@standin/store": "workspace:*",
     "@standin/trace": "workspace:*",
-    "tsx": "^4"
+    "tsx": "^4",
+    "uqr": "0.1.3"
   }
 }

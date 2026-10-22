@@ -115,3 +115,39 @@ describe("ProbeSession", () => {
     expect(w.store.getTopic(topicId(w.store, "Rust")).expandedAt).not.toBeNull();
   });
 });
+
+describe("session reads for the review page", () => {
+  it("current() returns the shown, unrated probe until it is rated", async () => {
+    const w = world({ size: 2 });
+    w.claim("Rust", 3);
+    const s = await w.start();
+    expect(s.current()).toBeNull();
+    const shown = (await s.next())!;
+    expect(s.current()?.responseId).toBe(shown.responseId);
+    expect(s.current()).toMatchObject({ done: 1, total: 2, question: shown.question });
+    s.rate(shown.responseId, "roughly");
+    expect(s.current()).toBeNull();
+  });
+
+  it("pendingSpotCheck() returns a requested check until it is answered", async () => {
+    const w = world({ size: 1, rng: queued([0.5, 0.0]) });
+    w.claim("Rust", 3);
+    const s = await w.start();
+    const shown = (await s.next())!;
+    expect(s.rate(shown.responseId, "know")).toEqual({ spotCheck: true });
+    expect(s.pendingSpotCheck()).toMatchObject({ responseId: shown.responseId, question: shown.question });
+    s.answer(shown.responseId, "Ownership moves values.");
+    expect(s.pendingSpotCheck()).toBeNull();
+  });
+
+  it("boundaries() lists nodes marked wouldn't say, and undo clears them", async () => {
+    const w = world({ size: 1 });
+    w.claim("Rust", 3);
+    const s = await w.start();
+    const shown = (await s.next())!;
+    s.rate(shown.responseId, "wouldnt_say");
+    expect(s.boundaries()).toEqual([{ nodeId: shown.nodeId, topic: shown.topic }]);
+    s.undoBoundary(shown.nodeId);
+    expect(s.boundaries()).toEqual([]);
+  });
+});

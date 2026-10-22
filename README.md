@@ -31,6 +31,8 @@ pnpm standin compact --demo-llm            # observations → proposed memories 
 pnpm standin queue                         # review queue: contradictions, still true?, updates, new
 pnpm standin approve <id> [--tier 1-4]     # or: reject <id>
 pnpm standin memories --as-of 2026-09-01   # what was true then, according to what we know now
+pnpm standin map refresh --demo-llm        # build the world tree and its first guesses
+pnpm standin review --demo-llm             # open the review page: answer questions, explore and edit the forest
 pnpm standin consolidate                   # expire memories whose validity has ended
 pnpm standin eval dedup                    # how well duplicate search finds known duplicates (recall@k)
 ```
@@ -69,43 +71,51 @@ Within each group, memories with more sources come first, then older ones. Sourc
 
 Raw observation text and trace text stay on your machine until you purge them: `standin purge --before <date>`.
 
-## Your knowledge tree
+## Your world tree
 
-The standin answers general-knowledge questions only where you'd be able to. `standin map` shows where that is:
+Everything the standin knows about you lives in one tree with six fixed roots: **Knowledge, Work, Background, People, Views, Life**. Nodes grow only where you've said something. `standin map` prints it:
 
 ```
-Computer science  lit 1 (predicted)
-  Algorithms  lit 2 (predicted)
-  Machine learning  lit 2 (predicted)
-    reinforcement learning theory  lit 2 (claimed)
-Board games  dark
+Knowledge
+  Computer science  probable 2 (p 0.50, background)
+    Algorithms  probable 2 (p 0.50, background)
+    Machine learning  probable 2 (p 0.50, background)
+      reinforcement learning theory  lit 2 (claimed)
+  Game AI  probable 2 (p 0.50, part)
+    chess engines  dark (you said so)
+    game-playing AI  lit 3 (claimed)
+Work
+  Projects  0 facts
+    Kite  1 fact
+Life
+  Places  0 facts
+    Japan  1 fact
 ```
 
-- **The structure is general knowledge.** Topics are placed under what they are part of. A dark node is declined: "not something I know".
-- **You light it.** Your claims ("I know Rust well") light a node at your depth (0–4), and the whole branch below it. Your background ("I'm a CS student at CMU") lights the core of your field at 2.
-- **Inference proposes, you decide.** A parent is predicted at least one below its strongest part, and a prerequisite one below what needs it. Each inference is a proposal in your queue, with its reasons.
-- **Your limits count.** "I can't write Rust macros yet" carves a gap out of a lit Rust branch, so the standin won't explain what you said you don't know.
-- **Depth decides the answer:** 3–4 explain, 2 brief, 0–1 or dark decline.
+- **Every memory has a home node.** Compaction files it at the most specific node it's about; `standin map refresh` places new nodes under the right root, homes anything left over, and splits a crowded node when parts get their own identity (two cats, then Miso and Tofu).
+- **Lit means known.** Your claims light a Knowledge node at your depth (0–4) and the branch below it; a probe that confirms a guess lights it too. A non-Knowledge node is lit when it holds approved facts.
+- **Probable means guessed, with evidence.** Your background seeds its field's core at level 2, and the `hypothesize` model proposes guesses ("PPO at 4, so RL at 3"), each with an evidence path at most two steps from something you said. Guesses never build on guesses, never touch health, religion, politics or other sensitive topics, and never go where you said you don't know.
+- **It learns which guesses to trust.** Each confirmed or refuted guess updates a reliability count for its kind of evidence; that count turns the model's confidence into a probability. If learning ever scores worse than not learning on held-out answers, it switches itself off.
+- **Depth decides the answer:** 3–4 explain, 2 brief, 0–1 or dark decline. A probable node is spoken only at p ≥ 0.8, and never beyond brief.
 
 ```bash
-pnpm standin map refresh   # place new topics, seed from your background, propose lighting (calls the map model)
-pnpm standin queue         # approve or reject the proposals
-pnpm standin map           # see the tree (no model calls)
+pnpm standin map refresh   # place nodes, home memories, seed from your background, guess (calls the map and hypothesize models)
+pnpm standin map           # see the forest (no model calls); --all shows frontier nodes, --private adds learning scores
+pnpm standin review        # the review page: answer questions, then look at and edit the forest
 ```
 
-## Probing
+## Probing and the review page
 
-Probes check the tree against you. A session asks short questions you rate (know / roughly / no idea / wouldn't say), in strict order:
+`standin review` opens a private page on your machine (`--lan` adds a QR code for your phone). It shows one card at a time:
 
 1. **Your claims:** three questions at your claimed level, on different parts of the topic.
-2. **What the system inferred:** one question each for background-seeded topics, inferred parents and prerequisites.
-3. **Discovery:** topics next to your strong ones that you never claimed, climbing from level 2.
+2. **The guesses:** the one we're least sure of first. "I know this" confirms it and lights the node; "no idea" refutes it.
 
-About one answer in three asks for a one-line explanation, which a model grades later. When you miss something inside a claim, *you* decide whether it's a gap. A gap gets one follow-up a level lower, then you **keep** the claim (the gap is carved out) or **lower** it. "Wouldn't say" puts a boundary on the topic at once.
+About one answer in three asks for a one-line explanation, graded later. When you miss something inside a claim, *you* decide whether it's a gap; a gap gets one follow-up a level lower, then you **keep** the claim (the gap is carved out) or **lower** it. "Wouldn't say" puts a boundary on the topic at once, undoable on the Boundaries tab. Your review queue follows.
 
-About 30% of probes are **held out** as test items. The standin's prediction is recorded before you answer, held-out answers never shape the tree until they're released (and a fixed 10% never are), and `standin map` reports how often the prediction matched you: the **calibration score**. `standin map --private` adds the score over branches where you kept a claim.
+The **Forest** tab draws the whole tree: lit nodes glow brighter the deeper they go, guesses are dashed and filled by their probability, dark ones are gray. Click a node for its facts, its guess and evidence, and the questions asked about it; rename, move, add a child, delete, unlink, or refile a fact from there, or drag a node onto another to move it.
 
-The review page that runs sessions arrives in the next release; the engine and its rules are here and tested.
+About 30% of questions are **held out** as test items. The standin's prediction is recorded before you answer, held-out answers never shape the tree until they're released (and a fixed 10% never are), and `standin map` reports how often the prediction matched you.
 
 ## Choosing models: roles and tiers
 
@@ -119,6 +129,8 @@ Every model call belongs to a **role**, and each role defaults to a **tier**. Th
 | `answer` | small | public | Answer a visitor (the $20/month public agent) |
 | `checkin`, `quiz`, `attack` | medium | private | Check-in questions, self-quiz, break-me attempts |
 | `style`, `judge` | large | private | Style-card rewrites, eval grading |
+| `map`, `hypothesize` | large | private | Organize the world tree; guess what you probably know, with evidence |
+| `grade` | medium | private | Grade one-line spot-check answers |
 
 `$STANDIN_HOME/config.json` maps tiers to models and can override any role. A bare string is an Anthropic model id:
 

@@ -9,6 +9,7 @@ import { memoriesCommand } from "./memories.ts";
 import { observeCommand } from "./observe.ts";
 import { purgeCommand } from "./purge.ts";
 import { queueCommand } from "./queue.ts";
+import { reviewCommand } from "./review.ts";
 import { tellCommand } from "./tell.ts";
 import { traceCommand, tracesCommand } from "./traces.ts";
 import { usageCommand } from "./usage.ts";
@@ -30,6 +31,7 @@ export const commands: Record<string, Command> = {
   expire: expireCommand,
   memories: memoriesCommand,
   map: mapCommand,
+  review: reviewCommand,
   consolidate: consolidateCommand,
   purge: purgeCommand,
   eval: evalCommand,
