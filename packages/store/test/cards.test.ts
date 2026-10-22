@@ -24,6 +24,15 @@ describe("concept-card answers", () => {
     expect(store.answerCard(show("w").r.id, "wouldnt_say")).toMatchObject({ level: null, rating: "wouldnt_say" });
   });
 
+  it("carries an unanswered card into a later session, and refuses an answered one", () => {
+    const { store, show } = setup();
+    const later = store.startSession(1);
+    const { r } = show("RL");
+    expect(store.carryResponse(r.id, later.id)).toMatchObject({ id: r.id, sessionId: later.id, rating: null });
+    store.answerCard(r.id, 2);
+    expect(() => store.carryResponse(r.id, later.id)).toThrow(AlreadyRatedError);
+  });
+
   it("keeps the latest stated level per node", () => {
     const { store, clock, show } = setup();
     const first = show("RL");

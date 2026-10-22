@@ -103,10 +103,29 @@ export class CardSession {
 
   static async start(deps: CardSessionDeps): Promise<CardSession> {
     const { store } = deps;
-    for (const s of store.listSessions()) if (s.endedAt === null) store.endSession(s.id);
+    const earlier = store.listSessions();
+    for (const s of earlier) if (s.endedAt === null) store.endSession(s.id);
     const session = new CardSession(deps, store.startSession(0).id);
+    session.resume(earlier.map((s) => s.id));
     await session.traced("start", () => session.refreshTree());
     return session;
+  }
+
+  /**
+   * Picks up where the last session stopped (review-page spec §3): its latest card, if it was shown and never answered
+   * and its concept hasn't been answered since, moves into this session with the prediction made when it was shown.
+   */
+  private resume(earlier: string[]): void {
+    const { store } = this.deps;
+    for (const id of earlier.toReversed()) {
+      const cards = store.listResponses({ sessionId: id }).filter((r) => r.probe.kind === "card");
+      if (cards.length === 0) continue;
+      const left = cards.at(-1)!;
+      if (left.rating !== null) return;
+      const answered = store.listResponses({ rated: true }).some((r) => r.probe.kind === "card" && r.probe.nodeId === left.probe.nodeId);
+      if (!answered) store.carryResponse(left.id, this.sessionId);
+      return;
+    }
   }
 
   /** Seed, place, home, split, record gaps and guess: a failure is a warning, never the end of the session. */

@@ -121,3 +121,35 @@ describe("a concept-card session", () => {
     expect(s2.warnings.join()).toMatch(/expanding Rust failed/);
   });
 });
+
+describe("leaving and coming back", () => {
+  it("shows the card left unanswered first, with the prediction made when it was first shown, and settles it", async () => {
+    const w = world();
+    const h = w.guess("Algorithms", 2);
+    const first = await w.start();
+    const card = (await first.next())!;
+    const predicted = w.store.getResponse(card.responseId).predictedP;
+    await first.finish();
+    const second = await w.start();
+    const again = second.current()!;
+    expect(again).toMatchObject({ responseId: card.responseId, topic: "Algorithms", reason: "guess" });
+    expect(w.store.getResponse(again.responseId)).toMatchObject({ sessionId: second.sessionId, predictedP: predicted });
+    second.answer(again.responseId, 4);
+    expect(w.store.getHypothesis(h.id).status).toBe("settled");
+    expect((await second.finish()).answered).toBe(1);
+  });
+
+  it("doesn't bring back a card whose concept was answered since", async () => {
+    const w = world();
+    w.guess("Algorithms", 2);
+    const first = await w.start();
+    const left = (await first.next())!;
+    await first.finish();
+    const other = await w.start();
+    other.answer(other.current()!.responseId, 4);
+    await other.finish();
+    const third = await w.start();
+    expect(third.current()).toBeNull();
+    expect(w.store.getResponse(left.responseId).level).toBe(4);
+  });
+});
