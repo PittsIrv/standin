@@ -146,6 +146,13 @@ export function demoLLM(): ScriptedLLM {
     }
     if (req.purpose === "seed") return seed(req.prompt);
     if (req.purpose === "intro") return intro(req.prompt);
+    // Questions: how a project turned out, and what pets are called.
+    if (req.purpose === "question")
+      return {
+        questions: [...req.prompt.matchAll(/^\[(\d+)\] (.+) \((\w+), in \w+\)$/gm)].flatMap((m) =>
+          m[3] === "project" ? [{ node: Number(m[1]), question: `How did ${m[2]} turn out?` }] : m[3] === "pet" ? [{ node: Number(m[1]), question: "What are their names?" }] : [],
+        ),
+      };
     // Anchoring: the best-ranked candidate, which the code lists first.
     if (req.purpose === "anchor")
       return { anchors: [...req.prompt.matchAll(/^\[(\d+)\][^\n]*\n {2}(\d+) /gm)].map((m) => ({ concept: Number(m[1]), subfield: m[2]! })) };

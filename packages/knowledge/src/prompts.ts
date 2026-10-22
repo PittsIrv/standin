@@ -157,3 +157,13 @@ Use each concept number exactly as given.`;
     .join("\n");
   return { system, prompt };
 }
+
+export function buildQuestionPrompt(nodes: { topic: Pick<Topic, "name" | "label">; root: string; facts: string[] }[], personaName: string): Prompt {
+  const system = `${personaName}'s "standin" is an AI that will talk as them. You read what it knows about parts of ${personaName}'s life and notice gaps worth asking about: things a friend would know and the standin would need, like "two cats, but no names" or "a project with no outcome".
+Ask at most one short, friendly question per node, to ${personaName} in the second person, and only where something is clearly missing. Never guess the answer, and never ask about ${SENSITIVE_TEXT}, contact details, addresses, passwords or money. Asking nothing is fine.
+Use each node number exactly as given.`;
+  const prompt = nodes
+    .map((n, i) => `[${i + 1}] ${n.topic.name} (${n.topic.label}, in ${n.root})\n${n.facts.map((f) => `  - ${f}`).join("\n")}`)
+    .join("\n");
+  return { system, prompt };
+}

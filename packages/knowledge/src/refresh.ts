@@ -2,6 +2,7 @@ import type { LLM } from "@standin/llm";
 import type { Store } from "@standin/store";
 import type { Tracer } from "@standin/trace";
 import { anchorConcepts } from "./anchors.ts";
+import { askQuestions, QUESTION_LIMITS } from "./questions.ts";
 import { syncStatedGaps } from "./gaps.ts";
 import { computeLighting } from "./lighting.ts";
 import { loadSnapshot } from "./snapshot.ts";
@@ -22,6 +23,8 @@ export interface RefreshReport {
   homed: number;
   /** Nodes split into children. */
   split: string[];
+  /** New questions about gaps in the person's world. */
+  asked: number;
   gaps: number;
   /** Hypotheses added, withdrawn and rejected by the `hypothesize` step (with why). */
   hypotheses: { added: number; withdrawn: number; rejected: string[] };
@@ -42,9 +45,10 @@ export async function refresh(o: {
   /** The `hypothesize` role's model; without it, no new guesses are made this refresh. */
   hypothesize?: LLM;
   hypotheses?: { dropBelow: number; dropAfter: number };
+  questions?: { perRefresh: number; open: number };
 }): Promise<RefreshReport> {
   return o.tracer.run("map-refresh", {}, async (run) => {
-    const report: RefreshReport = { placed: 0, merged: 0, refused: [], anchored: [], seeded: [], homed: 0, split: [], gaps: 0, hypotheses: { added: 0, withdrawn: 0, rejected: [] }, warnings: [] };
+    const report: RefreshReport = { placed: 0, merged: 0, refused: [], anchored: [], seeded: [], homed: 0, split: [], asked: 0, gaps: 0, hypotheses: { added: 0, withdrawn: 0, rejected: [] }, warnings: [] };
     const step = async (label: string, fn: () => Promise<void>) => {
       try {
         await fn();
@@ -69,6 +73,9 @@ export async function refresh(o: {
     });
     await step("splitting nodes", async () => {
       report.split = (await splitNodes(o.store, o.map, o.personaName, o.splitAt ?? 12, grew)).split;
+    });
+    await step("asking about gaps", async () => {
+      report.asked = (await askQuestions(o.store, o.map, o.personaName, o.questions ?? QUESTION_LIMITS)).asked;
     });
     const before = loadSnapshot(o.store);
     report.gaps = syncStatedGaps(o.store, before, computeLighting(before)).length;

@@ -4,8 +4,9 @@ export { answerMode, modeFor, type AnswerDecision, type AnswerMode } from "./ans
 export { STATED_GAP_LEVEL, syncStatedGaps } from "./gaps.ts";
 export { gapStatement, statementFor } from "./wording.ts";
 export { buildHomePrompt, buildHypothesizePrompt, buildPlacePrompt, buildSeedPrompt, buildSplitPrompt, outline } from "./prompts.ts";
-export { AnchorSchema, HomeSchema, HypothesizeSchema, IntroSchema, PlaceSchema, SeedSchema, SplitSchema, type Home, type Place, type Seed, type Split } from "./schemas.ts";
+export { QuestionSchema, AnchorSchema, HomeSchema, HypothesizeSchema, IntroSchema, PlaceSchema, SeedSchema, SplitSchema, type Home, type Place, type Seed, type Split } from "./schemas.ts";
 export { placeNodes, seedBackground, unplacedNodes } from "./tasks.ts";
+export { askQuestions, QUESTION_LIMITS } from "./questions.ts";
 export { anchorConcepts, CANDIDATES, loadFrame, shortlist, type Frame, type FrameField, type FrameSubfield } from "./anchors.ts";
 export { MAX_INTRO_STATEMENTS, needsIntro, readSource, saveIntro, skipIntro, type ConfirmedStatement, type IntroSource, type ReadStatement } from "./intro.ts";
 export { homeMemories, splitNodes } from "./organize.ts";

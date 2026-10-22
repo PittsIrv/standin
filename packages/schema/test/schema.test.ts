@@ -140,6 +140,8 @@ describe("config", () => {
       consolidation: { freshnessDays: 120 },
       tree: { splitAt: 12 },
       hypotheses: { speakAt: 0.8, dropBelow: 0.3, dropAfter: 10, brierWindow: 20, priorCap: 10 },
+      questions: { perRefresh: 3, open: 10, every: 5 },
+      sharing: { outcomes: false },
     });
   });
 

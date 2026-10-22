@@ -2,7 +2,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { demoLLM } from "@standin/demo-persona";
-import { AnchorSchema, checkSplit, ExpandSchema, IntroSchema } from "@standin/knowledge";
+import { AnchorSchema, checkSplit, ExpandSchema, IntroSchema, QuestionSchema } from "@standin/knowledge";
 import { openStore } from "@standin/store";
 import { describe, expect, it } from "vitest";
 
@@ -36,5 +36,17 @@ describe("the demo's anchoring", () => {
   it("picks each concept's first candidate", async () => {
     const prompt = "[1] Reinforcement learning: Learning from rewards.\n  1702 Artificial Intelligence (Computer Science)\n  2207 Control and Systems Engineering (Engineering)\n[2] Graphs\n  1703 Computational Theory and Mathematics (Computer Science)";
     expect(await demoLLM().generateObject({ system: "", prompt, schema: AnchorSchema, purpose: "anchor" })).toEqual({ anchors: [{ concept: 1, subfield: "1702" }, { concept: 2, subfield: "1703" }] });
+  });
+});
+
+describe("the demo's questions", () => {
+  it("asks how a project turned out and what pets are called, and nothing else", async () => {
+    const prompt = "[1] Kite (project, in work)\n  - I built Kite.\n[2] Pets (pet, in life)\n  - I have two cats.\n[3] Mom (person, in people)\n  - My mom lives in Ohio.";
+    expect(await demoLLM().generateObject({ system: "", prompt, schema: QuestionSchema, purpose: "question" })).toEqual({
+      questions: [
+        { node: 1, question: "How did Kite turn out?" },
+        { node: 2, question: "What are their names?" },
+      ],
+    });
   });
 });

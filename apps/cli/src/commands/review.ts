@@ -42,6 +42,7 @@ export const reviewCommand: Command = {
         personaName: config.persona.name,
         splitAt: config.tree.splitAt,
         hypotheses: config.hypotheses,
+        questions: config.questions,
       });
       for (const w of session.warnings.splice(0)) ctx.io.stdout(`warning: ${w}`);
       const server = await startReviewServer({ session, store, config, host: lan ? "0.0.0.0" : "127.0.0.1", port, speakAt: config.hypotheses.speakAt });

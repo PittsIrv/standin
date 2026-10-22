@@ -96,3 +96,8 @@ export type Hypothesize = z.infer<typeof HypothesizeSchema>;
 export const AnchorSchema = z.object({
   anchors: z.array(z.object({ concept: z.number().int(), subfield: z.string().nullable() })).default([]),
 });
+
+/** Questions to the person about gaps, each on a numbered node (questions spec §1). */
+export const QuestionSchema = z.object({
+  questions: z.array(z.object({ node: z.number().int(), question: z.string() })).default([]),
+});

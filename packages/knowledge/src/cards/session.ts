@@ -23,6 +23,8 @@ export interface CardSessionDeps {
   personaName: string;
   splitAt?: number;
   hypotheses?: { speakAt: number; dropBelow: number; dropAfter: number; brierWindow: number };
+  /** Question limits and cadence (questions spec §5). */
+  questions?: { perRefresh: number; open: number; every: number };
 }
 
 /** A source waiting in the introduction. */
@@ -140,6 +142,7 @@ export class CardSession {
         splitAt: d.splitAt,
         hypothesize: d.hypothesize,
         hypotheses: d.hypotheses,
+        questions: d.questions,
       });
       this.warnings.push(...report.warnings);
     } catch (err) {
