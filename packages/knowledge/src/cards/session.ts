@@ -7,7 +7,7 @@ import { expandNode } from "../probing/expand.ts";
 import { syncStatedGaps } from "../gaps.ts";
 import { computeLighting } from "../lighting.ts";
 import { stripContacts } from "@standin/intake";
-import { needsIntro, readSource, saveIntro, skipIntro, type ConfirmedStatement, type IntroSource, type ReadStatement } from "../intro.ts";
+import { MAX_INTRO_STATEMENTS, needsIntro, readSource, saveIntro, skipIntro, type ConfirmedStatement, type IntroSource, type ReadStatement } from "../intro.ts";
 import { refresh } from "../refresh.ts";
 import { loadSnapshot, type TreeSnapshot } from "../snapshot.ts";
 import { statementFor } from "../wording.ts";
@@ -40,6 +40,8 @@ export interface IntroReading {
   notFound: number;
   sensitive: number;
   contacts: number;
+  /** Statements past the limit of 40, not shown. */
+  overLimit: number;
 }
 
 /** One concept on the screen. */
@@ -162,14 +164,20 @@ export class CardSession {
       let notFound = 0;
       let sensitive = 0;
       let contacts = 0;
+      let shown = 0;
+      let overLimit = 0;
       for (const p of this.pending.values()) {
         p.read ??= await readSource(this.deps.map, p.source, this.deps.personaName);
-        groups.push({ sourceId: p.source.id, kind: p.source.kind, ref: p.source.ref, statements: p.read.statements });
+        const room = Math.max(0, MAX_INTRO_STATEMENTS - shown);
+        const statements = p.read.statements.slice(0, room);
+        shown += statements.length;
+        overLimit += p.read.statements.length - statements.length;
+        groups.push({ sourceId: p.source.id, kind: p.source.kind, ref: p.source.ref, statements });
         notFound += p.read.notFound;
         sensitive += p.read.sensitive;
         contacts += p.contactsRemoved;
       }
-      return { groups, notFound, sensitive, contacts };
+      return { groups, notFound, sensitive, contacts, overLimit };
     });
   }
 

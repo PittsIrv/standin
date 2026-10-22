@@ -25,6 +25,17 @@ describe("concept cards over HTTP", () => {
     await server.finish();
   });
 
+  it("shows at most 40 statements across all sources, and says how many more there were", async () => {
+    const { server, api } = await served({ intro: true });
+    const lines = Array.from({ length: 30 }, (_, i) => `I worked on project number ${i}.`);
+    await api("/api/intro/text", { text: lines.join(" ") });
+    await api("/api/intro/text", { text: lines.map((l) => l.replace("project", "paper")).join(" ") });
+    const read = (await api("/api/intro/read", {})).json!;
+    expect(read.groups.map((g: { statements: unknown[] }) => g.statements.length)).toEqual([30, 10]);
+    expect(read.overLimit).toBe(20);
+    await server.finish();
+  });
+
   it("reads uploaded files, and refuses ones it can't read or that are too large", async () => {
     const { server, api } = await served({ intro: true });
     const b64 = (s: string) => Buffer.from(s).toString("base64");

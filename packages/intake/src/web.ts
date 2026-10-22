@@ -3,6 +3,7 @@ import { isIP } from "node:net";
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import { BlockedUrlError, FetchFailedError, TooLargeError } from "./errors.ts";
+import { fileToText } from "./files.ts";
 import { LIMITS } from "./text.ts";
 
 type Lookup = (host: string) => Promise<{ address: string; family: number }[]>;
@@ -52,22 +53,45 @@ async function checkUrl(raw: string, lookup: Lookup): Promise<URL> {
   return url;
 }
 
-async function readCapped(res: Response): Promise<string> {
+async function readCapped(res: Response, limit: number, what: string): Promise<Uint8Array> {
   const reader = res.body?.getReader();
-  if (!reader) return "";
+  if (!reader) return new Uint8Array();
   const chunks: Uint8Array[] = [];
   let size = 0;
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
     size += value.length;
-    if (size > LIMITS.pageBytes) {
+    if (size > limit) {
       await reader.cancel();
-      throw new TooLargeError("That page is over 2 MB.");
+      throw new TooLargeError(`That ${what} is over ${Math.round(limit / 1024 / 1024)} MB.`);
     }
     chunks.push(value);
   }
-  return new TextDecoder("utf-8").decode(Buffer.concat(chunks));
+  return Buffer.concat(chunks);
+}
+
+const BLOCKS = new Set(["ADDRESS", "ARTICLE", "ASIDE", "BLOCKQUOTE", "DD", "DIV", "DL", "DT", "FIGCAPTION", "FIGURE", "FOOTER", "H1", "H2", "H3", "H4", "H5", "H6", "HEADER", "HR", "LI", "MAIN", "OL", "P", "PRE", "SECTION", "TABLE", "TD", "TH", "TR", "UL"]);
+
+/** An element's text with a line break around every block and at every <br>, so neighboring blocks never run together. */
+function blockText(root: { childNodes: ArrayLike<unknown> }): string {
+  let out = "";
+  const walk = (node: { nodeType: number; nodeName: string; textContent: string | null; childNodes: ArrayLike<unknown> }) => {
+    if (node.nodeType === 3) out += node.textContent ?? "";
+    else if (node.nodeName === "BR") out += "\n";
+    else if (node.nodeType === 1) {
+      const block = BLOCKS.has(node.nodeName);
+      if (block) out += "\n";
+      for (const child of Array.from(node.childNodes)) walk(child as typeof node);
+      if (block) out += "\n";
+    }
+  };
+  for (const child of Array.from(root.childNodes)) walk(child as Parameters<typeof walk>[0]);
+  return out
+    .split("\n")
+    .map((l) => l.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join("\n");
 }
 
 /**
@@ -95,9 +119,15 @@ export async function fetchPage(raw: string, o: FetchOptions = {}): Promise<Page
   }
   if (!res || res.status >= 300) throw new FetchFailedError(`${url.href} answered ${res?.status ?? "with too many redirects"}.`);
   const type = res.headers.get("content-type") ?? "text/html";
+  const name = decodeURIComponent(url.pathname.split("/").filter(Boolean).at(-1) ?? url.hostname);
+  // A linked PDF (a résumé, a paper) is read through its text layer, like an uploaded file.
+  if (type.startsWith("application/pdf")) {
+    const { text } = await fileToText(name.toLowerCase().endsWith(".pdf") ? name : `${name}.pdf`, await readCapped(res, LIMITS.fileBytes, "PDF"));
+    return { url: url.href, title: name, text, links: [] };
+  }
   if (!/text\/(html|plain)|application\/xhtml/.test(type)) throw new FetchFailedError(`${url.href} isn't a web page (${type}).`);
-  const body = await readCapped(res);
-  if (type.startsWith("text/plain")) return { url: url.href, title: url.pathname, text: body.trim(), links: [] };
+  const body = new TextDecoder("utf-8").decode(await readCapped(res, LIMITS.pageBytes, "page"));
+  if (type.startsWith("text/plain")) return { url: url.href, title: name, text: body.trim(), links: [] };
 
   const { document } = parseHTML(body);
   const title = (document.querySelector("title")?.textContent ?? url.hostname).trim();
@@ -115,6 +145,6 @@ export async function fetchPage(raw: string, o: FetchOptions = {}): Promise<Page
     if (links.size >= MAX_LINKS) break;
   }
   const article = new Readability(document as unknown as ConstructorParameters<typeof Readability>[0], { charThreshold: 0 }).parse();
-  const text = (article?.textContent ?? document.body?.textContent ?? "").replace(/[ \t]+/g, " ").replace(/\s*\n\s*/g, "\n").trim();
+  const text = article?.content ? blockText(parseHTML(`<!doctype html><html><body>${article.content}</body></html>`).document.body) : blockText(document.body ?? { childNodes: [] });
   return { url: url.href, title, text, links: [...links].map(([u, t]) => ({ url: u, title: t })) };
 }

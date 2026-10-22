@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BlockedUrlError, fetchPage } from "../src/index.ts";
+import { pdf } from "./pdf.ts";
 
 const HTML = `<!doctype html><html><head><title>Lin Qiao</title></head><body>
 <nav><a href="/about">About</a> <a href="/projects#top">Projects</a> <a href="https://other.example/x">Elsewhere</a></nav>
@@ -32,6 +33,20 @@ describe("fetchPage", () => {
     const rebinding = async () => (calls++ === 0 ? [{ address: "93.184.216.34", family: 4 }] : [{ address: "192.168.1.1", family: 4 }]);
     const hop = site({ "https://lin.example/": { status: 301, location: "/home" }, "https://lin.example/home": { body: HTML } });
     await expect(fetchPage("https://lin.example/", { fetch: hop, lookup: rebinding })).rejects.toBeInstanceOf(BlockedUrlError);
+  });
+
+  it("keeps paragraphs apart, so words from neighboring blocks never run together", async () => {
+    const html = `<html><head><title>T</title></head><body><article><h1>Work</h1><p>I built Kite.</p><ul><li>Go engine</li><li>Rust</li></ul><p>Line one<br>line two</p></article></body></html>`;
+    const page = await fetchPage("https://lin.example/", { fetch: site({ "https://lin.example/": { body: html } }), lookup: publicDns });
+    expect(page.text).toBe("Work\nI built Kite.\nGo engine\nRust\nLine one\nline two");
+  });
+
+  it("reads a linked PDF, such as a résumé, through its text layer", async () => {
+    const bytes = pdf(["Lin Qiao", "MS in Computer Science, 2025"]);
+    const fetchPdf = async () => new Response(bytes, { headers: { "content-type": "application/pdf" } });
+    const page = await fetchPage("https://lin.example/cv.pdf", { fetch: fetchPdf, lookup: publicDns });
+    expect(page).toMatchObject({ url: "https://lin.example/cv.pdf", title: "cv.pdf", links: [] });
+    expect(page.text).toContain("MS in Computer Science, 2025");
   });
 
   it("follows a same-site redirect", async () => {
