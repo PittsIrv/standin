@@ -1,6 +1,7 @@
 import { demoLLM } from "@standin/demo-persona";
 import { createModels, type Models } from "@standin/models";
 import type { Config } from "@standin/schema";
+import type { TurnDeps } from "@standin/speak";
 import type { Store } from "@standin/store";
 import { OtlpHttpSink, Tracer, type SpanContent, type SpanData, type SpanSink } from "@standin/trace";
 import type { CommandContext } from "./commands/shared.ts";
@@ -39,6 +40,19 @@ export function instanceTracer(ctx: CommandContext, store: Store, config: Config
 export function instanceModels(ctx: CommandContext, config: Config, tracer: Tracer, opts: { demo: boolean }): Models {
   const demo = opts.demo ? demoLLM() : null;
   return createModels({ config, env: ctx.io.env, tracer, ...(demo ? { providerFor: () => demo } : {}) });
+}
+
+/** What one visitor turn needs, from this instance's config and router. */
+export function instanceTurn(store: Store, config: Config, tracer: Tracer, models: Models): TurnDeps {
+  return {
+    store,
+    answer: models.for("answer"),
+    check: models.for("check"),
+    tracer,
+    personaName: config.persona.name,
+    speakAt: config.hypotheses.speakAt,
+    limits: { ...config.answer },
+  };
 }
 
 const fmtMs = (ms: number) => (ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`);

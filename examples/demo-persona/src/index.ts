@@ -138,6 +138,24 @@ function seed(prompt: string) {
   return { concepts: [...concepts.values()] };
 }
 
+const wordsOf = (text: string) => new Set(text.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 3).map((w) => w.replace(/s$/, "")));
+
+/** The demo speaker: the context items that share a word with the question (or all of them), said plainly. */
+function speak(prompt: string) {
+  const asked = wordsOf(/^Question: (.*)$/m.exec(prompt)?.[1] ?? "");
+  const items = [...prompt.matchAll(/^\[([^\]]+)\] \((\w+), [^)]*\) (.*)$/gm)].map((m) => ({ id: m[1]!, kind: m[2]!, text: m[3]! }));
+  if (items.length === 0) return { reply: "", state: "not_on_record", cites: [], general: false };
+  const hits = items.filter((i) => [...wordsOf(i.text)].some((w) => asked.has(w)));
+  const use = hits.length ? hits : items;
+  const guessOnly = use.every((i) => i.kind === "guess");
+  return {
+    reply: guessOnly ? `I haven't said much about this, but ${use.map((i) => i.text.replace(/ \(a guess.*$/, ".")).join(" ")}` : use.map((i) => i.text).join(" "),
+    state: guessOnly ? "inferred" : "grounded",
+    cites: use.map((i) => i.id),
+    general: false,
+  };
+}
+
 /** A ScriptedLLM that answers with the demo persona's hand-written fixtures. */
 export function demoLLM(): ScriptedLLM {
   return new ScriptedLLM((req: GenerateObjectRequest<unknown>) => {
@@ -161,6 +179,24 @@ export function demoLLM(): ScriptedLLM {
     // Anchoring: the best-ranked candidate, which the code lists first.
     if (req.purpose === "anchor")
       return { anchors: [...req.prompt.matchAll(/^\[(\d+)\][^\n]*\n {2}(\d+) /gm)].map((m) => ({ concept: Number(m[1]), subfield: m[2]! })) };
+    // Answering: route to the best-ranked candidate, speak from the context items that share a word with the question.
+    if (req.purpose === "route") return { seeds: /^\[1\]/m.test(req.prompt) ? [1] : [] };
+    if (req.purpose === "speak") return speak(req.prompt);
+    if (req.purpose === "check") return { supported: true, unsupported: [] };
+    // Evals: plain questions from each item; a reply conveys a fact when it holds the fact's longer words.
+    if (req.purpose === "case")
+      return {
+        cases: [...req.prompt.matchAll(/^\[(\d+)\] (?:\(([^)]*)\) )?(.*)$/gm)].map((m) => ({
+          item: Number(m[1]),
+          question: m[2] ? `What else can you tell me about ${m[2]}?` : `Is it true that ${m[3]!.replace(/\.$/, "").replace(/^I'm\b/, "you're").replace(/^I've\b/, "you've").replace(/^I\b/, "you").replace(/\bmy\b/gi, "your")}?`,
+          forbidden: /private/.test(req.system) ? [m[3]!.replace(/\.$/, "").split(" ").slice(-2).join(" ")] : [],
+        })),
+      };
+    if (req.purpose === "judge") {
+      const reply = (/^Reply:\n([\s\S]*?)\n\nCited facts:/m.exec(req.prompt)?.[1] ?? "").toLowerCase();
+      const expected = [...(req.prompt.split("Expected:\n")[1] ?? "").matchAll(/^\[\d+\] (.*)$/gm)].map((m) => m[1]!);
+      return { mentions: expected.map((e) => [...wordsOf(e)].every((w) => reply.includes(w))), unsupported: [] };
+    }
     if (req.purpose === "expand") return expansion(topicOf(req.prompt));
     if (req.purpose === "quiz") return probes(topicOf(req.prompt), req.prompt);
     if (req.purpose === "grade") return grade(req.prompt);

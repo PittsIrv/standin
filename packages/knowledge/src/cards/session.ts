@@ -113,6 +113,7 @@ export class CardSession {
   private readonly pending = new Map<string, { source: IntroSource; contactsRemoved: number; read: Awaited<ReturnType<typeof readSource>> | null }>();
   /** Knowledge cards answered since the last question, the question on screen, and the ones put off this session. */
   private sinceQuestion = 0;
+  private sinceQuiz = 0;
   private shownQuestion: string | null = null;
   private readonly putOff = new Set<string>();
   /** Answers read but not yet confirmed, by question: in memory only, like the introduction's sources. */
@@ -346,6 +347,7 @@ export class CardSession {
     if (answer !== "wouldnt_say" && (!Number.isInteger(answer) || answer < 0 || answer > 4)) throw new RangeError("an answer is a level from 0 to 4");
     const response = store.answerCard(responseId, answer);
     this.sinceQuestion++;
+    this.sinceQuiz++;
     const probe = store.getProbe(response.probeId);
     if (answer === "wouldnt_say") store.setTopic(probe.nodeId, { boundaryTier: 3 });
     // Lighting a branch must not override what the person said they don't know inside it: carve that out now.
@@ -392,6 +394,16 @@ export class CardSession {
       path.unshift(store.getTopic(at).name);
     }
     return { questionId: id, text: q.text, node: store.getTopic(q.nodeId).name, path };
+  }
+
+  /** Cards answered since the last self-quiz card was shown (answering spec §7). */
+  answeredSinceQuiz(): number {
+    return this.sinceQuiz;
+  }
+
+  /** A self-quiz card was shown: the count starts again. */
+  quizShown(): void {
+    this.sinceQuiz = 0;
   }
 
   /** "Not now": not asked again this session. */

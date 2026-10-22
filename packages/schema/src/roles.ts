@@ -11,7 +11,9 @@ export const ROLES = {
   reconcile: { tier: "small", zone: "private", purpose: "Classify a candidate against similar memories" },
   // Medium, not small: this is the safety net before review, and a missed flag is the costliest error here.
   screen: { tier: "medium", zone: "private", purpose: "Flag possibly sensitive memories for review" },
-  answer: { tier: "small", zone: "public", purpose: "Answer a visitor turn" },
+  answer: { tier: "small", zone: "public", purpose: "Route a visitor question and write the reply" },
+  // Small to start: the miss rate `standin eval run` reports decides whether it moves up (decision 86).
+  check: { tier: "small", zone: "public", purpose: "Confirm each claim in a reply is supported by its cited memories" },
   checkin: { tier: "medium", zone: "private", purpose: "Write follow-up interview questions" },
   attack: { tier: "medium", zone: "private", purpose: "Generate break-me attempts" },
   style: { tier: "large", zone: "private", purpose: "Rewrite the style card" },

@@ -83,6 +83,28 @@ section[hidden] { display: none !important; }
 .done { text-align: center; padding-top: 10vh; }
 .error { color: var(--danger); font-size: 14px; margin-top: 8px; }
 
+/* Ask, and the self-quiz */
+#ask { flex: 1; overflow: auto; padding: 32px 16px; }
+.ask-row { display: flex; gap: 8px; margin: 14px 0 6px; }
+.ask-row input { flex: 1; min-width: 0; min-height: 44px; }
+.exchange { margin-top: 28px; }
+.asked { color: var(--muted); font-size: 15px; margin: 0 0 8px; }
+.reply { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+.reply p { font: 400 20px/1.45 var(--read); margin: 0; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 12px; }
+.badge { font-size: 13px; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.badge.grounded { border-color: var(--lit); color: var(--lit-ink); }
+.badge.inferred { border: 1px dashed var(--lit); color: var(--lit-ink); }
+.badge.deflected { border-color: var(--life); color: var(--life); }
+.chip { font-size: 13px; padding: 2px 10px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); max-width: 100%; overflow-wrap: anywhere; }
+.chip i { font-style: normal; color: var(--muted); }
+details.work { margin-top: 10px; font-size: 14px; color: var(--muted); }
+details.work summary { cursor: pointer; padding: 6px 0; }
+details.work ul { margin: 6px 0 0; padding-left: 18px; }
+details.work li { margin: 2px 0; overflow-wrap: anywhere; }
+.yours { font: 400 18px/1.45 var(--read); margin: 6px 0 18px; padding-left: 14px; border-left: 2px solid var(--line); border-radius: 0; }
+.label-small { font-size: 13px; color: var(--muted); margin: 18px 0 4px; }
+
 /* Forest */
 #forestTab { flex: 1; display: flex; min-width: 0; position: relative; }
 #canvas { flex: 1; position: relative; overflow: hidden; touch-action: none; }
@@ -138,6 +160,9 @@ section[hidden] { display: none !important; }
   #panel { position: absolute; left: 0; right: 0; bottom: 0; width: auto; max-height: 62%; border-left: none; border-top: 1px solid var(--line); border-radius: 14px 14px 0 0; }
   .legend { font-size: 12px; gap: 8px; padding: 6px 10px; right: 12px; }
   header { gap: 8px; }
+  nav { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  nav { gap: 0; }
+  nav button { padding: 0 8px; flex: none; }
   .progress { margin-left: 0; width: 100%; order: 3; }
 }
 @media (prefers-reduced-motion: no-preference) {
@@ -154,6 +179,7 @@ section[hidden] { display: none !important; }
   <nav role="tablist">
     <button role="tab" data-tab="session" aria-selected="true">Questions</button>
     <button role="tab" data-tab="add" aria-selected="false">Add</button>
+    <button role="tab" data-tab="ask" aria-selected="false">Ask</button>
     <button role="tab" data-tab="forest" aria-selected="false">Forest</button>
     <button role="tab" data-tab="boundaries" aria-selected="false">Boundaries</button>
   </nav>
@@ -163,6 +189,7 @@ section[hidden] { display: none !important; }
 <main>
   <section id="session" role="tabpanel"></section>
   <section id="add" role="tabpanel" hidden></section>
+  <section id="ask" role="tabpanel" hidden></section>
   <section id="forestTab" role="tabpanel" hidden>
     <div id="canvas">
       <svg id="forest" aria-label="Your forest: one tree for each part of your world"></svg>
@@ -214,10 +241,12 @@ function show(name) {
   for (const b of document.querySelectorAll("nav button")) b.setAttribute("aria-selected", String(b.dataset.tab === name));
   $("#session").hidden = name !== "session";
   $("#add").hidden = name !== "add";
+  $("#ask").hidden = name !== "ask";
   $("#forestTab").hidden = name !== "forest";
   $("#boundaries").hidden = name !== "boundaries";
   if (name === "session") loadCard();
   if (name === "add") renderIntro();
+  if (name === "ask") renderAsk();
   if (name === "forest") loadForest(true);
   if (name === "boundaries") loadBoundaries();
 }
@@ -254,7 +283,8 @@ async function loadCard() {
     }
     renderCard();
     const st = await api("/api/status");
-    $("#progress").textContent = `${st.answered} answered`;
+    quizStatus = st.quiz;
+    $("#progress").textContent = `${st.answered} answered${st.quiz?.score != null ? ` · self-quiz agreement ${Math.round(st.quiz.score * 100)}%` : ""}`;
   } catch (e) {
     $("#session").innerHTML = `<div class="card"><p class="error">${esc(e.message)}</p></div>`;
   }
@@ -313,6 +343,8 @@ function renderCard() {
     }
   } else if (c.type === "question") {
     return renderQuestion(c.question);
+  } else if (c.type === "quiz") {
+    return renderQuiz(c.quiz);
   } else if (c.type === "keep-lower") {
     const d = c.decision;
     root.innerHTML = `<div class="card">
@@ -358,6 +390,93 @@ function renderCard() {
     $("#toForest").onclick = () => show("forest");
     $("#toAdd2").onclick = () => show("add");
   }
+}
+
+// ---- asking as a visitor would, and the self-quiz ----------------------------------------------------------
+let quizStatus = null;
+const asked = [];
+const STATE_NAME = { grounded: "On record", inferred: "Inferred, hedged", not_on_record: "Not on record", deflected: "Kept private" };
+const LEFT_OUT = { status: "not approved yet", tier: "private (tier 3 or 4)", boundary: "in a branch you keep private", expired: "out of date", budget: "over the limit" };
+
+/** A reply the way a visitor sees it: the text, its state, what it rests on; then how it decided, folded away. */
+function replyView(r) {
+  const w = r.work;
+  const left = {};
+  for (const f of w.filtered) left[f.reason] = (left[f.reason] || 0) + 1;
+  const model = w.checks.model === null ? "not needed" : typeof w.checks.model === "string" ? w.checks.model : w.checks.model.supported ? "every claim is in the cited facts" : `unsupported: ${w.checks.model.unsupported.join("; ")}`;
+  const why = r.reason === "competence" ? " (not a topic you know well)" : r.reason === "check" ? " (a check stopped the reply)" : r.reason === "error" ? ` (a model call failed: ${w.error})` : "";
+  return `<div class="reply"><p>${esc(r.text)}</p>
+    <div class="meta"><span class="badge ${r.state}">${STATE_NAME[r.state]}</span>${r.cites.map((c) => `<span class="chip">${esc(c.statement)} <i>${esc(c.node)}</i></span>`).join("")}</div></div>
+    <details class="work"><summary>How it answered${esc(why)}</summary><ul>
+      <li>Looked in: ${w.seeds.length ? w.seeds.map((s) => esc(s.name)).join(", ") : "nothing in your tree matched"}</li>
+      <li>Could use: ${w.context.length ? w.context.map((c) => esc(c.text)).join(" · ") : "nothing"}</li>
+      <li>Left out: ${Object.keys(left).length ? Object.entries(left).map(([k, n]) => `${n} ${LEFT_OUT[k]}`).join(", ") : "nothing"}</li>
+      <li>Checks: ${w.checks.code === null && w.checks.model === null ? "not needed for a fixed reply" : `${esc(w.checks.code ?? "rules passed")}; ${esc(model)}`}</li>
+      ${w.rejected ? `<li>Stopped reply: ${esc(w.rejected)}</li>` : ""}
+      <li>${w.modelCalls} model call${w.modelCalls === 1 ? "" : "s"}, $${w.costUsd.toFixed(4)}, ${(w.ms / 1000).toFixed(1)}s</li>
+    </ul></details>`;
+}
+
+function renderAsk() {
+  const hint = quizStatus && quizStatus.left === 0 && quizStatus.rated === 0 ? `<p class="note">Self-quiz cards need test questions first: run <code>standin eval build</code> in your terminal.</p>` : "";
+  $("#ask").innerHTML = `<div class="card">
+    <p class="note">Ask what a visitor might. You see exactly what they would get: only approved facts you share, never anything private.</p>
+    <form class="ask-row" id="askForm"><input id="askText" maxlength="500" placeholder="What do you work on?" aria-label="A visitor's question" autocomplete="off"><button class="primary" id="askGo">Ask</button></form>
+    <div class="error" id="askError"></div>${hint}
+    <div id="exchanges">${asked.map((x) => `<div class="exchange"><p class="asked">${esc(x.q)}</p>${replyView(x.r)}</div>`).join("")}</div>
+  </div>`;
+  const input = $("#askText");
+  input.focus();
+  $("#askForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const q = input.value.trim();
+    if (!q) return ($("#askError").textContent = "Type a question first.");
+    $("#askGo").disabled = true;
+    $("#askError").textContent = "";
+    try {
+      asked.unshift({ q, r: await api("/api/ask", { question: q }) });
+      renderAsk();
+    } catch (err) {
+      $("#askError").textContent = err.message;
+      $("#askGo").disabled = false;
+    }
+  };
+}
+
+function renderQuiz(qz) {
+  const root = $("#session");
+  root.innerHTML = `<div class="card">
+    <div class="topic">Self-quiz</div>
+    <h2 class="concept">${esc(qz.question)}</h2>
+    <p class="note">A visitor asks you this. Write how you'd answer, then see what your standin said.</p>
+    <textarea id="quizText" rows="3" maxlength="20000" aria-label="Your answer">${esc(drafts[qz.caseId] || "")}</textarea>
+    ${buttons([["See your standin's answer", "", "quizGo", "primary"], ["Skip", "n", "quizSkip"]])}
+  </div>`;
+  const box = $("#quizText");
+  box.oninput = () => (drafts[qz.caseId] = box.value);
+  $("#quizSkip").onclick = () => act(() => api("/api/quiz/skip", { caseId: qz.caseId }));
+  $("#quizGo").onclick = async () => {
+    const answer = box.value.trim();
+    if (!answer) return ($("#cardError").textContent = "Write your answer first, or choose Skip.");
+    $("#quizGo").disabled = true;
+    $("#cardError").textContent = "";
+    try {
+      const { quizId, reply } = await api("/api/quiz/answer", { caseId: qz.caseId, answer });
+      delete drafts[qz.caseId];
+      root.innerHTML = `<div class="card">
+        <div class="topic">Self-quiz</div>
+        <h2 class="concept">${esc(qz.question)}</h2>
+        <p class="label-small">You said</p><p class="yours">${esc(answer)}</p>
+        <p class="label-small">Your standin said</p>${replyView(reply)}
+        <p class="note" style="margin-top:18px">How close is it? “Wrong” sends your answer to the queue as a correction.</p>
+        ${buttons([["Same", "1", "rSame"], ["Partly", "2", "rPartly"], ["Wrong", "3", "rWrong"]])}
+      </div>`;
+      for (const [id, rating] of [["rSame", "same"], ["rPartly", "partly"], ["rWrong", "wrong"]]) $(`#${id}`).onclick = () => act(() => api("/api/quiz/rate", { quizId, rating }));
+    } catch (e) {
+      $("#cardError").textContent = e.message;
+      $("#quizGo").disabled = false;
+    }
+  };
 }
 
 // ---- a question about your life: answered like the introduction, put off, or dismissed -----------------

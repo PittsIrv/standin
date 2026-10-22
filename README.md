@@ -33,6 +33,9 @@ pnpm standin approve <id> [--tier 1-4]     # or: reject <id>
 pnpm standin memories --as-of 2026-09-01   # what was true then, according to what we know now
 pnpm standin map refresh --demo-llm        # build the world tree and its first guesses
 pnpm standin review --demo-llm             # open the review page: rate concepts, explore and edit the forest
+pnpm standin ask --demo-llm "What is Kite?" # answer as a visitor would be answered (--work shows how)
+pnpm standin eval build --demo-llm         # write private test cases from your store
+pnpm standin eval run --demo-llm           # answer and grade them; fails on any leak
 pnpm standin consolidate                   # expire memories whose validity has ended
 pnpm standin eval dedup                    # how well duplicate search finds known duplicates (recall@k)
 ```
@@ -106,7 +109,7 @@ pnpm standin review        # the review page: rate concepts, then look at and ed
 
 ## Concept cards and the review page
 
-`standin review` opens a private page on your machine (`--lan` adds a QR code for your phone). There are no quizzes: you tell the standin how well you know each concept, one click per card. The page has four tabs: **Questions**, **Add**, **Forest** and **Boundaries**.
+`standin review` opens a private page on your machine (`--lan` adds a QR code for your phone). Nothing tests your knowledge: you tell the standin how well you know each concept, one click per card. The page has five tabs: **Questions**, **Add**, **Ask**, **Forest** and **Boundaries**.
 
 - **Stop whenever you like.** Every answer is saved the moment you give it; close the tab or press Ctrl-C. The next `standin review` picks up where you left off, starting with the card you were looking at. When the questions run out, the page shows you your forest.
 - **It starts with you.** Until the standin knows your background, the page opens on **Add** with your introduction, and you can add more there any time: type a few sentences, add files (PDF, Word, Markdown or text), or add your website and tick which of its pages (or linked PDFs, like a résumé) to read too. Everything is turned into text in code (lines a PDF broke mid-sentence are joined back up), contact details are removed, and nothing is stored yet: sources you leave without confirming are dropped.
@@ -119,6 +122,7 @@ pnpm standin review        # the review page: rate concepts, then look at and ed
 - **Splits are made once, on demand,** by the `map` model: 3–7 non-overlapping parts, each with a definition, a level and 3–5 examples. Parts are named by content ("Network flow and matching"), never by difficulty ("Advanced algorithms"); code refuses names like that. Your edits in the forest always win.
 - **Where concepts live.** Top-level Knowledge concepts are placed in a standard frame: the 26 fields and 252 subfields of [OpenAlex](https://openalex.org) (CC0, shipped with the code, so nothing is looked up online). Code shortlists the 10 subfields a concept shares the most telling words with, and the `map` model picks one or says none fits; "Reinforcement learning" ends up under Computer Science → Artificial Intelligence, while "Poker" stays where it was. A concept named like a field ("Computer science") becomes that field. Field and subfield nodes are made only when something lands in them, keep your concepts' own names and parts, and are yours to rename or move.
 - **Questions about your life.** Facts leave gaps: two cats but no names, a project with no outcome. A refresh notices them and asks, never guesses (at most 3 new a refresh, 10 open, one per node, nothing sensitive). Every 5th card is one of these questions, and they come before the queue once the knowledge cards run out. Answer it like the introduction: your words are read into statements you check, then saved as facts on that node. **Not now** puts it off; **Don't ask this** drops it for good. `standin questions` lists them, and `--sheet` prints an answer sheet for `standin interview import`.
+- **The self-quiz.** Every 10th card is a question a visitor might ask. You write your answer first, then see what your standin said and rate it **Same**, **Partly** or **Wrong**. "Wrong" keeps the pair for later voice tuning and sends your answer to the queue as a correction. Agreement shows once 20 are rated. Quiz questions come from your eval cases (`standin eval build`).
 - **Predict, then learn.** Before each card the standin records what it expected you to say. `standin map` reports how often that matched; each answer then teaches the guesses.
 
 The **Forest** tab draws your world as a grove: six trees (Knowledge, Work, Background, People, Views, Life) on one ground line. Branches fan out from each trunk and thicken with how much sits beneath them; every concept or thing is a leaf. What you know glows amber, brighter the deeper you know it; guesses are dashed and filled by how likely they are; leaves with facts in the other trees are teal; what you don't know is gray. A tree with nothing in it yet is a sapling. Click a tree's name to zoom into it and read every leaf, or "Fit" to see the whole grove. Click a leaf for its facts, its guess and evidence, and what you've said about it; rename, describe (definition and what it includes), move, add a child, delete, unlink, or refile a fact from there, or drag a leaf onto another leaf or a tree to move it. A leaf's links to other concepts show as vines while it's selected.
@@ -126,6 +130,31 @@ The **Forest** tab draws your world as a grove: six trees (Knowledge, Work, Back
 ### Sharing what the guesses taught (opt in)
 
 Every settled guess can become a text-free record: its evidence kind, raw score, how many hops it took, the levels involved and whether it was right. No names, topics or times. Sharing is off until you add `"sharing": { "outcomes": true }` to your `config.json`; then `standin outcomes export` writes the records to a local file for you to look at and share yourself. Nothing is sent. `standin outcomes priors <file>` loads default reliabilities (each cell capped at 10 pseudo-counts, so your own answers soon outweigh them); `--clear` removes them.
+
+## Asking your standin, and measuring it
+
+`standin ask "…"` (or the **Ask** tab) answers exactly as a visitor would be answered, on your machine. Each answer runs the same steps:
+
+1. **Route.** Code shortlists the nodes the question shares the most telling words with, and the `answer` model picks up to 3.
+2. **Gather.** It takes their memories, plus nearby ones that share a word, up to 20.
+3. **Filter, before any model sees anything.** Only approved memories at tier 1–2 get through: nothing from a branch you keep private, and guesses only at 80% or more, hedged.
+4. **Decide the state in code.** A private branch gets a fixed "I keep that private" reply, and nothing on record gets a fixed "ask me directly"; neither calls a model.
+5. **Write the reply.** The model writes it in your voice, with up to 3 short passages of your own writing as style examples, and cites the memories it used.
+6. **Check it twice.** Code checks the reply cites only what it was given, claims a state it can stand on, doesn't contain the hidden marker, and doesn't repeat 8 words of anything filtered out. Then the `check` model confirms every claim about you is in the cited memories.
+7. **Fall back.** If either check fails, the reply becomes "not on record".
+
+Every reply is labeled **on record**, **inferred** (hedged), **not on record** or **kept private**. `--work` (or "How it answered") shows what it looked at, what it left out and why, the checks, and the cost.
+
+**Evals.** `standin eval build` writes private test cases from your own store to `$STANDIN_HOME/evals/cases.jsonl`, at most 20 per suite:
+
+- **Known:** your facts should come back.
+- **Not on record:** details you never gave should be declined.
+- **Competence:** concepts you don't know shouldn't be explained.
+- **Boundary:** private branches and tier-4 memories never appear.
+
+Edit or delete any case; add `"edited": true` to keep your version through rebuilds. Your cases never leave your machine, because a test like "refuses to discuss X" reveals that X exists. The repo ships a demo suite and a generic extraction suite (prompt-injection attempts).
+
+`standin eval run` answers every case and grades it, in code (state, forbidden phrases) and with the `judge` model (are the expected facts there, is anything made up). One leak fails the run. Quality suites fail only if they drop more than 5 points below the baseline saved by the first run (`--baseline` resets it). It also reports how often the `check` model missed a made-up claim, so you can decide with data whether it needs a bigger model.
 
 ## Choosing models: roles and tiers
 
@@ -136,9 +165,10 @@ Every model call belongs to a **role**, and each role defaults to a **tier**. Th
 | `extract` | large | private | Extract memories from an observation (quality-critical) |
 | `reconcile` | small | private | Classify a candidate against similar memories |
 | `screen` | medium | private | Flag possibly sensitive memories for review (the safety net, so not the cheapest tier) |
-| `answer` | small | public | Answer a visitor (the $20/month public agent) |
+| `answer` | small | public | Route a visitor's question and write the reply (the $20/month public agent) |
+| `check` | small | public | Confirm each claim in a reply is in its cited memories (`standin eval run` reports its misses) |
 | `checkin`, `attack` | medium | private | Check-in questions, break-me attempts |
-| `style`, `judge` | large | private | Style-card rewrites, eval grading |
+| `style`, `judge` | large | private | Style-card rewrites; writing and grading eval cases |
 | `map`, `hypothesize` | large | private | Organize the world tree and split concepts; guess what you probably know, with evidence |
 
 `$STANDIN_HOME/config.json` maps tiers to models and can override any role. A bare string is an Anthropic model id:

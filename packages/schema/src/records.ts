@@ -388,6 +388,27 @@ export const Question = z.object({
 });
 export type Question = z.infer<typeof Question>;
 
+/** What a reply is, shown to visitors as a badge (architecture §6). */
+export const AnswerState = z.enum(["grounded", "inferred", "not_on_record", "deflected"]);
+export type AnswerState = z.infer<typeof AnswerState>;
+
+export const QuizRating = z.enum(["same", "partly", "wrong"]);
+export type QuizRating = z.infer<typeof QuizRating>;
+
+/** The person's answer to a self-quiz question next to the standin's reply, and how they rated it (answering spec §7). */
+export const QuizAnswer = z.object({
+  id: z.string(),
+  caseId: z.string(),
+  question: z.string(),
+  personAnswer: z.string(),
+  standinReply: z.string(),
+  state: AnswerState,
+  rating: QuizRating.nullable(),
+  sessionId: z.string().nullable(),
+  at: IsoTime,
+});
+export type QuizAnswer = z.infer<typeof QuizAnswer>;
+
 /** A settled hypothesis's outcome (confirmed or refuted) is read from its probe responses, so a late grade can flip it. */
 export const HypothesisStatus = z.enum(["open", "settled", "withdrawn"]);
 export type HypothesisStatus = z.infer<typeof HypothesisStatus>;

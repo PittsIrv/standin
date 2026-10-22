@@ -29,6 +29,9 @@ importers:
       '@standin/demo-persona':
         specifier: workspace:*
         version: link:../../examples/demo-persona
+      '@standin/evals':
+        specifier: workspace:*
+        version: link:../../packages/evals
       '@standin/interview':
         specifier: workspace:*
         version: link:../../packages/interview
@@ -47,6 +50,9 @@ importers:
       '@standin/schema':
         specifier: workspace:*
         version: link:../../packages/schema
+      '@standin/speak':
+        specifier: workspace:*
+        version: link:../../packages/speak
       '@standin/store':
         specifier: workspace:*
         version: link:../../packages/store
@@ -90,6 +96,34 @@ importers:
       '@standin/models':
         specifier: workspace:*
         version: link:../models
+
+  packages/evals:
+    dependencies:
+      '@standin/knowledge':
+        specifier: workspace:*
+        version: link:../knowledge
+      '@standin/llm':
+        specifier: workspace:*
+        version: link:../llm
+      '@standin/schema':
+        specifier: workspace:*
+        version: link:../schema
+      '@standin/speak':
+        specifier: workspace:*
+        version: link:../speak
+      '@standin/store':
+        specifier: workspace:*
+        version: link:../store
+      '@standin/trace':
+        specifier: workspace:*
+        version: link:../trace
+      zod:
+        specifier: ^4.6.5
+        version: 4.6.5
+    devDependencies:
+      '@standin/demo-persona':
+        specifier: workspace:*
+        version: link:../../examples/demo-persona
 
   packages/intake:
     dependencies:
@@ -168,6 +202,9 @@ importers:
       '@standin/compaction':
         specifier: workspace:*
         version: link:../compaction
+      '@standin/evals':
+        specifier: workspace:*
+        version: link:../evals
       '@standin/intake':
         specifier: workspace:*
         version: link:../intake
@@ -177,15 +214,46 @@ importers:
       '@standin/schema':
         specifier: workspace:*
         version: link:../schema
+      '@standin/speak':
+        specifier: workspace:*
+        version: link:../speak
       '@standin/store':
         specifier: workspace:*
         version: link:../store
       zod:
         specifier: ^4.6.5
         version: 4.6.5
+    devDependencies:
+      '@standin/demo-persona':
+        specifier: workspace:*
+        version: link:../../examples/demo-persona
+      '@standin/trace':
+        specifier: workspace:*
+        version: link:../trace
 
   packages/schema:
     dependencies:
+      zod:
+        specifier: ^4.6.5
+        version: 4.6.5
+
+  packages/speak:
+    dependencies:
+      '@standin/knowledge':
+        specifier: workspace:*
+        version: link:../knowledge
+      '@standin/llm':
+        specifier: workspace:*
+        version: link:../llm
+      '@standin/schema':
+        specifier: workspace:*
+        version: link:../schema
+      '@standin/store':
+        specifier: workspace:*
+        version: link:../store
+      '@standin/trace':
+        specifier: workspace:*
+        version: link:../trace
       zod:
         specifier: ^4.6.5
         version: 4.6.5

@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 
-export const ID_PREFIXES = ["obs", "ent", "mem", "exm", "evt", "pp", "cb", "qdc", "edg", "gap", "prb", "rsp", "ses", "hyp", "qst"] as const;
+export const ID_PREFIXES = ["obs", "ent", "mem", "exm", "evt", "pp", "cb", "qdc", "edg", "gap", "prb", "rsp", "ses", "hyp", "qst", "qz"] as const;
 export type IdPrefix = (typeof ID_PREFIXES)[number];
 
 /** A prefixed random id, e.g. `mem_3f9a1c04be27`. */
