@@ -117,4 +117,16 @@ describe("anchoring concepts", () => {
     expect(s.findByAnchor("openalex:subfield:1702")).toBeNull();
     expect(parentName(s, planning.id)).toBe("Knowledge");
   });
+
+  it("doesn't match by name a subfield whose name two fields share, and finds a renamed field by its anchor", async () => {
+    const s = store();
+    const genetics = top(s, "Genetics");
+    const cs = top(s, "Computer science");
+    await anchorConcepts(s, picker({ 1: null }), "Lin");
+    expect(s.getTopic(genetics.id).anchor).toBeNull();
+    s.renameTopic(cs.id, "Computing");
+    top(s, "Reinforcement learning");
+    await anchorConcepts(s, picker({ 1: "Artificial Intelligence" }), "Lin");
+    expect(s.homeParent(s.findByAnchor("openalex:subfield:1702")!.id)).toBe(cs.id);
+  });
 });
