@@ -60,7 +60,8 @@ export function registerRoutes(o: ReviewServerOptions, route: Route, _finish: ()
     const b = z.object({ urls: z.array(z.string().max(2000)).min(1).max(LIMITS.sitePages) }).parse(body);
     const added = [];
     for (const url of b.urls) {
-      if (!site.host || new URL(url).hostname !== site.host) throw new IntakeError("Only pages of the website you added can be read.");
+      const host = URL.canParse(url) ? new URL(url).hostname : null;
+      if (!site.host || host !== site.host) throw new IntakeError("Only pages of the website you added can be read.");
       added.push((await fetchSite(url)).source);
     }
     return { sources: added };

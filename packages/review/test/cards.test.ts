@@ -61,6 +61,7 @@ describe("concept cards over HTTP", () => {
     expect(site.source).toMatchObject({ kind: "website", ref: "https://lin.example/" });
     expect(site.links).toEqual([{ url: "https://lin.example/about", title: "About" }]);
     expect((await api("/api/intro/pages", { urls: ["https://elsewhere.example/"] })).status).toBe(422);
+    expect((await api("/api/intro/pages", { urls: ["not a url"] })).status).toBe(422);
     expect((await api("/api/intro/pages", { urls: ["https://lin.example/about"] })).json!.sources).toHaveLength(1);
     const read = (await api("/api/intro/read", {})).json!;
     expect(read.groups.map((g: { ref: string }) => g.ref)).toEqual(["https://lin.example/", "https://lin.example/about"]);
