@@ -7,7 +7,7 @@ export interface RuleValue {
   reasons: string[];
 }
 
-/** The depth a background seeds its field and core topics at, as hypotheses. */
+/** The depth a background guess takes when the model gives none. */
 export const SEED_DEPTH = 2;
 
 /**

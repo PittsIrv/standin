@@ -6,6 +6,7 @@ import { treeNodes, type TreeNode } from "./tree-view.ts";
 export interface NodeDetail {
   node: TreeNode;
   definition: string | null;
+  examples: string[];
   aliases: string[];
   /** Approved memories living in the node. */
   facts: { id: string; kind: string; statement: string; tier: number }[];
@@ -25,6 +26,7 @@ export function nodeDetail(store: Store, t: TreeSnapshot, nodeId: string): NodeD
   return {
     node,
     definition: topic.definition,
+    examples: topic.examples,
     aliases: topic.aliases,
     facts: store.nodeMemories(nodeId, { status: "approved" }).map((m) => ({ id: m.id, kind: m.kind, statement: m.statement, tier: m.tier })),
     hypothesis: guess ? { depth: guess.depth, p: guess.p, kind: guess.kind, reason: guess.reason, path } : null,

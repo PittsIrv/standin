@@ -55,6 +55,12 @@ section[hidden] { display: none !important; }
 .actions button { flex: 1 1 110px; white-space: nowrap; }
 .note { color: var(--muted); font-size: 15px; margin: 4px 0 18px; }
 .statement { font: 400 22px/1.4 var(--read); margin: 10px 0 14px; }
+.includes { margin: -6px 0 18px; font-size: 15px; line-height: 1.5; }
+.includes b { font-weight: 600; margin-right: 4px; }
+.statements { list-style: none; padding: 0; margin: 0 0 18px; }
+.statements li { display: flex; gap: 8px; margin-bottom: 8px; }
+.statements input { flex: 1; min-width: 0; }
+.add-intro { max-width: 40rem; margin: 28px auto 0; text-align: center; }
 .why { color: var(--muted); font-size: 15px; margin: 0 0 18px; padding-left: 14px; border-left: 2px solid var(--line); border-radius: 0; }
 .done { text-align: center; padding-top: 10vh; }
 .error { color: var(--danger); font-size: 14px; margin-top: 8px; }
@@ -238,6 +244,7 @@ function renderCard() {
   const c = card;
   keymap = {};
   if (!c) return;
+  if (c.type === "intro") return renderIntro(false);
   if (c.type === "card") {
     const k = c.card;
     const why = k.reason === "part" ? WHY.part(k.parent) : WHY[k.reason];
@@ -245,6 +252,8 @@ function renderCard() {
       <div class="topic">${k.path.map(esc).join(" › ")}</div>
       <h2 class="concept">${esc(k.topic)}</h2>
       ${k.definition && k.definition !== k.topic ? `<p class="definition">${esc(k.definition)}</p>` : ""}
+      ${k.examples.length ? `<p class="includes"><b>Includes</b>${k.examples.map(esc).join(", ")}</p>` : ""}
+      ${k.why ? `<p class="why">Why we guessed: ${esc(k.why)}</p>` : ""}
       <p class="note">${why} How well do you know it?</p>
       ${buttons([...LEVELS.map(([l, n]) => [n, String(l), `l${l}`]), ["Wouldn't say", "w", "lw", "ghost"]])}
       ${k.reason === "part" ? `<div class="skip"><button id="skip" class="ghost">Skip the rest of ${esc(k.parent)}<kbd>s</kbd></button></div>` : ""}
@@ -300,6 +309,68 @@ function renderCard() {
     root.innerHTML = `<div class="card done"><p class="statement">Nothing left to ask.</p><p class="note">Look over the forest, or finish to settle this session's guesses.</p>${buttons([["Finish session", "f", "finish2", "primary"]])}</div>`;
     $("#finish2").onclick = finish;
   }
+  root.insertAdjacentHTML("beforeend", `<div class="add-intro"><button id="addIntro" class="ghost">Add to your introduction</button></div>`);
+  $("#addIntro").onclick = () => renderIntro(true);
+}
+
+// ---- the introduction: one box, then confirm what was read out of it ----------------
+let introText = "";
+function renderIntro(adding) {
+  keymap = {};
+  $("#session").innerHTML = `<div class="card">
+    <h2 class="concept">${adding ? "Add to your introduction" : "Introduce yourself"}</h2>
+    <p class="definition">In a few sentences: what you study or work on, and what you've done before. Your standin uses it to decide what to ask you about.</p>
+    <textarea id="introText" rows="6" maxlength="4000" aria-label="Your introduction" placeholder="I'm a second-year CS PhD student. I work on reinforcement learning for robots, and before that I studied math.">${esc(introText)}</textarea>
+    <div class="actions" style="margin-top:14px"><button id="readIntro" class="primary">Read it</button><button id="skipIntro" class="ghost">${adding ? "Back to the cards" : "Skip for now"}</button></div>
+    <div class="error" id="cardError"></div>
+  </div>`;
+  const box = $("#introText");
+  box.focus();
+  $("#skipIntro").onclick = () => act(() => (adding ? Promise.resolve() : api("/api/intro/skip", {})));
+  $("#readIntro").onclick = async () => {
+    const text = box.value.trim();
+    if (!text) return ($("#cardError").textContent = "Write a sentence or two first.");
+    introText = text;
+    $("#readIntro").disabled = true;
+    $("#readIntro").textContent = "Reading…";
+    try {
+      const { statements } = await api("/api/intro/read", { text });
+      renderStatements(text, statements, adding);
+    } catch (e) {
+      $("#cardError").textContent = e.message;
+      $("#readIntro").disabled = false;
+      $("#readIntro").textContent = "Read it";
+    }
+  };
+}
+
+function renderStatements(text, statements, adding) {
+  const row = (s) => `<li><input value="${esc(s)}" maxlength="300" aria-label="Statement"><button class="ghost remove">Remove</button></li>`;
+  $("#session").innerHTML = `<div class="card">
+    <h2 class="concept">Is this right?</h2>
+    <p class="note">This is what your standin read. Fix or remove anything; only what you keep here is saved.</p>
+    ${statements.length ? `<ul class="statements" id="statements">${statements.map(row).join("")}</ul>` : `<p class="why">Nothing to keep was found in that. Try saying what you study or work on.</p>`}
+    <div class="actions"><button id="confirmIntro" class="primary"${statements.length ? "" : " disabled"}>Looks right</button><button id="backIntro" class="ghost">Back</button></div>
+    <div class="error" id="cardError"></div>
+  </div>`;
+  for (const b of document.querySelectorAll("#statements .remove")) b.onclick = () => b.closest("li").remove();
+  $("#backIntro").onclick = () => renderIntro(adding);
+  $("#confirmIntro").onclick = async () => {
+    const kept = [...document.querySelectorAll("#statements input")].map((i) => i.value.trim()).filter(Boolean);
+    if (!kept.length) return ($("#cardError").textContent = "Keep at least one statement, or go back.");
+    $("#confirmIntro").disabled = true;
+    $("#confirmIntro").textContent = "Setting up your guesses…";
+    try {
+      const r = await api("/api/intro/confirm", { text, statements: kept });
+      if (r.dropped.length) banner(`Left out ${r.dropped.length} statement${r.dropped.length === 1 ? "" : "s"} about a sensitive subject; your standin never guesses about those.`);
+      introText = "";
+      await loadCard();
+    } catch (e) {
+      $("#cardError").textContent = e.message;
+      $("#confirmIntro").disabled = false;
+      $("#confirmIntro").textContent = "Looks right";
+    }
+  };
 }
 
 document.addEventListener("keydown", (e) => {
@@ -611,6 +682,7 @@ async function openPanel(id) {
       <h2>${esc(n.name)}</h2>
       <p class="status">${esc(statusLine(n))}</p>
       ${d.definition ? `<p>${esc(d.definition)}</p>` : ""}
+      ${d.examples.length ? `<p class="includes"><b>Includes</b>${d.examples.map(esc).join(", ")}</p>` : ""}
       ${d.aliases.length ? `<p class="small">Also called ${d.aliases.map(esc).join(", ")}</p>` : ""}
       <h3>Facts here</h3>
       ${d.facts.length ? `<ul>${d.facts.map((f) => `<li>${esc(f.statement)}<div class="row"><select data-fact="${esc(f.id)}" aria-label="Move this fact"><option value="">Move to…</option>${nodeOptions(id)}</select></div></li>`).join("")}</ul>` : `<p class="small">None yet.</p>`}
@@ -621,6 +693,8 @@ async function openPanel(id) {
       ${d.links.length ? `<ul>${d.links.map((l) => `<li><span>${l.kind === "requires" ? (l.direction === "out" ? "needs" : "needed by") : "related to"} ${esc(l.other.name)}</span> <button class="ghost" data-unlink="${esc(l.id)}" aria-label="Remove this link">Remove</button></li>`).join("")}</ul>` : `<p class="small">None.</p>`}
       <h3>Edit</h3>
       <div class="row"><input id="rename" value="${esc(n.name)}" aria-label="New name"><button id="doRename">Rename</button></div>
+      <div class="row"><input id="defn" value="${esc(d.definition || "")}" placeholder="One-line definition" aria-label="Definition"></div>
+      <div class="row"><input id="examples" value="${esc(d.examples.join(", "))}" placeholder="What it includes, comma-separated" aria-label="What it includes"><button id="doDescribe">Save</button></div>
       <div class="row"><select id="moveTo" aria-label="New parent"><option value="">Move under…</option>${nodeOptions(id)}</select><button id="doMove">Move</button></div>
       <div class="row"><input id="childName" placeholder="New child's name" aria-label="New child's name"><select id="childLabel" aria-label="Kind">${LABELS.map((l) => `<option${l === (n.label === "other" ? "other" : n.label) ? " selected" : ""}>${l}</option>`).join("")}</select><button id="doAdd">Add child</button></div>
       <div class="row"><button id="doDelete" class="ghost" style="color:var(--danger)">Delete this node</button></div>
@@ -636,6 +710,7 @@ async function openPanel(id) {
     };
     $("#closePanel").onclick = () => { panel.hidden = true; selected = null; drawForest(); };
     $("#doRename").onclick = () => { const name = $("#rename").value.trim(); if (!name) return fail(new Error("Give it a name first.")); edit("/api/tree/rename", { nodeId: id, name }); };
+    $("#doDescribe").onclick = () => edit("/api/tree/describe", { nodeId: id, definition: $("#defn").value.trim() || null, examples: $("#examples").value.split(",").map((e) => e.trim()).filter(Boolean) });
     $("#doMove").onclick = () => { const to = $("#moveTo").value; if (!to) return fail(new Error("Pick where it goes.")); edit("/api/tree/move", { nodeId: id, parentId: to }); };
     $("#doAdd").onclick = () => { const name = $("#childName").value.trim(); if (!name) return fail(new Error("Give the child a name first.")); edit("/api/tree/add", { parentId: id, name, label: $("#childLabel").value }); };
     $("#doDelete").onclick = () => {

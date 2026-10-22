@@ -17,6 +17,7 @@ function rowToTopic(r: Row): Topic {
     partLevel: r.part_level ?? null,
     walkStopped: r.walk_stopped === 1,
     definition: r.definition ?? null,
+    examples: JSON.parse(String(r.examples ?? "[]")),
     expandedAt: r.expanded_at ?? null,
     seedMemoryId: r.seed_memory_id ?? null,
     boundaryTier: r.boundary_tier ?? null,
@@ -49,7 +50,7 @@ const rowToGap = (r: Row): Gap =>
   });
 
 const TOPIC_SELECT =
-  "SELECT e.*, t.definition, t.expanded_at, t.seed_memory_id, t.boundary_tier, t.deleted_at, t.root_key, t.frontier, t.part_level, t.walk_stopped FROM entities e JOIN topics t ON t.entity_id = e.id";
+  "SELECT e.*, t.definition, t.expanded_at, t.seed_memory_id, t.boundary_tier, t.deleted_at, t.root_key, t.frontier, t.part_level, t.walk_stopped, t.examples FROM entities e JOIN topics t ON t.entity_id = e.id";
 
 /** The node for a name or alias with this label, created if absent. A deleted node is returned as it is (still deleted). */
 export function ensureNode(s: Store, name: string, label: EntityKind, definition: string | null = null): Topic {
@@ -101,6 +102,7 @@ export function setTopic(
     frontier?: boolean;
     partLevel?: number | null;
     walkStopped?: boolean;
+    examples?: string[];
   },
 ): Topic {
   getTopic(s, id);
@@ -109,6 +111,7 @@ export function setTopic(
     ["walk_stopped", patch.walkStopped === undefined ? undefined : patch.walkStopped ? 1 : 0],
     ["part_level", patch.partLevel],
     ["definition", patch.definition],
+    ["examples", patch.examples === undefined ? undefined : JSON.stringify(patch.examples)],
     ["expanded_at", patch.expandedAt],
     ["seed_memory_id", patch.seedMemoryId],
     ["boundary_tier", patch.boundaryTier],
@@ -290,6 +293,17 @@ export function renameTopic(s: Store, id: string, name: string): Topic {
     const aliases = [...new Set([...t.aliases, t.name])].filter((a) => normalizeName(a) !== normalizeName(clean));
     s.db.prepare("UPDATE entities SET name = ?, aliases = ? WHERE id = ?").run(clean, JSON.stringify(aliases), id);
     s.db.prepare("UPDATE topics SET frontier = 0 WHERE entity_id = ?").run(id);
+    return getTopic(s, id);
+  });
+}
+
+/** The person describes a node: its definition and what it includes. Their words win over any split or seeding. */
+export function describeTopic(s: Store, id: string, d: { definition: string | null; examples: string[] }): Topic {
+  return s.transaction(() => {
+    guardRoot(s, id);
+    const examples = [...new Set(d.examples.map((e) => e.trim().replace(/\s+/g, " ")).filter(Boolean))];
+    const definition = d.definition?.trim() || null;
+    s.db.prepare("UPDATE topics SET definition = ?, examples = ?, frontier = 0 WHERE entity_id = ?").run(definition, JSON.stringify(examples), id);
     return getTopic(s, id);
   });
 }

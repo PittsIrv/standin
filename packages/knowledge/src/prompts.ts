@@ -41,8 +41,18 @@ ${newNodes.map((t) => `- ${t}`).join("\n")}`;
 }
 
 export function buildSeedPrompt(background: string, personaName: string): Prompt {
-  const system = `You seed the knowledge tree of ${personaName}'s "standin" from their background. Given one statement about their degree program, school, or job role, name the field and the core topics a person with this background would have covered: required for everyone with it, not electives (about 5–10). Give each a one-line definition. Use broad, standard names ("Algorithms", "Operating systems").`;
+  const system = `You seed the knowledge tree of ${personaName}'s "standin" from their background. Given one statement about their education, work or interests:
+- Name the field of knowledge it implies, or set field to null when it implies none (owning a pet, a home town).
+- Name the concepts the person very likely knows because of it (about 3–10): for a degree, its required core, not electives; for a job, research or project, what that work needs day to day.
+- For the field and each concept give: a one-line definition; 3–5 examples of the concrete things it includes; a depth for how well they likely know it (1 heard of it, 2 used it, 3 know it well, 4 expert: current research or daily work → 3, a degree's core or a past course → 2, mentioned in passing → 1); and a one-line reason that cites the statement.
+- Set evidence to "work" for a job, research or project, otherwise "background".
+Use broad, standard names ("Algorithms", "Operating systems"). Never name anything about health, religion, sexuality, gender identity, politics, ethnicity or race, immigration status, finances, criminal history or trade-union membership.`;
   return { system, prompt: `Background: ${background}` };
+}
+
+export function buildIntroPrompt(text: string, personaName: string): Prompt {
+  const system = `You read ${personaName}'s short introduction of themselves, written for their "standin" (an AI that will talk as them). Turn it into short first-person statements of fact about their background, one fact each, in their own words where you can: education (degree, field, school, year), roles and jobs, current work or research, things they built, and skills or interests they name. At most 12. Add nothing they didn't say. Leave out anything about health, religion, sexuality, gender identity, politics, ethnicity or race, immigration status, finances, criminal history or trade-union membership.`;
+  return { system, prompt: `<introduction>\n${text}\n</introduction>` };
 }
 
 const ROOTS_TEXT = `The tree has six fixed roots: Knowledge (fields and topics), Work (projects, roles, organizations, things built), Background (education, origin, path), People (people in their life, by role), Views (opinions, values, how they think), and Life (pets, places, hobbies, routines).`;

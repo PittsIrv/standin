@@ -1,5 +1,5 @@
 import { queuePlace, reviewQueue } from "@standin/compaction";
-import { loadSnapshot, nodeDetail, treeNodes, type FinishReport } from "@standin/knowledge";
+import { loadSnapshot, MAX_INTRO_STATEMENTS, nodeDetail, treeNodes, type FinishReport } from "@standin/knowledge";
 import { EntityKind, ROOTS } from "@standin/schema";
 import { NameTakenError } from "@standin/store";
 import { z } from "zod";
@@ -22,6 +22,18 @@ export function registerRoutes(o: ReviewServerOptions, route: Route, _finish: ()
     const b = z.object({ parentId: Id }).parse(body);
     store.getTopic(b.parentId);
     session.skipRest(b.parentId);
+  });
+  const IntroText = z.string().trim().min(1).max(4000);
+  route("POST", "/api/intro/read", async ({ body }) => {
+    const b = z.object({ text: IntroText }).parse(body);
+    return { statements: await session.readIntro(b.text) };
+  });
+  route("POST", "/api/intro/confirm", ({ body }) => {
+    const b = z.object({ text: IntroText, statements: z.array(z.string().max(300)).max(MAX_INTRO_STATEMENTS) }).parse(body);
+    return session.introduce(b.text, b.statements);
+  });
+  route("POST", "/api/intro/skip", () => {
+    session.skipIntro();
   });
   route("POST", "/api/claim", ({ body }) => {
     const b = z.object({ claimNodeId: Id, choice: z.enum(["keep", "lower"]) }).parse(body);
@@ -62,6 +74,10 @@ export function registerRoutes(o: ReviewServerOptions, route: Route, _finish: ()
   route("POST", "/api/tree/rename", ({ body }) => {
     const b = z.object({ nodeId: Id, name: Name }).parse(body);
     return store.renameTopic(b.nodeId, b.name);
+  });
+  route("POST", "/api/tree/describe", ({ body }) => {
+    const b = z.object({ nodeId: Id, definition: z.string().max(500).nullable(), examples: z.array(z.string().max(120)).max(12) }).parse(body);
+    return store.describeTopic(b.nodeId, b);
   });
   route("POST", "/api/tree/move", ({ body }) => {
     const b = z.object({ nodeId: Id, parentId: Id.nullable() }).parse(body);

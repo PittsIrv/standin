@@ -11,6 +11,7 @@ const topic = (id: string): Topic => ({
   partLevel: null,
   walkStopped: false,
   definition: null,
+  examples: [],
   expandedAt: null,
   seedMemoryId: null,
   boundaryTier: null,

@@ -83,6 +83,16 @@ describe("the forest API", () => {
     await server.finish();
   });
 
+  it("edits a node's definition and examples, and shows them in its detail", async () => {
+    const { w, server, api, id } = await forestWorld();
+    const res = await api("/api/tree/describe", { nodeId: id("RL"), definition: "Learning from rewards.", examples: [" Q-learning ", "PPO", "", "bandits"] });
+    expect(res.status).toBe(200);
+    const detail = (await api(`/api/node/${id("RL")}`)).json!;
+    expect([detail.definition, detail.examples]).toEqual(["Learning from rewards.", ["Q-learning", "PPO", "bandits"]]);
+    expect((await api("/api/tree/describe", { nodeId: w.store.root("knowledge").id, definition: "x", examples: [] })).status).toBe(409);
+    await server.finish();
+  });
+
   it("lists boundaries and undoes one", async () => {
     const { w, server, api, id } = await forestWorld();
     w.store.setTopic(id("RL"), { boundaryTier: 3 });

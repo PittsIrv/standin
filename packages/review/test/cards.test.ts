@@ -5,6 +5,28 @@ const decisions = (w: { store: { db: { prepare: (s: string) => { all: () => unkn
   w.store.db.prepare("SELECT item_id, item_kind, queue_group AS grp, position, decision FROM queue_decisions ORDER BY rowid").all() as Record<string, unknown>[];
 
 describe("concept cards over HTTP", () => {
+  it("opens with the introduction, reads it, stores what you confirm, then asks its guesses", async () => {
+    const { w, server, api } = await served({ intro: true });
+    expect((await api("/api/card")).json!.card).toEqual({ type: "intro" });
+    expect((await api("/api/intro/read", { text: "" })).status).toBe(400);
+    const read = await api("/api/intro/read", { text: "I research robotics. I have two cats." });
+    expect(read.json!.statements).toEqual(["I research robotics.", "I have two cats."]);
+    expect(w.store.listMemories({})).toEqual([]);
+    const done = await api("/api/intro/confirm", { text: "I research robotics. I have two cats.", statements: ["I research robot learning.", ""] });
+    expect(done.json).toEqual({ saved: 1, dropped: [] });
+    expect(w.store.listMemories({ status: "approved" }).map((m) => m.statement)).toEqual(["I research robot learning."]);
+    expect((await api("/api/card")).json!.card).toMatchObject({ type: "card", card: { reason: "guess", topic: "F", why: "your introduction says so" } });
+    await server.finish();
+  });
+
+  it("skips the introduction for good when asked", async () => {
+    const { w, server, api } = await served({ intro: true });
+    expect((await api("/api/intro/skip", {})).status).toBe(200);
+    expect((await api("/api/card")).json!.card).toEqual({ type: "done" });
+    expect(w.store.getKv("intro.skipped")).not.toBeNull();
+    await server.finish();
+  });
+
   it("shows the same card on reload, and refuses a second answer", async () => {
     const { server, api } = await served({ setup: (w) => w.guess("Algorithms", 2) });
     const a = await api("/api/card");

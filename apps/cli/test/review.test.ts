@@ -55,12 +55,18 @@ describe("standin review", () => {
     const done = h.run("review", "--demo-llm", "--port", "0");
     const url = await h.pageUrl();
     expect(url.hostname).toBe("127.0.0.1");
+    expect((await call(url, "/api/card")).card.type).toBe("intro");
+    const text = "I build AIs for board games. I have two cats.";
+    const { statements } = await call(url, "/api/intro/read", { text });
+    expect(statements).toEqual(["I build AIs for board games.", "I have two cats."]);
+    expect(await call(url, "/api/intro/confirm", { text, statements })).toEqual({ saved: 2, dropped: [] });
     const { card } = await call(url, "/api/card");
-    expect(card.type).toBe("card");
+    expect(card).toMatchObject({ type: "card", card: { reason: "guess", why: expect.any(String) } });
+    expect(card.card.examples.length).toBeGreaterThanOrEqual(3);
     await call(url, "/api/answer", { responseId: card.card.responseId, answer: 0 });
     await call(url, "/api/finish", {});
     expect(await done).toBe(0);
-    expect(h.out.join("\n")).toMatch(/Finished: answered 1 card, settled 0 guesses\./);
+    expect(h.out.join("\n")).toMatch(/Finished: answered 1 card, settled 1 guess\./);
   });
 
   it("finishes the session on Ctrl-C", async () => {

@@ -65,9 +65,9 @@ export function nextCardTarget(t: TreeSnapshot, s: CardState, skip: Set<string>)
     if (found) return found;
   }
 
-  // 3. New areas: top-level concepts and seeded fields nobody has said anything about.
+  // 3. New areas: top-level concepts and seeded fields nobody has said anything about, the person's background first.
   const area = [...new Set([...tops, ...t.seeded.keys()])]
     .filter((id) => t.topics.has(id) && !spoken(id) && !t.stated.has(id) && !t.approved.has(id) && !t.hypotheses.has(id) && !walled(id) && !skip.has(`area:${id}`))
-    .sort(byName(t))[0];
+    .sort((a, b) => Number(t.seeded.has(b)) - Number(t.seeded.has(a)) || byName(t)(a, b))[0];
   return area ? { kind: "area", nodeId: area } : null;
 }

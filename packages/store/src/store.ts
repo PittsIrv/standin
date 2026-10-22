@@ -357,6 +357,10 @@ export class Store {
     this.db.prepare("UPDATE topics SET split_checked = ? WHERE entity_id = ?").run(count, id);
   }
 
+  describeTopic(id: string, d: { definition: string | null; examples: string[] }): Topic {
+    return tree.describeTopic(this, id, d);
+  }
+
   renameTopic(id: string, name: string): Topic {
     return tree.renameTopic(this, id, name);
   }

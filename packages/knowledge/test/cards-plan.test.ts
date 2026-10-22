@@ -70,4 +70,9 @@ describe("nextCardTarget", () => {
     const walled = tree({ partOf: [["Graphics", "CS"]], boundaries: ["CS"] });
     expect(nextCardTarget(walled, none(), new Set())).toBeNull();
   });
+
+  it("asks about areas from the person's background before the rest", () => {
+    const t = tree({ partOf: [["Graphics", "Art"], ["Shaders", "Robotics"]], seeded: { Robotics: "I research robotics." } });
+    expect(nextCardTarget(t, none(), new Set())).toEqual({ kind: "area", nodeId: "Robotics" });
+  });
 });
