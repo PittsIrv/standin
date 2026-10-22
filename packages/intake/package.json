@@ -1,0 +1,17 @@
+{
+  "name": "@standin/intake",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "@standin/schema": "workspace:*",
+    "linkedom": "^0.18.14",
+    "mammoth": "^1.13.0",
+    "unpdf": "^1.9.1"
+  }
+}
