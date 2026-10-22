@@ -1,6 +1,6 @@
 # Personal-Data Guard
 
-**Status:** draft (decisions 93–100). **Builds on** architecture §7 (the airlock's deterministic scanners) and intro-sources §3 (contact details are cut before storing).
+**Status:** implemented (decisions 93–100). **Builds on** architecture §7 (the airlock's deterministic scanners) and intro-sources §3 (contact details are cut before storing).
 
 Your standin needs to know what you did and what you think, not how to log in as you. Before this, a password, API key or card number typed into `standin tell`, the Add box, a question answer or a quiz answer was stored as raw text, sent to the model provider during compaction, copied into the trace log, and could come back as a fact to approve. This adds the airlock's deterministic scanners now, at the point where text comes in, instead of only at publish time.
 
@@ -27,14 +27,14 @@ Your standin needs to know what you did and what you think, not how to log in as
 | Unknown keys | gitleaks' `generic-api-key`: a keyword (key, token, secret, password, auth, credential…) with an assignment, then a value with Shannon entropy **≥ 3.5** bits per character that contains a digit. Plus a prose form of the same: "my api token is …" (keyword, then `is`/`was`/`:`/`=`, then a value meeting the same entropy rule). |
 | Passwords | `password`, `passwd`, `passcode`, `passphrase`, `pwd`, `PIN`, then `is`/`was`/`:`/`=`, then a value that has a digit, a symbol or a capital letter after its first character, or is in quotes |
 | Private keys | `-----BEGIN … PRIVATE KEY-----` blocks |
-| Card numbers | 13–19 digits (spaces or dashes allowed between groups) that pass the Luhn check |
+| Card numbers | 13–19 digits (spaces or dashes allowed between groups), starting with 2–6 as card issuers do, that pass the Luhn check |
 | IBAN | country code, 2 check digits, 11–30 letters and digits, passing mod-97 |
 | Chinese resident ID | 18 characters (17 digits + digit or X) with a valid date of birth and ISO 7064 mod 11-2 check |
 | US SSN | `AAA-GG-SSSS`, excluding area 000, 666, 900–999, group 00 and serial 0000 |
 
 Passport and driver's-license numbers are not checked: they have no checksum and vary too much by country.
 
-**Contacts:** the existing email, phone and street-address patterns, moved here from `@standin/intake`.
+**Contacts:** emails, phone numbers and street addresses, moved here from `@standin/intake`. Phone numbers are international (`+…`), North American, or Chinese mobile, so dates, version strings and paper ids aren't cut.
 
 ### 2.1 Porting gitleaks
 

@@ -6,3 +6,4 @@ export { SHARED_ENTITY_BOOST, UNVERIFIED_SOURCES, type InsertContext, type Neigh
 export type { ConsolidationReport } from "./consolidate.ts";
 export type { RunSummary, UsageRow } from "./spans.ts";
 export type { NewHypothesis } from "./hypotheses.ts";
+export type { StoredFinding } from "./scan.ts";

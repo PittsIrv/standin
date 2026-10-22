@@ -23,6 +23,7 @@ import * as qs from "./questions.ts";
 import * as quiz from "./quiz.ts";
 import type { SpanContent, SpanData, SpanSink } from "@standin/trace";
 import { consolidate, purge, type ConsolidationReport } from "./consolidate.ts";
+import { purgeStored, scanStored, type StoredFinding } from "./scan.ts";
 
 /**
  * The personal-data guard's one checkpoint (spec §3): text a person typed is refused if it holds a secret, and text
@@ -325,6 +326,14 @@ export class Store {
   /** Deletes raw text of observations compacted before `before`, and the trace text tied to them. Hashes and pointers stay. */
   purge(before: string): { observations: number; spanContent: number } {
     return purge(this, before);
+  }
+
+  /** Secrets and contact details already stored, by where they are (personal-data guard §4). */
+  scanStored(): StoredFinding[] {
+    return scanStored(this);
+  }
+  purgeStored(): { observations: number; spanContent: number; rewritten: number } {
+    return purgeStored(this);
   }
 
   // ---- review decisions ---------------------------------------------------

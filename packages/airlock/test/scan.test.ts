@@ -165,6 +165,11 @@ describe("clean", () => {
     expect(r.cut.contacts).toBe(3);
   });
 
+  it("finds nothing left in text it already cut", () => {
+    const once = clean(`password: Hunter2! token ${secret} pin "4821" me@example.com`, "cut").text;
+    expect(scan(once)).toEqual([]);
+  });
+
   it("returns clean text unchanged", () => {
     expect(clean("I study at CMU.", "refuse")).toEqual({ text: "I study at CMU.", cut: { secrets: [], contacts: 0 } });
   });

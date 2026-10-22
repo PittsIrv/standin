@@ -87,6 +87,9 @@ function gitleaks(text: string): Finding[] {
 
 // ---- our own rules --------------------------------------------------------
 
+/** What `clean` leaves in place of a finding; never itself a finding. */
+export const REMOVED = "[removed]";
+
 const ASSIGN = String.raw`(?:\s+(?:is|was)\s+|\s*[:=]\s*)`;
 const PROSE_KEY = new RegExp(
   String.raw`\b(?:api[ _-]?(?:key|token|secret)|access[ _-]?(?:key|token)|secret[ _-]?key|client[ _-]?secret|auth[ _-]?token|token|secret)${ASSIGN}["'\x60]?([^\s"'\x60,;]{8,150})`,
@@ -137,6 +140,7 @@ function cnIdValid(id: string): boolean {
 
 /** A password value has to look like one: a digit, a symbol, or a capital after its first letter (decision 100). */
 function looksLikePassword(value: string): boolean {
+  if (value.startsWith(REMOVED)) return false; // already cut
   const v = value.replace(/[.!?,;:)\]]+$/, "");
   return v.length > 0 && (/\d/.test(v) || /[^\p{L}\p{N}\s]/u.test(v) || /.\p{Lu}/u.test(v));
 }
@@ -150,6 +154,7 @@ function own(text: string): Finding[] {
   }
   for (const m of text.matchAll(PASSWORD)) {
     const g = [1, 2, 3, 4].find((i) => m[i] !== undefined)!;
+    if (m[g] === REMOVED) continue;
     if (g < 4 || looksLikePassword(m[4]!)) push("password", ...m.indices![g]!);
   }
   for (const m of text.matchAll(PRIVATE_KEY)) push("private-key", m.index, m.index + m[0].length);

@@ -1,6 +1,5 @@
-import { scan, type Finding } from "./scan.ts";
+import { REMOVED, scan, type Finding } from "./scan.ts";
 
-const REMOVED = "[removed]";
 const MASK = "•••";
 /** Words of context shown on each side of a finding; none of the finding itself (spec §6). */
 export const CONTEXT_WORDS = 4;
