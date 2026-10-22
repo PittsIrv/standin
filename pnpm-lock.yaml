@@ -117,6 +117,9 @@ importers:
 
   packages/knowledge:
     dependencies:
+      '@standin/intake':
+        specifier: workspace:*
+        version: link:../intake
       '@standin/llm':
         specifier: workspace:*
         version: link:../llm
@@ -165,6 +168,9 @@ importers:
       '@standin/compaction':
         specifier: workspace:*
         version: link:../compaction
+      '@standin/intake':
+        specifier: workspace:*
+        version: link:../intake
       '@standin/knowledge':
         specifier: workspace:*
         version: link:../knowledge

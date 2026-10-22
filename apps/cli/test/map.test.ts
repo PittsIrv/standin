@@ -37,8 +37,8 @@ describe("standin map", () => {
     expect(refreshed.out).toContain("Next: standin queue");
 
     const text = (await run("map")).out;
-    expect(text).toMatch(/Computer science {2}probable 2 \(p 0\.50, background\)/);
-    expect(text).toMatch(/\n {4}Algorithms {2}probable 2 \(p 0\.50, background\)/);
+    expect(text).toMatch(/Computer science {2}probable 2 \(p 0\.50, degree\)/);
+    expect(text).toMatch(/\n {4}Algorithms {2}probable 2 \(p 0\.50, degree\)/);
     expect(text).toMatch(/Board games {2}not lit/);
     for (const root of ["Knowledge", "Work", "Background", "People", "Views", "Life"]) expect(text).toMatch(new RegExp(`^${root}$`, "m"));
     expect(text).toMatch(/^ {2}Projects {2}0 facts\n {4}Kite {2}\d+ facts?$/m);

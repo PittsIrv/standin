@@ -1,12 +1,15 @@
 import { queuePlace, reviewQueue } from "@standin/compaction";
 import { loadSnapshot, MAX_INTRO_STATEMENTS, nodeDetail, treeNodes, type FinishReport } from "@standin/knowledge";
-import { EntityKind, ROOTS } from "@standin/schema";
+import { fetchPage, fileToText, IntakeError, LIMITS } from "@standin/intake";
+import { EntityKind, FactKind, ROOTS } from "@standin/schema";
 import { NameTakenError } from "@standin/store";
 import { z } from "zod";
 import { nextCard, queueCard } from "./cards.ts";
 import type { Route, ReviewServerOptions } from "./server.ts";
 
 const Id = z.string().min(1).max(64);
+/** A 10 MB file, base64-encoded, plus the JSON around it. */
+const MAX_UPLOAD = Math.ceil((LIMITS.fileBytes * 4) / 3) + 4096;
 
 /** The review page's JSON API, beyond status and finish. */
 export function registerRoutes(o: ReviewServerOptions, route: Route, _finish: () => Promise<FinishReport>): void {
@@ -23,14 +26,62 @@ export function registerRoutes(o: ReviewServerOptions, route: Route, _finish: ()
     store.getTopic(b.parentId);
     session.skipRest(b.parentId);
   });
-  const IntroText = z.string().trim().min(1).max(4000);
-  route("POST", "/api/intro/read", async ({ body }) => {
-    const b = z.object({ text: IntroText }).parse(body);
-    return { statements: await session.readIntro(b.text) };
+  // ---- the introduction: sources wait in the session until the person confirms statements from them ----
+  const site: { host: string | null; pages: number } = { host: null, pages: 0 };
+  const fetchSite = async (url: string) => {
+    if (site.pages >= LIMITS.sitePages) throw new IntakeError(`At most ${LIMITS.sitePages} pages of a website can be read.`);
+    const page = await fetchPage(url, o.fetchOptions);
+    site.pages++;
+    return { page, source: session.addSource("website", page.url, `${page.title}\n\n${page.text}`) };
+  };
+  route("GET", "/api/intro/sources", () => ({ sources: session.introSources() }));
+  route("POST", "/api/intro/text", ({ body }) => {
+    const b = z.object({ text: z.string().trim().min(1).max(LIMITS.textChars) }).parse(body);
+    return session.addSource("intro", "your introduction", b.text);
+  });
+  route(
+    "POST",
+    "/api/intro/file",
+    async ({ body }) => {
+      const b = z.object({ name: z.string().trim().min(1).max(200), data: z.string().max(Math.ceil((LIMITS.fileBytes * 4) / 3) + 4) }).parse(body);
+      const { text } = await fileToText(b.name, Buffer.from(b.data, "base64"));
+      if (!text.trim()) throw new IntakeError(`${b.name} has no text in it.`);
+      return session.addSource("file", b.name, text.slice(0, LIMITS.textChars * 5));
+    },
+    { maxBody: MAX_UPLOAD },
+  );
+  route("POST", "/api/intro/site", async ({ body }) => {
+    const b = z.object({ url: z.string().trim().min(1).max(2000) }).parse(body);
+    const { page, source } = await fetchSite(b.url.includes("://") ? b.url : `https://${b.url}`);
+    site.host = new URL(page.url).hostname;
+    return { source, links: page.links };
+  });
+  route("POST", "/api/intro/pages", async ({ body }) => {
+    const b = z.object({ urls: z.array(z.string().max(2000)).min(1).max(LIMITS.sitePages) }).parse(body);
+    const added = [];
+    for (const url of b.urls) {
+      if (!site.host || new URL(url).hostname !== site.host) throw new IntakeError("Only pages of the website you added can be read.");
+      added.push((await fetchSite(url)).source);
+    }
+    return { sources: added };
+  });
+  route("POST", "/api/intro/remove", ({ body }) => {
+    session.removeSource(z.object({ sourceId: Id }).parse(body).sourceId);
+  });
+  route("POST", "/api/intro/read", () => session.readSources());
+  const Confirmed = z.object({
+    sourceId: Id,
+    statement: z.string().max(500),
+    quote: z.string().max(2000),
+    kind: FactKind,
+    kindLabel: z.string().max(60).nullable(),
+    start: z.string().max(40).nullable(),
+    end: z.string().max(40).nullable(),
+    current: z.boolean(),
   });
   route("POST", "/api/intro/confirm", ({ body }) => {
-    const b = z.object({ text: IntroText, statements: z.array(z.string().max(300)).max(MAX_INTRO_STATEMENTS) }).parse(body);
-    return session.introduce(b.text, b.statements);
+    const b = z.object({ statements: z.array(Confirmed).max(MAX_INTRO_STATEMENTS * 2) }).parse(body);
+    return session.introduce(b.statements);
   });
   route("POST", "/api/intro/skip", () => {
     session.skipIntro();

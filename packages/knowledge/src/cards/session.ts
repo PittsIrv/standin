@@ -6,7 +6,8 @@ import { cells, loadPriors, outcomeOf, probabilityOf } from "../hypotheses/calib
 import { expandNode } from "../probing/expand.ts";
 import { syncStatedGaps } from "../gaps.ts";
 import { computeLighting } from "../lighting.ts";
-import { needsIntro, readIntro, saveIntro, skipIntro } from "../intro.ts";
+import { stripContacts } from "@standin/intake";
+import { needsIntro, readSource, saveIntro, skipIntro, type ConfirmedStatement, type IntroSource, type ReadStatement } from "../intro.ts";
 import { refresh } from "../refresh.ts";
 import { loadSnapshot, type TreeSnapshot } from "../snapshot.ts";
 import { statementFor } from "../wording.ts";
@@ -22,6 +23,23 @@ export interface CardSessionDeps {
   personaName: string;
   splitAt?: number;
   hypotheses?: { speakAt: number; dropBelow: number; dropAfter: number; brierWindow: number };
+}
+
+/** A source waiting in the introduction. */
+export interface IntroSourceSummary {
+  id: string;
+  kind: IntroSource["kind"];
+  ref: string;
+  chars: number;
+  contactsRemoved: number;
+}
+
+/** What the waiting sources were read into, grouped by source, with counts of what was left out. */
+export interface IntroReading {
+  groups: { sourceId: string; kind: IntroSource["kind"]; ref: string; statements: ReadStatement[] }[];
+  notFound: number;
+  sensitive: number;
+  contacts: number;
 }
 
 /** One concept on the screen. */
@@ -70,6 +88,8 @@ export class CardSession {
   readonly warnings: string[] = [];
   private readonly skip = new Set<string>();
   private settledHere = 0;
+  private sourceCount = 0;
+  private readonly pending = new Map<string, { source: IntroSource; contactsRemoved: number; read: Awaited<ReturnType<typeof readSource>> | null }>();
 
   private constructor(
     private readonly deps: CardSessionDeps,
@@ -111,16 +131,56 @@ export class CardSession {
     return needsIntro(this.deps.store);
   }
 
-  /** The introduction read into statements for the person to confirm; nothing is stored. */
-  readIntro(text: string): Promise<string[]> {
-    return this.traced("intro.read", () => readIntro(this.deps.map, text, this.deps.personaName));
+  /**
+   * Adds a source to the introduction being built (intro-sources spec §3). It waits in memory, contact details
+   * removed, until the person confirms statements from it; nothing is stored before then.
+   */
+  addSource(kind: IntroSource["kind"], ref: string, text: string): IntroSourceSummary {
+    const { text: clean, removed } = stripContacts(text.trim());
+    const source: IntroSource = { id: `src${++this.sourceCount}`, kind, ref, text: clean };
+    this.pending.set(source.id, { source, contactsRemoved: removed, read: null });
+    return this.summary(source.id);
   }
 
-  /** Stores the confirmed statements as background, then refreshes the tree so their guesses come next. */
-  async introduce(text: string, statements: string[]): Promise<{ saved: number; dropped: string[] }> {
+  removeSource(id: string): void {
+    this.pending.delete(id);
+  }
+
+  introSources(): IntroSourceSummary[] {
+    return [...this.pending.keys()].map((id) => this.summary(id));
+  }
+
+  private summary(id: string): IntroSourceSummary {
+    const p = this.pending.get(id)!;
+    return { id, kind: p.source.kind, ref: p.source.ref, chars: p.source.text.length, contactsRemoved: p.contactsRemoved };
+  }
+
+  /** Every waiting source read into statements for the person to confirm (each source is read once). Nothing is stored. */
+  async readSources(): Promise<IntroReading> {
+    return this.traced("intro.read", async () => {
+      const groups: IntroReading["groups"] = [];
+      let notFound = 0;
+      let sensitive = 0;
+      let contacts = 0;
+      for (const p of this.pending.values()) {
+        p.read ??= await readSource(this.deps.map, p.source, this.deps.personaName);
+        groups.push({ sourceId: p.source.id, kind: p.source.kind, ref: p.source.ref, statements: p.read.statements });
+        notFound += p.read.notFound;
+        sensitive += p.read.sensitive;
+        contacts += p.contactsRemoved;
+      }
+      return { groups, notFound, sensitive, contacts };
+    });
+  }
+
+  /** Stores the confirmed statements as background, clears the waiting sources, and refreshes so their guesses come next. */
+  async introduce(statements: ConfirmedStatement[]): Promise<{ saved: number; dropped: string[] }> {
     return this.traced("intro.save", async () => {
-      const { saved, dropped } = saveIntro(this.deps.store, text, statements);
-      if (saved.length > 0) await this.refreshTree();
+      const { saved, dropped } = saveIntro(this.deps.store, [...this.pending.values()].map((p) => p.source), statements);
+      if (saved.length > 0) {
+        this.pending.clear();
+        await this.refreshTree();
+      }
       return { saved: saved.length, dropped };
     });
   }

@@ -8,6 +8,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@standin/intake": "workspace:*",
     "@standin/llm": "workspace:*",
     "@standin/models": "workspace:*",
     "@standin/schema": "workspace:*",

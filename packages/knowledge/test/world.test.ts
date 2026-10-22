@@ -75,7 +75,12 @@ describe("the world tree in the knowledge layer", () => {
   it("seeds the field under the Knowledge root", async () => {
     const { store, approve } = setup();
     approve("fact", "I'm a CS student.", { background: true });
-    const llm = new ScriptedLLM(() => ({ field: { name: "Computer science", definition: "." }, core: [{ name: "Algorithms", definition: "." }] }));
+    const llm = new ScriptedLLM(() => ({
+      concepts: [
+        { name: "Computer science", definition: ".", partOf: null, evidence: [{ fact: 1, type: "degree" }] },
+        { name: "Algorithms", definition: ".", partOf: "Computer science", evidence: [{ fact: 1, type: "degree" }] },
+      ],
+    }));
     await seedBackground(store, llm, "Lin Qiao");
     expect(store.homeParent(store.ensureTopic("Computer science").id)).toBe(store.root("knowledge").id);
     expect(store.rootOf(store.ensureTopic("Algorithms").id)).toBe("knowledge");

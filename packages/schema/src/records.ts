@@ -25,6 +25,8 @@ export const SourceKind = z.enum([
   "demo",
   "probe",
   "intro",
+  "file",
+  "website",
 ]);
 export type SourceKind = z.infer<typeof SourceKind>;
 
@@ -130,8 +132,43 @@ export const CompetenceAttrs = z.object({
   basis: DepthBasis.optional(),
   reasons: z.array(z.string()).optional(),
 });
-/** `background`: a fact stating the person's degree program, school, or job role; it seeds the knowledge tree. */
-export const FactAttrs = z.object({ background: z.boolean().optional() });
+/**
+ * What a fact is about (intro-sources spec §4a): a rubric from schema.org Person and PeaCoK's persona dimensions.
+ * `other` comes with a model-named `kindLabel` when nothing fits.
+ */
+export const FactKind = z.enum([
+  "education",
+  "occupation",
+  "project",
+  "publication",
+  "skill",
+  "language",
+  "award",
+  "membership",
+  "place",
+  "characteristic",
+  "routine",
+  "goal",
+  "experience",
+  "relationship",
+  "preference",
+  "other",
+]);
+export type FactKind = z.infer<typeof FactKind>;
+
+/**
+ * `background`: a fact about the person's education, work or interests; it seeds the knowledge tree. From an
+ * introduction, a fact also carries its kind, the source quote it rests on, and its dates.
+ */
+export const FactAttrs = z.object({
+  background: z.boolean().optional(),
+  kind: FactKind.optional(),
+  kindLabel: z.string().optional(),
+  quote: z.string().optional(),
+  start: z.string().optional(),
+  end: z.string().optional(),
+  current: z.boolean().optional(),
+});
 export const StanceAttrs = z.object({ topic: z.string().min(1), strength: z.number().int().min(1).max(5) });
 export const EmptyAttrs = z.object({});
 
@@ -328,7 +365,9 @@ export const ProbeResponse = z.object({
 });
 export type ProbeResponse = z.infer<typeof ProbeResponse>;
 
-export const EvidenceKind = z.enum(["background", "part", "prerequisite", "work", "other"]);
+export const EvidenceKind = z.enum(["background", "part", "prerequisite", "work", "other", "degree", "course", "job", "project", "publication", "skill_list", "self"]);
+/** Evidence a background fact can give for a concept, strongest first (intro-sources spec §5). */
+export const BACKGROUND_EVIDENCE = ["publication", "job", "project", "course", "degree", "skill_list", "self"] as const satisfies readonly EvidenceKind[];
 export type EvidenceKind = z.infer<typeof EvidenceKind>;
 export const RawScore = z.enum(["low", "medium", "high"]);
 export type RawScore = z.infer<typeof RawScore>;

@@ -9,8 +9,13 @@ import { describe, expect, it } from "vitest";
 import { answerMode, loadSnapshot, refresh } from "../src/index.ts";
 
 const SEED = {
-  field: { name: "Computer science", definition: "The study of computation." },
-  core: ["Algorithms", "Systems", "Machine learning", "Theory of computation", "Software engineering"].map((name) => ({ name, definition: `${name}.` })),
+  concepts: ["Computer science", "Algorithms", "Systems", "Machine learning", "Theory of computation", "Software engineering"].map((name, i) => ({
+    name,
+    definition: `${name}.`,
+    depth: 2,
+    partOf: i === 0 ? null : "Computer science",
+    evidence: [{ fact: 1, type: "degree" }],
+  })),
 };
 
 function setup(handler: (req: GenerateObjectRequest<unknown>) => unknown) {
@@ -39,7 +44,7 @@ describe("refresh", () => {
     const report = await t.run();
     expect(report.seeded).toEqual(["Computer science"]);
     // The field and its 5 core topics, all guessed at 2: background means working knowledge of the field as a whole.
-    expect(t.store.listHypotheses().map((h) => [t.store.getTopic(h.nodeId).name, h.depth, h.kind])).toContainEqual(["Algorithms", 2, "background"]);
+    expect(t.store.listHypotheses().map((h) => [t.store.getTopic(h.nodeId).name, h.depth, h.kind])).toContainEqual(["Algorithms", 2, "degree"]);
     expect(t.store.listHypotheses()).toHaveLength(6);
     await t.run();
     expect(t.store.listHypotheses()).toHaveLength(6);

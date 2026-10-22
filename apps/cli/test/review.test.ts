@@ -56,10 +56,13 @@ describe("standin review", () => {
     const url = await h.pageUrl();
     expect(url.hostname).toBe("127.0.0.1");
     expect((await call(url, "/api/card")).card.type).toBe("intro");
-    const text = "I build AIs for board games. I have two cats.";
-    const { statements } = await call(url, "/api/intro/read", { text });
-    expect(statements).toEqual(["I build AIs for board games.", "I have two cats."]);
-    expect(await call(url, "/api/intro/confirm", { text, statements })).toEqual({ saved: 2, dropped: [] });
+    await call(url, "/api/intro/text", { text: "I build AIs for board games. I have two cats." });
+    const { groups } = await call(url, "/api/intro/read", {});
+    expect(groups[0].statements.map((s: { statement: string; kind: string }) => [s.statement, s.kind])).toEqual([
+      ["I build AIs for board games.", "project"],
+      ["I have two cats.", "relationship"],
+    ]);
+    expect(await call(url, "/api/intro/confirm", { statements: groups[0].statements })).toEqual({ saved: 2, dropped: [] });
     const { card } = await call(url, "/api/card");
     expect(card).toMatchObject({ type: "card", card: { reason: "guess", why: expect.any(String) } });
     expect(card.card.examples.length).toBeGreaterThanOrEqual(3);
