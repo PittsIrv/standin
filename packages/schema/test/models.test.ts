@@ -46,7 +46,8 @@ describe("models config", () => {
     }
     expect(message).toContain("models.roles.answer");
     expect(message).toContain("localhost");
-    expect(() => parseConfig({ ...base, models: { tiers: { small: local }, roles: { answer: "claude-haiku-4-5-20251001" } } })).not.toThrow();
+    expect(message).toContain("models.roles.check");
+    expect(() => parseConfig({ ...base, models: { tiers: { small: local }, roles: { answer: "claude-haiku-4-5-20251001", check: "claude-haiku-4-5-20251001" } } })).not.toThrow();
     expect(() => parseConfig({ ...base, models: { roles: { answer: local } } })).toThrow(/models\.roles\.answer/);
   });
 

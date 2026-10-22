@@ -19,6 +19,7 @@ import * as tree from "./tree.ts";
 import * as probes from "./probes.ts";
 import * as hyp from "./hypotheses.ts";
 import * as qs from "./questions.ts";
+import * as quiz from "./quiz.ts";
 import type { SpanContent, SpanData, SpanSink } from "@standin/trace";
 import { consolidate, purge, type ConsolidationReport } from "./consolidate.ts";
 
@@ -47,6 +48,9 @@ import type {
   HypothesisStatus,
   Question,
   QuestionStatus,
+  PreferencePair,
+  QuizAnswer,
+  QuizRating,
   RootKey,
   Topic,
   TopicEdge,
@@ -486,6 +490,21 @@ export class Store {
   }
   setQuestionStatus(id: string, status: QuestionStatus): Question {
     return qs.setQuestionStatus(this, id, status);
+  }
+  addQuizAnswer(q: quiz.NewQuizAnswer): QuizAnswer {
+    return quiz.addQuizAnswer(this, q);
+  }
+  rateQuizAnswer(id: string, rating: QuizRating): QuizAnswer {
+    return quiz.rateQuizAnswer(this, id, rating);
+  }
+  listQuizAnswers(): QuizAnswer[] {
+    return quiz.listQuizAnswers(this);
+  }
+  addPreferencePair(p: { question: string; standinAnswer: string; personAnswer: string }): PreferencePair {
+    return quiz.addPreferencePair(this, p);
+  }
+  listPreferencePairs(): PreferencePair[] {
+    return quiz.listPreferencePairs(this);
   }
   carryResponse(id: string, sessionId: string): ProbeResponse {
     return probes.carryResponse(this, id, sessionId);

@@ -121,6 +121,35 @@ export const Config = z.object({
       outcomes: z.boolean().default(false),
     })
     .prefault({}),
+  /** Answering a question (answering spec §2). Starting values. */
+  answer: z
+    .object({
+      /** Memories a turn may gather from its seed nodes. */
+      awakenBudget: z.number().int().positive().default(20),
+      seeds: z.number().int().positive().default(3),
+      /** Nodes the router chooses seeds from. */
+      candidates: z.number().int().positive().default(10),
+      /** The person's writing shown as style examples, each cut to `exemplarChars`. */
+      exemplars: z.number().int().nonnegative().default(3),
+      exemplarChars: z.number().int().positive().default(600),
+    })
+    .prefault({}),
+  /** The self-quiz on the review page (answering spec §7). */
+  selfQuiz: z
+    .object({
+      /** A quiz comes as every n-th card. */
+      every: z.number().int().min(2).default(10),
+    })
+    .prefault({}),
+  /** The eval harness (answering spec §5). */
+  evals: z
+    .object({
+      /** Cases `standin eval build` writes per suite. */
+      perSuite: z.number().int().positive().default(20),
+      /** A quality suite this many points below its baseline fails the run. */
+      regression: z.number().nonnegative().default(5),
+    })
+    .prefault({}),
 });
 export type Config = z.infer<typeof Config>;
 export type ConfigInput = z.input<typeof Config>;

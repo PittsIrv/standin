@@ -408,6 +408,21 @@ const MIGRATIONS: Migration[] = [
   );
   CREATE INDEX questions_status ON questions(status, created_at);
   `,
+  `
+  -- The self-quiz: the person's answer, the standin's reply, and the person's rating of it.
+  CREATE TABLE quiz_answers (
+    id TEXT PRIMARY KEY,
+    case_id TEXT NOT NULL,
+    question TEXT NOT NULL,
+    person_answer TEXT NOT NULL,
+    standin_reply TEXT NOT NULL,
+    state TEXT NOT NULL,
+    rating TEXT CHECK (rating IN ('same', 'partly', 'wrong')),
+    session_id TEXT,
+    at TEXT NOT NULL
+  );
+  CREATE INDEX quiz_answers_case ON quiz_answers(case_id);
+  `,
 ];
 
 /** Applies pending migrations up to `target` (default: all of them). */
