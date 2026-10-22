@@ -5,6 +5,9 @@ const topic = (id: string): Topic => ({
   id,
   name: id,
   aliases: [],
+  label: "topic",
+  rootKey: null,
+  frontier: false,
   definition: null,
   expandedAt: null,
   seedMemoryId: null,
@@ -36,6 +39,11 @@ export function tree(spec: {
   );
   return {
     topics,
+    all: topics,
+    roots: new Map(),
+    rootOf: new Map([...topics.keys()].map((n) => [n, null])),
+    knowledge: new Set(topics.keys()),
+    homeFacts: new Map(),
     parentOf: new Map(spec.partOf ?? []),
     requires: spec.requires ?? [],
     approved,

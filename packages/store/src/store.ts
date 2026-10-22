@@ -41,6 +41,7 @@ import type {
   Actor,
   EdgeKind,
   Gap,
+  RootKey,
   Topic,
   TopicEdge,
   AnswerModeName,
@@ -212,8 +213,13 @@ export class Store {
     return { id, kind: input.kind, name: input.name.trim(), aliases: input.aliases ?? [] };
   }
 
+  /** Every entity except the six root nodes. */
   listEntities(): Entity[] {
-    return (this.db.prepare("SELECT * FROM entities ORDER BY kind, name").all() as Row[]).map(rowToEntity);
+    return (
+      this.db
+        .prepare("SELECT e.* FROM entities e LEFT JOIN topics t ON t.entity_id = e.id WHERE t.root_key IS NULL ORDER BY e.kind, e.name")
+        .all() as Row[]
+    ).map(rowToEntity);
   }
 
   getEntity(id: string): Entity {
@@ -315,10 +321,67 @@ export class Store {
   ensureTopic(name: string, definition?: string | null): Topic {
     return tree.ensureTopic(this, name, definition ?? null);
   }
+  ensureNode(name: string, label: EntityKind, definition?: string | null): Topic {
+    return tree.ensureNode(this, name, label, definition ?? null);
+  }
+
+  homeParent(id: string): string | null {
+    return tree.homeParent(this, id);
+  }
+
+  rootOf(id: string): RootKey | null {
+    return tree.rootOf(this, id);
+  }
+
+  nodeMemories(nodeId: string, filter?: { status?: MemoryStatus }): Memory[] {
+    return tree.nodeMemories(this, nodeId, filter);
+  }
+
+  /** Moves a memory to a node (or makes it homeless). */
+  setHome(memoryId: string, nodeId: string | null): Memory {
+    const m = this.getMemory(memoryId);
+    this.db.prepare("UPDATE memories SET home_node_id = ? WHERE id = ?").run(nodeId, m.id);
+    return this.getMemory(m.id);
+  }
+
+  /** How many memories the node held when a split was last considered (0 if never). */
+  splitChecked(id: string): number {
+    const r = this.db.prepare("SELECT split_checked FROM topics WHERE entity_id = ?").get(id) as Row | undefined;
+    return r ? Number(r.split_checked) : 0;
+  }
+
+  markSplitChecked(id: string, count: number): void {
+    this.db.prepare("UPDATE topics SET split_checked = ? WHERE entity_id = ?").run(count, id);
+  }
+
+  renameTopic(id: string, name: string): Topic {
+    return tree.renameTopic(this, id, name);
+  }
+
+  moveTopic(id: string, parentId: string | null): TopicEdge | null {
+    return tree.moveTopic(this, id, parentId);
+  }
+
+  deleteEdge(id: string): void {
+    tree.deleteEdge(this, id);
+  }
+
+  deleteTopic(id: string): Topic {
+    return tree.deleteTopic(this, id);
+  }
+
+  roots(): Topic[] {
+    return tree.roots(this);
+  }
+
+  root(key: RootKey): Topic {
+    return tree.root(this, key);
+  }
+
   getTopic(id: string): Topic {
     return tree.getTopic(this, id);
   }
-  listTopics(opts?: { includeDeleted?: boolean }): Topic[] {
+  listTopics(opts?: { includeDeleted?: boolean; includeRoots?: boolean }): Topic[] {
     return tree.listTopics(this, opts);
   }
   setTopic(id: string, patch: Parameters<typeof tree.setTopic>[2]): Topic {

@@ -4,9 +4,10 @@ export { answerMode, modeFor, type AnswerDecision, type AnswerMode } from "./ans
 export { STATED_GAP_LEVEL, syncStatedGaps } from "./gaps.ts";
 export { proposeLighting, proposeNode, type ProposalReport } from "./proposals.ts";
 export { gapStatement, statementFor } from "./wording.ts";
-export { buildPlacePrompt, buildSeedPrompt, outline } from "./prompts.ts";
-export { PlaceSchema, SeedSchema, type Place, type Seed } from "./schemas.ts";
-export { placeTopics, seedBackground, unplacedTopics } from "./tasks.ts";
+export { buildHomePrompt, buildPlacePrompt, buildSeedPrompt, buildSplitPrompt, outline } from "./prompts.ts";
+export { HomeSchema, PlaceSchema, SeedSchema, SplitSchema, type Home, type Place, type Seed, type Split } from "./schemas.ts";
+export { placeNodes, seedBackground, unplacedNodes } from "./tasks.ts";
+export { homeMemories, splitNodes } from "./organize.ts";
 export { refresh, type RefreshReport } from "./refresh.ts";
 export { expandNode } from "./probing/expand.ts";
 export { assignHoldout, FIXED_SHARE, ROTATING_SHARE, writeProbes } from "./probing/quiz.ts";
@@ -28,3 +29,4 @@ export {
 } from "./probing/session.ts";
 export { discoveryProposals, EXPERT_PASSES } from "./probing/discovery.ts";
 export { calibration, type Calibration, type SetScore } from "./probing/calibration.ts";
+export { nodeStatus, renderForest, treeNodes, type TreeNode } from "./tree-view.ts";

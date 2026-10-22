@@ -1,5 +1,6 @@
-import { Gap, newId, Topic, TopicEdge, type EdgeKind, type Memory, type MemoryKind, type MemoryStatus, type Tier } from "@standin/schema";
-import { CycleError, NotFoundError } from "./errors.ts";
+import { Gap, newId, ROOTS, Topic, TopicEdge, type EdgeKind, type EntityKind, type Memory, type MemoryKind, type MemoryStatus, type RootKey, type Tier } from "@standin/schema";
+import { CycleError, NameTakenError, NotFoundError, RootEditError } from "./errors.ts";
+import { normalizeName } from "./text.ts";
 import { rowToMemory } from "./memories.ts";
 import { rowToEntity, type Row } from "./rows.ts";
 import type { Store } from "./store.ts";
@@ -10,6 +11,9 @@ function rowToTopic(r: Row): Topic {
     id: e.id,
     name: e.name,
     aliases: e.aliases,
+    label: e.kind,
+    rootKey: r.root_key ?? null,
+    frontier: r.frontier === 1,
     definition: r.definition ?? null,
     expandedAt: r.expanded_at ?? null,
     seedMemoryId: r.seed_memory_id ?? null,
@@ -42,16 +46,32 @@ const rowToGap = (r: Row): Gap =>
     createdAt: r.created_at,
   });
 
-const TOPIC_SELECT = "SELECT e.*, t.definition, t.expanded_at, t.seed_memory_id, t.boundary_tier, t.deleted_at FROM entities e JOIN topics t ON t.entity_id = e.id";
+const TOPIC_SELECT =
+  "SELECT e.*, t.definition, t.expanded_at, t.seed_memory_id, t.boundary_tier, t.deleted_at, t.root_key, t.frontier FROM entities e JOIN topics t ON t.entity_id = e.id";
 
-/** The topic for a name or alias, created if absent. A deleted topic is returned as it is (still deleted). */
-export function ensureTopic(s: Store, name: string, definition: string | null = null): Topic {
+/** The node for a name or alias with this label, created if absent. A deleted node is returned as it is (still deleted). */
+export function ensureNode(s: Store, name: string, label: EntityKind, definition: string | null = null): Topic {
   return s.transaction(() => {
-    const entity = s.resolveEntity({ name, kind: "topic" });
+    const entity = s.resolveEntity({ name, kind: label });
     s.db.prepare("INSERT OR IGNORE INTO topics (entity_id, definition) VALUES (?, ?)").run(entity.id, definition);
     if (definition) s.db.prepare("UPDATE topics SET definition = COALESCE(definition, ?) WHERE entity_id = ?").run(definition, entity.id);
     return getTopic(s, entity.id);
   });
+}
+
+/** The six root nodes, in display order. */
+export function roots(s: Store): Topic[] {
+  return ROOTS.map((r) => root(s, r.key));
+}
+
+export function root(s: Store, key: RootKey): Topic {
+  const r = s.db.prepare(`${TOPIC_SELECT} WHERE t.root_key = ?`).get(key) as Row | undefined;
+  if (!r) throw new NotFoundError("root", key);
+  return rowToTopic(r);
+}
+
+export function ensureTopic(s: Store, name: string, definition: string | null = null): Topic {
+  return ensureNode(s, name, "topic", definition);
 }
 
 export function getTopic(s: Store, id: string): Topic {
@@ -60,18 +80,21 @@ export function getTopic(s: Store, id: string): Topic {
   return rowToTopic(r);
 }
 
-export function listTopics(s: Store, opts: { includeDeleted?: boolean } = {}): Topic[] {
-  const where = opts.includeDeleted ? "" : "WHERE t.deleted_at IS NULL";
-  return (s.db.prepare(`${TOPIC_SELECT} ${where} ORDER BY e.name, e.id`).all() as Row[]).map(rowToTopic);
+/** Every node except the six roots (see `roots()`); deleted nodes only on request. */
+export function listTopics(s: Store, opts: { includeDeleted?: boolean; includeRoots?: boolean } = {}): Topic[] {
+  const where = [opts.includeDeleted ? null : "t.deleted_at IS NULL", opts.includeRoots ? null : "t.root_key IS NULL"].filter(Boolean);
+  const clause = where.length > 0 ? `WHERE ${where.join(" AND ")}` : "";
+  return (s.db.prepare(`${TOPIC_SELECT} ${clause} ORDER BY e.name, e.id`).all() as Row[]).map(rowToTopic);
 }
 
 export function setTopic(
   s: Store,
   id: string,
-  patch: { definition?: string; expandedAt?: string; seedMemoryId?: string; boundaryTier?: Tier | null; deletedAt?: string | null },
+  patch: { definition?: string; expandedAt?: string; seedMemoryId?: string; boundaryTier?: Tier | null; deletedAt?: string | null; frontier?: boolean },
 ): Topic {
   getTopic(s, id);
   const cols: [string, unknown][] = [
+    ["frontier", patch.frontier === undefined ? undefined : patch.frontier ? 1 : 0],
     ["definition", patch.definition],
     ["expanded_at", patch.expandedAt],
     ["seed_memory_id", patch.seedMemoryId],
@@ -116,12 +139,41 @@ function pathBetween(s: Store, kind: EdgeKind, start: string, goal: string): str
   return walk(start);
 }
 
-/** Adds an edge. Null when it already exists (or was deleted) or touches a deleted topic; CycleError if it closes a loop. */
+const isRoot = (s: Store, id: string) => s.db.prepare("SELECT 1 FROM topics WHERE entity_id = ? AND root_key IS NOT NULL").get(id) !== undefined;
+
+/** A node's one home parent (its live `part_of`), or null for a root or an unplaced node. */
+export function homeParent(s: Store, id: string): string | null {
+  const r = s.db
+    .prepare(
+      `SELECT g.to_topic FROM topic_edges g JOIN topics b ON b.entity_id = g.to_topic AND b.deleted_at IS NULL
+       WHERE g.from_topic = ? AND g.kind = 'part_of' AND g.deleted_at IS NULL ORDER BY g.created_at, g.id LIMIT 1`,
+    )
+    .get(id) as Row | undefined;
+  return r ? String(r.to_topic) : null;
+}
+
+/** The root a node lives under, following home parents; null while it is unplaced. */
+export function rootOf(s: Store, id: string): RootKey | null {
+  const seen = new Set<string>();
+  for (let at: string | null = id; at && !seen.has(at); at = homeParent(s, at)) {
+    seen.add(at);
+    const r = s.db.prepare("SELECT root_key FROM topics WHERE entity_id = ?").get(at) as Row | undefined;
+    if (r?.root_key) return r.root_key as RootKey;
+  }
+  return null;
+}
+
+/**
+ * Adds an edge. Null when it already exists (or was deleted), touches a deleted node, would give a node a second home,
+ * or would give a root a parent; CycleError if it closes a loop. `related` links are undirected: stored low id first.
+ */
 export function addEdge(s: Store, e: { from: string; to: string; kind: EdgeKind; source: TopicEdge["source"] }): TopicEdge | null {
+  if (e.kind === "related" && e.from > e.to) e = { ...e, from: e.to, to: e.from };
   return s.transaction(() => {
     if (e.from === e.to || !isLive(s, e.from) || !isLive(s, e.to)) return null;
     if (s.db.prepare("SELECT 1 FROM topic_edges WHERE from_topic = ? AND to_topic = ? AND kind = ?").get(e.from, e.to, e.kind)) return null;
-    const loop = pathBetween(s, e.kind, e.to, e.from);
+    if (e.kind === "part_of" && (isRoot(s, e.from) || homeParent(s, e.from) !== null)) return null;
+    const loop = e.kind === "related" ? null : pathBetween(s, e.kind, e.to, e.from);
     if (loop) throw new CycleError([e.from, ...loop].map((id) => getTopic(s, id).name));
     const id = newId("edg");
     s.db
@@ -147,6 +199,7 @@ export function mergeTopics(s: Store, fromId: string, intoId: string): void {
     s.db.prepare("UPDATE gaps SET claim_node_id = ? WHERE claim_node_id = ?").run(into.id, from.id);
     s.db.prepare("DELETE FROM gaps WHERE node_id = ?").run(from.id);
     s.db.prepare("UPDATE probes SET node_id = ? WHERE node_id = ?").run(into.id, from.id);
+    s.db.prepare("UPDATE memories SET home_node_id = ? WHERE home_node_id = ?").run(into.id, from.id);
     s.db.prepare("UPDATE probes SET check_of = ? WHERE check_of = ?").run(into.id, from.id);
     for (const kind of ["part_of", "requires"] as const) {
       for (const e of listEdges(s, kind)) {
@@ -197,4 +250,71 @@ export function topicMemories(s: Store, topicId: string, filter: { kind?: Memory
     )
     .all(topicId, filter.kind ?? null, filter.kind ?? null, filter.status ?? null, filter.status ?? null) as Row[];
   return rows.map(rowToMemory);
+}
+
+/** Memories whose home is this node. */
+export function nodeMemories(s: Store, nodeId: string, filter: { status?: MemoryStatus } = {}): Memory[] {
+  const rows = s.db
+    .prepare("SELECT * FROM memories WHERE home_node_id = ? AND (? IS NULL OR status = ?) ORDER BY recorded_at, rowid")
+    .all(nodeId, filter.status ?? null, filter.status ?? null) as Row[];
+  return rows.map(rowToMemory);
+}
+
+const guardRoot = (s: Store, id: string) => {
+  const t = getTopic(s, id);
+  if (t.rootKey) throw new RootEditError(t.name);
+  return t;
+};
+
+/** Renames a node; the old name stays as an alias. Refuses a name another node of the same label already answers to. */
+export function renameTopic(s: Store, id: string, name: string): Topic {
+  return s.transaction(() => {
+    const t = guardRoot(s, id);
+    const clean = name.trim().replace(/\s+/g, " ");
+    if (!clean) throw new NameTakenError(name);
+    const other = s.findEntity({ name: clean, kind: t.label });
+    if (other && other.id !== id) throw new NameTakenError(name);
+    const aliases = [...new Set([...t.aliases, t.name])].filter((a) => normalizeName(a) !== normalizeName(clean));
+    s.db.prepare("UPDATE entities SET name = ?, aliases = ? WHERE id = ?").run(clean, JSON.stringify(aliases), id);
+    s.db.prepare("UPDATE topics SET frontier = 0 WHERE entity_id = ?").run(id);
+    return getTopic(s, id);
+  });
+}
+
+/** The person moves a node: its old home goes, the new one is theirs. A cycle leaves everything as it was. Null parent = unplaced. */
+export function moveTopic(s: Store, id: string, parentId: string | null): TopicEdge | null {
+  return s.transaction(() => {
+    guardRoot(s, id);
+    const now = s.nowIso();
+    s.db.prepare("UPDATE topic_edges SET deleted_at = ? WHERE from_topic = ? AND kind = 'part_of' AND deleted_at IS NULL").run(now, id);
+    s.db.prepare("UPDATE topics SET frontier = 0 WHERE entity_id = ?").run(id);
+    if (parentId === null) return null;
+    if (!isLive(s, parentId)) throw new NotFoundError("topic", parentId);
+    const loop = pathBetween(s, "part_of", parentId, id);
+    if (loop) throw new CycleError([id, ...loop].map((n) => getTopic(s, n).name));
+    const existing = s.db.prepare("SELECT id FROM topic_edges WHERE from_topic = ? AND to_topic = ? AND kind = 'part_of'").get(id, parentId) as Row | undefined;
+    const edgeId = existing ? String(existing.id) : newId("edg");
+    if (existing) s.db.prepare("UPDATE topic_edges SET deleted_at = NULL, source = 'person', created_at = ? WHERE id = ?").run(now, edgeId);
+    else
+      s.db
+        .prepare("INSERT INTO topic_edges (id, from_topic, to_topic, kind, source, created_at) VALUES (?, ?, ?, 'part_of', 'person', ?)")
+        .run(edgeId, id, parentId, now);
+    return rowToEdge(s.db.prepare("SELECT * FROM topic_edges WHERE id = ?").get(edgeId) as Row);
+  });
+}
+
+/** Deletes an edge for good: no automatic step re-adds it. */
+export function deleteEdge(s: Store, id: string): void {
+  const r = s.db.prepare("SELECT deleted_at FROM topic_edges WHERE id = ?").get(id) as Row | undefined;
+  if (!r) throw new NotFoundError("edge", id);
+  if (!r.deleted_at) s.db.prepare("UPDATE topic_edges SET deleted_at = ? WHERE id = ?").run(s.nowIso(), id);
+}
+
+/** Deletes a node for good. Memories that lived in it move up to its home parent (or become unplaced). */
+export function deleteTopic(s: Store, id: string): Topic {
+  return s.transaction(() => {
+    guardRoot(s, id);
+    s.db.prepare("UPDATE memories SET home_node_id = ? WHERE home_node_id = ?").run(homeParent(s, id), id);
+    return setTopic(s, id, { deletedAt: s.nowIso() });
+  });
 }

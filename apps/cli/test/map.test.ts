@@ -45,12 +45,15 @@ describe("standin map", () => {
 
     const text = (await run("map")).out;
     expect(text).toMatch(/Computer science {2}lit 2 \(predicted\)/);
-    expect(text).toMatch(/\n {2}Algorithms {2}lit 2 \(predicted\)/);
-    expect(text).toMatch(/Board games {2}dark/);
+    expect(text).toMatch(/\n {4}Algorithms {2}lit 2 \(predicted\)/);
+    expect(text).toMatch(/Board games {2}not lit/);
+    for (const root of ["Knowledge", "Work", "Background", "People", "Views", "Life"]) expect(text).toMatch(new RegExp(`^${root}$`, "m"));
+    expect(text).toMatch(/^ {2}Projects {2}0 facts\n {4}Kite {2}\d+ facts?$/m);
 
     const nodes = (JSON.parse((await run("map", "--json")).out) as { nodes: Node[] }).nodes;
     expect(nodes.find((n) => n.name === "reinforcement learning theory")).toMatchObject({ parent: "Machine learning", mode: "brief", depth: 2, via: "own" });
-    expect(nodes.find((n) => n.name === "Algorithms")).toMatchObject({ mode: "brief", via: "own" });
+    expect(nodes.find((n) => n.name === "Algorithms")).toMatchObject({ mode: "brief", via: "own", root: "knowledge", label: "topic", state: "lit" });
+    expect(nodes.find((n) => n.name === "Kite")).toMatchObject({ root: "work", label: "project", state: "lit", parent: "Projects" });
 
     const again = await run("map", "refresh", "--demo-llm");
     expect(again.out).toMatch(/proposed 0 lighting changes/);

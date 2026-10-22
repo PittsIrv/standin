@@ -56,6 +56,25 @@ export const emptyReport = (): CompactionReport => ({
  * Turns uncompacted observations into proposed memories. Model calls happen first; all writes for one
  * observation then happen in a single transaction, so a crash never leaves half an observation applied.
  */
+/** The most specific node: the one with the longest chain of home parents (ties go to the first listed). */
+function deepest(store: Store, nodeIds: string[]): string | null {
+  const depth = (id: string) => {
+    let d = 0;
+    const seen = new Set<string>();
+    for (let at = store.homeParent(id); at && !seen.has(at); at = store.homeParent(at)) {
+      seen.add(at);
+      d++;
+    }
+    return d;
+  };
+  let best: { id: string; d: number } | null = null;
+  for (const id of nodeIds) {
+    const d = depth(id);
+    if (!best || d > best.d) best = { id, d };
+  }
+  return best?.id ?? null;
+}
+
 export async function compact(opts: CompactOptions): Promise<CompactionReport> {
   const { store, llm, config } = opts;
   const tracer = opts.tracer ?? noopTracer;
@@ -229,9 +248,10 @@ function apply(store: Store, config: Config, o: Observation, plans: Planned[], e
       continue;
     }
 
-    // Topics become tree nodes; a competence memory is always linked to its domain's node.
-    const entityIds = c.entities.map((e) => (e.kind === "topic" ? store.ensureTopic(e.name).id : store.resolveEntity(e).id));
-    if (c.kind === "competence") entityIds.push(store.ensureTopic((p.attrs as { domain: string }).domain).id);
+    // Every entity is a node of the world tree; a competence memory is always linked to its domain's node.
+    const entityIds = c.entities.map((e) => store.ensureNode(e.name, e.kind).id);
+    const domainId = c.kind === "competence" ? store.ensureTopic((p.attrs as { domain: string }).domain).id : null;
+    if (domainId) entityIds.push(domainId);
     const linksTarget = (action === "update" || action === "contradiction") && target !== null;
     const input = {
       kind: c.kind,
@@ -249,6 +269,7 @@ function apply(store: Store, config: Config, o: Observation, plans: Planned[], e
       sourceObservationIds: [o.id],
       entityIds,
       actor: "compaction",
+      homeNodeId: domainId ?? deepest(store, entityIds),
     });
     if (action === "update") report.updates++;
     else if (action === "contradiction") report.contradictions++;

@@ -5,7 +5,8 @@ import { syncStatedGaps } from "./gaps.ts";
 import { computeLighting } from "./lighting.ts";
 import { proposeLighting } from "./proposals.ts";
 import { loadSnapshot } from "./snapshot.ts";
-import { placeTopics, seedBackground } from "./tasks.ts";
+import { homeMemories, splitNodes } from "./organize.ts";
+import { placeNodes, seedBackground } from "./tasks.ts";
 
 export interface RefreshReport {
   placed: number;
@@ -14,6 +15,10 @@ export interface RefreshReport {
   refused: string[];
   /** Fields seeded from new background facts. */
   seeded: string[];
+  /** Approved memories given a home node. */
+  homed: number;
+  /** Nodes split into children. */
+  split: string[];
   gaps: number;
   proposed: number;
   replaced: number;
@@ -21,12 +26,13 @@ export interface RefreshReport {
 }
 
 /**
- * `standin map refresh`: seed from background, place new topics, record stated gaps, then propose lighting.
+ * `standin map refresh`: seed from background, place new nodes, home memories, split crowded nodes, record stated
+ * gaps, then propose lighting.
  * A failed model step is a warning; the steps after it still run on whatever the tree has.
  */
-export async function refresh(o: { store: Store; map: LLM; tracer: Tracer; personaName: string }): Promise<RefreshReport> {
+export async function refresh(o: { store: Store; map: LLM; tracer: Tracer; personaName: string; splitAt?: number }): Promise<RefreshReport> {
   return o.tracer.run("map-refresh", {}, async (run) => {
-    const report: RefreshReport = { placed: 0, merged: 0, refused: [], seeded: [], gaps: 0, proposed: 0, replaced: 0, warnings: [] };
+    const report: RefreshReport = { placed: 0, merged: 0, refused: [], seeded: [], homed: 0, split: [], gaps: 0, proposed: 0, replaced: 0, warnings: [] };
     const step = async (label: string, fn: () => Promise<void>) => {
       try {
         await fn();
@@ -37,8 +43,17 @@ export async function refresh(o: { store: Store; map: LLM; tracer: Tracer; perso
     await step("seeding from background", async () => {
       report.seeded = (await seedBackground(o.store, o.map, o.personaName)).seeded;
     });
-    await step("placing topics", async () => {
-      Object.assign(report, await placeTopics(o.store, o.map, o.personaName));
+    await step("placing nodes", async () => {
+      Object.assign(report, await placeNodes(o.store, o.map, o.personaName));
+    });
+    let grew = new Set<string>();
+    await step("homing memories", async () => {
+      const homed = await homeMemories(o.store, o.map, o.personaName);
+      report.homed = homed.homed;
+      grew = new Set(homed.grew);
+    });
+    await step("splitting nodes", async () => {
+      report.split = (await splitNodes(o.store, o.map, o.personaName, o.splitAt ?? 12, grew)).split;
     });
     const before = loadSnapshot(o.store);
     report.gaps = syncStatedGaps(o.store, before, computeLighting(before)).length;
@@ -50,6 +65,8 @@ export async function refresh(o: { store: Store; map: LLM; tracer: Tracer; perso
       "standin.map.seeded": report.seeded.length,
       "standin.map.placed": report.placed,
       "standin.map.merged": report.merged,
+      "standin.map.homed": report.homed,
+      "standin.map.split": report.split.length,
       "standin.map.gaps": report.gaps,
       "standin.map.proposed": report.proposed,
     });

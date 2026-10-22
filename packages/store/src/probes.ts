@@ -72,6 +72,7 @@ export function insertProbe(s: Store, p: Omit<Probe, "id" | "createdAt" | "relea
   s.db
     .prepare("INSERT INTO probes (id, node_id, check_of, kind, difficulty, question, holdout, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
     .run(id, p.nodeId, p.checkOf, p.kind, p.difficulty, p.question.trim(), p.holdout, s.nowIso());
+  s.db.prepare("UPDATE topics SET frontier = 0 WHERE entity_id = ?").run(p.nodeId);
   return getProbe(s, id);
 }
 

@@ -1,8 +1,9 @@
+import type { EntityKind, RootKey } from "@standin/schema";
+
 // Hand-written model outputs for the demo persona, so the full pipeline runs offline and in CI.
 // Keyed by observation text (extraction) and by candidate statement (reconciliation).
 
 type Kind = "fact" | "competence" | "stance" | "negative";
-type EntityKind = "project" | "org" | "place" | "person" | "work" | "topic";
 
 interface Candidate {
   kind?: Kind;
@@ -121,8 +122,11 @@ export const SEED = {
   ],
 };
 
-/** Demo topic → [parent, parent definition (null if it exists), topic definition]. */
-export const PLACEMENTS: Record<string, [string, string | null, string]> = {
+/**
+ * Demo node → [parent, parent definition (null if it exists), node definition, root for a new parent, label for a new parent].
+ * The last two default to the Knowledge root and `topic`.
+ */
+export const PLACEMENTS: Record<string, [string, string | null, string, RootKey?, EntityKind?]> = {
   Python: ["Programming languages", "Languages for writing software.", "A general-purpose programming language."],
   Rust: ["Programming languages", "Languages for writing software.", "A systems programming language."],
   "reinforcement learning theory": ["Machine learning", null, "The mathematics of learning from rewards."],
@@ -131,4 +135,9 @@ export const PLACEMENTS: Record<string, [string, string | null, string]> = {
   Japanese: ["Languages", "Human languages.", "The language of Japan."],
   Go: ["Board games", "Games played on a board.", "An abstract strategy board game."],
   salary: ["Personal matters", "Private details about the person.", "Pay."],
+  Kite: ["Projects", "Things Lin built.", "A Go engine.", "work", "other"],
+  "Lantern Bot": ["Projects", "Things Lin built.", "A card-game bot.", "work", "other"],
+  Lantern: ["Writing", "Things Lin wrote.", "An essay.", "work", "other"],
+  "Riverside Institute of Technology": ["Education", "Where Lin studied.", "Lin's university.", "background", "other"],
+  Japan: ["Places", "Places in Lin's life.", "A country Lin lived in.", "life", "other"],
 };

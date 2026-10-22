@@ -1,6 +1,87 @@
 import type { DatabaseSync } from "node:sqlite";
+import { defaultRoot, newId, ROOTS, type EntityKind, type RootKey } from "@standin/schema";
 
-const MIGRATIONS: string[] = [
+/** SQL, or a function for a migration that needs to walk the data. Each runs inside one transaction. */
+type Migration = string | ((db: DatabaseSync) => void);
+
+/**
+ * The world tree: every entity becomes a node, the six roots are created, each node keeps one home parent (extra
+ * parents become `related` links), top-level branches go under their default root, and every memory gets the most
+ * specific node it is linked to as its home. Loose nodes stay unplaced for `standin map refresh`.
+ */
+function worldTree(db: DatabaseSync): void {
+  db.exec(`
+    ALTER TABLE topics ADD COLUMN root_key TEXT;
+    CREATE UNIQUE INDEX topics_root_key ON topics (root_key) WHERE root_key IS NOT NULL;
+    ALTER TABLE topics ADD COLUMN frontier INTEGER NOT NULL DEFAULT 0;
+    -- How many memories the node held when a split was last considered, so an unchanged node isn't asked again.
+    ALTER TABLE topics ADD COLUMN split_checked INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE memories ADD COLUMN home_node_id TEXT REFERENCES entities(id);
+    INSERT OR IGNORE INTO topics (entity_id) SELECT id FROM entities;
+  `);
+  const now = new Date().toISOString();
+  const rootIds = new Map<RootKey, string>();
+  for (const r of ROOTS) {
+    const id = newId("ent");
+    db.prepare("INSERT INTO entities (id, kind, name, aliases) VALUES (?, 'other', ?, '[]')").run(id, r.name);
+    db.prepare("INSERT INTO topics (entity_id, root_key) VALUES (?, ?)").run(id, r.key);
+    rootIds.set(r.key, id);
+  }
+
+  type EdgeRow = { id: string; from_topic: string; to_topic: string };
+  const homes = db
+    .prepare("SELECT id, from_topic, to_topic FROM topic_edges WHERE kind = 'part_of' AND deleted_at IS NULL ORDER BY created_at, id")
+    .all() as EdgeRow[];
+  const parentOf = new Map<string, string>();
+  for (const e of homes) {
+    if (!parentOf.has(e.from_topic)) {
+      parentOf.set(e.from_topic, e.to_topic);
+      continue;
+    }
+    const [a, b] = [e.from_topic, e.to_topic].sort() as [string, string];
+    const taken = db.prepare("SELECT 1 FROM topic_edges WHERE from_topic = ? AND to_topic = ? AND kind = 'related'").get(a, b);
+    if (taken) db.prepare("DELETE FROM topic_edges WHERE id = ?").run(e.id);
+    else db.prepare("UPDATE topic_edges SET kind = 'related', from_topic = ?, to_topic = ? WHERE id = ?").run(a, b, e.id);
+  }
+
+  const withParts = new Set(parentOf.values());
+  const nodes = db
+    .prepare("SELECT e.id, e.kind FROM entities e JOIN topics t ON t.entity_id = e.id WHERE t.root_key IS NULL AND t.deleted_at IS NULL")
+    .all() as { id: string; kind: EntityKind }[];
+  for (const n of nodes) {
+    if (parentOf.has(n.id) || !withParts.has(n.id)) continue;
+    const root = rootIds.get(defaultRoot(n.kind))!;
+    db.prepare("INSERT INTO topic_edges (id, from_topic, to_topic, kind, source, created_at) VALUES (?, ?, ?, 'part_of', 'placement', ?)").run(
+      newId("edg"),
+      n.id,
+      root,
+      now,
+    );
+    parentOf.set(n.id, root);
+  }
+
+  const depth = (id: string): number => {
+    let d = 0;
+    const seen = new Set<string>();
+    for (let at = parentOf.get(id); at && !seen.has(at); at = parentOf.get(at)) {
+      seen.add(at);
+      d++;
+    }
+    return d;
+  };
+  const live = new Set(nodes.map((n) => n.id));
+  const links = db.prepare("SELECT memory_id, entity_id FROM memory_entities ORDER BY rowid").all() as { memory_id: string; entity_id: string }[];
+  const best = new Map<string, { node: string; depth: number }>();
+  for (const l of links) {
+    if (!live.has(l.entity_id)) continue;
+    const d = depth(l.entity_id);
+    const current = best.get(l.memory_id);
+    if (!current || d > current.depth) best.set(l.memory_id, { node: l.entity_id, depth: d });
+  }
+  for (const [memoryId, { node }] of best) db.prepare("UPDATE memories SET home_node_id = ? WHERE id = ?").run(node, memoryId);
+}
+
+const MIGRATIONS: Migration[] = [
   `
   CREATE TABLE observations (
     id TEXT PRIMARY KEY,
@@ -226,6 +307,7 @@ const MIGRATIONS: string[] = [
   );
   ALTER TABLE gaps ADD COLUMN response_id TEXT REFERENCES probe_responses(id);
   `,
+  worldTree,
 ];
 
 /** Applies pending migrations up to `target` (default: all of them). */
@@ -236,7 +318,9 @@ export function migrate(db: DatabaseSync, target = MIGRATIONS.length): void {
   for (let i = current; i < target; i++) {
     db.exec("BEGIN");
     try {
-      db.exec(MIGRATIONS[i]!);
+      const m = MIGRATIONS[i]!;
+      if (typeof m === "string") db.exec(m);
+      else m(db);
       db.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)").run(i + 1, new Date().toISOString());
       db.exec("COMMIT");
     } catch (err) {

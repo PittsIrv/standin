@@ -27,6 +27,7 @@ export type NewMemory = DistributiveOmit<
   | "recordedAt"
   | "decidedAt"
   | "lastCorroboratedAt"
+  | "homeNodeId"
   | "validFrom"
   | "validUntil"
   | "supersedesId"
@@ -42,6 +43,8 @@ export interface InsertContext {
   sourceObservationIds: string[];
   entityIds: string[];
   actor: Actor;
+  /** The node the memory lives in; null until placement gives it one. */
+  homeNodeId?: string | null;
 }
 
 /** Sources another AI remembered about the person: shown, but marked unverified. */
@@ -79,6 +82,7 @@ export function rowToMemory(r: Row): Memory {
     recordedAt: r.recorded_at,
     decidedAt: r.decided_at,
     lastCorroboratedAt: r.last_corroborated_at,
+    homeNodeId: r.home_node_id ?? null,
     attrs: JSON.parse(String(r.attrs)),
   });
 }
@@ -171,6 +175,10 @@ export function insertMemory(s: Store, input: NewMemory, ctx: InsertContext): Me
     for (const obsId of ctx.sourceObservationIds) link.run(id, obsId);
     const linkEntity = s.db.prepare("INSERT OR IGNORE INTO memory_entities (memory_id, entity_id) VALUES (?, ?)");
     for (const entId of ctx.entityIds) linkEntity.run(id, entId);
+    // A node the person's own memory talks about is no longer just frontier.
+    const touch = s.db.prepare("UPDATE topics SET frontier = 0 WHERE entity_id = ?");
+    for (const entId of ctx.entityIds) touch.run(entId);
+    if (ctx.homeNodeId) s.db.prepare("UPDATE memories SET home_node_id = ? WHERE id = ?").run(ctx.homeNodeId, id);
     writeEvent(s, id, null, "proposed", ctx.actor, null);
     return getMemory(s, id);
   });

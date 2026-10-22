@@ -232,6 +232,29 @@ describe("knowledge tree inputs", () => {
   });
 });
 
+describe("homes in the world tree", () => {
+  it("homes a memory at its deepest node and a competence memory at its domain, with every entity a node", async () => {
+    const { store } = tempStore();
+    const ml = store.ensureTopic("Machine learning");
+    const rl = store.ensureTopic("RL");
+    store.addEdge({ from: ml.id, to: store.root("knowledge").id, kind: "part_of", source: "placement" });
+    store.addEdge({ from: rl.id, to: ml.id, kind: "part_of", source: "placement" });
+    const o = store.addObservation(obs("I built Kite, an RL agent for Go."));
+    const llm = script({
+      [o.text!]: extraction([
+        { statement: "I built Kite, an RL agent for Go.", entities: [{ name: "Kite", kind: "project" }, { name: "RL", kind: "topic" }] },
+        { kind: "competence", statement: "I know Go engines well.", entities: [{ name: "Kite", kind: "project" }], competence: { domain: "Go engines", depth: 3 } },
+      ]),
+    });
+    await compact({ store, llm, config });
+    const built = store.listMemories().find((m) => m.kind === "fact")!;
+    const comp = store.listMemories().find((m) => m.kind === "competence")!;
+    expect(built.homeNodeId).toBe(rl.id);
+    expect(comp.homeNodeId).toBe(store.ensureTopic("Go engines").id);
+    expect(store.listTopics().find((t) => t.name === "Kite")?.label).toBe("project");
+  });
+});
+
 describe("claims and map proposals", () => {
   it("keeps the person's claim separate from a map proposal at the same depth", async () => {
     const { store } = tempStore();

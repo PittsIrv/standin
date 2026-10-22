@@ -126,9 +126,9 @@ describe("refresh", () => {
     t.approve("competence", "I know Rust well.", { domain: "Rust", depth: 3 }, ["Rust"]);
     t.approve("negative", "I can't write Rust macros yet.", {}, ["Rust macros"]);
     const report = await t.run();
-    // Only seeding needs the model here: every topic is already placed.
-    expect(report.warnings).toHaveLength(1);
-    expect(report.warnings[0]).toContain("overloaded");
+    // Seeding and homing the background fact need the model here: every topic is already placed.
+    expect(report.warnings).toHaveLength(2);
+    expect(report.warnings.every((w) => w.includes("overloaded"))).toBe(true);
     expect(report.gaps).toBe(1);
   });
 
