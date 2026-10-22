@@ -365,8 +365,8 @@ export class Store {
     return tree.renameTopic(this, id, name);
   }
 
-  moveTopic(id: string, parentId: string | null): TopicEdge | null {
-    return tree.moveTopic(this, id, parentId);
+  moveTopic(id: string, parentId: string | null, source?: TopicEdge["source"]): TopicEdge | null {
+    return tree.moveTopic(this, id, parentId, source);
   }
 
   deleteEdge(id: string): void {
@@ -423,6 +423,9 @@ export class Store {
   }
   listTopics(opts?: { includeDeleted?: boolean; includeRoots?: boolean }): Topic[] {
     return tree.listTopics(this, opts);
+  }
+  findByAnchor(anchor: string): Topic | null {
+    return tree.findByAnchor(this, anchor);
   }
   setTopic(id: string, patch: Parameters<typeof tree.setTopic>[2]): Topic {
     return tree.setTopic(this, id, patch);

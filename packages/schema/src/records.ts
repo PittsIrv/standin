@@ -272,6 +272,8 @@ export const Topic = z.object({
   definition: z.string().nullable(),
   /** The concrete things the concept covers, shown on its card as "Includes". */
   examples: z.array(z.string()).default([]),
+  /** The standard place this node stands for, e.g. "openalex:subfield:1702" (anchors spec); kept through renames. */
+  anchor: z.string().nullable().default(null),
   expandedAt: IsoTime.nullable(),
   /** The background fact that seeded this topic, if any. */
   seedMemoryId: z.string().nullable(),
@@ -289,7 +291,7 @@ export const TopicEdge = z.object({
   from: z.string(),
   to: z.string(),
   kind: EdgeKind,
-  source: z.enum(["expansion", "placement", "seeding", "person"]),
+  source: z.enum(["expansion", "placement", "seeding", "anchor", "person"]),
   createdAt: IsoTime,
   deletedAt: IsoTime.nullable(),
 });

@@ -12,6 +12,7 @@ const topic = (id: string): Topic => ({
   walkStopped: false,
   definition: null,
   examples: [],
+  anchor: null,
   expandedAt: null,
   seedMemoryId: null,
   boundaryTier: null,

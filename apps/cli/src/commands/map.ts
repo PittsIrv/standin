@@ -54,6 +54,7 @@ async function refreshTree(ctx: CommandContext): Promise<number> {
     const lines = [
       report.seeded.length > 0 ? `seeded ${report.seeded.join(", ")}` : "no new background to seed",
       `placed ${report.placed} node${report.placed === 1 ? "" : "s"}, merged ${report.merged}${report.refused.length > 0 ? `, refused (would make a cycle): ${report.refused.join(", ")}` : ""}`,
+      report.anchored.length > 0 ? `anchored in the OpenAlex frame: ${report.anchored.join(", ")}` : "nothing new to anchor",
       `homed ${report.homed} memor${report.homed === 1 ? "y" : "ies"}${report.split.length > 0 ? `, split ${report.split.join(", ")}` : ""}`,
       `recorded ${report.gaps} stated gap${report.gaps === 1 ? "" : "s"}`,
       `hypotheses: +${report.hypotheses.added}, withdrawn ${report.hypotheses.withdrawn}, rejected ${report.hypotheses.rejected.length}`,

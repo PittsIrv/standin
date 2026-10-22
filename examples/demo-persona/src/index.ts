@@ -146,6 +146,9 @@ export function demoLLM(): ScriptedLLM {
     }
     if (req.purpose === "seed") return seed(req.prompt);
     if (req.purpose === "intro") return intro(req.prompt);
+    // Anchoring: the best-ranked candidate, which the code lists first.
+    if (req.purpose === "anchor")
+      return { anchors: [...req.prompt.matchAll(/^\[(\d+)\][^\n]*\n {2}(\d+) /gm)].map((m) => ({ concept: Number(m[1]), subfield: m[2]! })) };
     if (req.purpose === "expand") return expansion(topicOf(req.prompt));
     if (req.purpose === "quiz") return probes(topicOf(req.prompt), req.prompt);
     if (req.purpose === "grade") return grade(req.prompt);

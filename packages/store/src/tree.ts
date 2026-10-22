@@ -18,6 +18,7 @@ function rowToTopic(r: Row): Topic {
     walkStopped: r.walk_stopped === 1,
     definition: r.definition ?? null,
     examples: JSON.parse(String(r.examples ?? "[]")),
+    anchor: r.anchor ?? null,
     expandedAt: r.expanded_at ?? null,
     seedMemoryId: r.seed_memory_id ?? null,
     boundaryTier: r.boundary_tier ?? null,
@@ -50,7 +51,7 @@ const rowToGap = (r: Row): Gap =>
   });
 
 const TOPIC_SELECT =
-  "SELECT e.*, t.definition, t.expanded_at, t.seed_memory_id, t.boundary_tier, t.deleted_at, t.root_key, t.frontier, t.part_level, t.walk_stopped, t.examples FROM entities e JOIN topics t ON t.entity_id = e.id";
+  "SELECT e.*, t.definition, t.expanded_at, t.seed_memory_id, t.boundary_tier, t.deleted_at, t.root_key, t.frontier, t.part_level, t.walk_stopped, t.examples, t.anchor FROM entities e JOIN topics t ON t.entity_id = e.id";
 
 /** The node for a name or alias with this label, created if absent. A deleted node is returned as it is (still deleted). */
 export function ensureNode(s: Store, name: string, label: EntityKind, definition: string | null = null): Topic {
@@ -103,6 +104,7 @@ export function setTopic(
     partLevel?: number | null;
     walkStopped?: boolean;
     examples?: string[];
+    anchor?: string | null;
   },
 ): Topic {
   getTopic(s, id);
@@ -112,6 +114,7 @@ export function setTopic(
     ["part_level", patch.partLevel],
     ["definition", patch.definition],
     ["examples", patch.examples === undefined ? undefined : JSON.stringify(patch.examples)],
+    ["anchor", patch.anchor],
     ["expanded_at", patch.expandedAt],
     ["seed_memory_id", patch.seedMemoryId],
     ["boundary_tier", patch.boundaryTier],
@@ -119,6 +122,12 @@ export function setTopic(
   ];
   for (const [col, value] of cols) if (value !== undefined) s.db.prepare(`UPDATE topics SET ${col} = ? WHERE entity_id = ?`).run(value as never, id);
   return getTopic(s, id);
+}
+
+/** The live node standing for an anchor, or null. */
+export function findByAnchor(s: Store, anchor: string): Topic | null {
+  const r = s.db.prepare(`${TOPIC_SELECT} WHERE t.anchor = ? AND t.deleted_at IS NULL ORDER BY e.id LIMIT 1`).get(anchor) as Row | undefined;
+  return r ? rowToTopic(r) : null;
 }
 
 const isLive = (s: Store, id: string) =>
@@ -309,7 +318,8 @@ export function describeTopic(s: Store, id: string, d: { definition: string | nu
 }
 
 /** The person moves a node: its old home goes, the new one is theirs. A cycle leaves everything as it was. Null parent = unplaced. */
-export function moveTopic(s: Store, id: string, parentId: string | null): TopicEdge | null {
+/** Moves a node under a new parent (or unplaces it); `source` says who moved it, the person unless a step did. */
+export function moveTopic(s: Store, id: string, parentId: string | null, source: TopicEdge["source"] = "person"): TopicEdge | null {
   return s.transaction(() => {
     guardRoot(s, id);
     const now = s.nowIso();
@@ -321,11 +331,11 @@ export function moveTopic(s: Store, id: string, parentId: string | null): TopicE
     if (loop) throw new CycleError([id, ...loop].map((n) => getTopic(s, n).name));
     const existing = s.db.prepare("SELECT id FROM topic_edges WHERE from_topic = ? AND to_topic = ? AND kind = 'part_of'").get(id, parentId) as Row | undefined;
     const edgeId = existing ? String(existing.id) : newId("edg");
-    if (existing) s.db.prepare("UPDATE topic_edges SET deleted_at = NULL, source = 'person', created_at = ? WHERE id = ?").run(now, edgeId);
+    if (existing) s.db.prepare("UPDATE topic_edges SET deleted_at = NULL, source = ?, created_at = ? WHERE id = ?").run(source, now, edgeId);
     else
       s.db
-        .prepare("INSERT INTO topic_edges (id, from_topic, to_topic, kind, source, created_at) VALUES (?, ?, ?, 'part_of', 'person', ?)")
-        .run(edgeId, id, parentId, now);
+        .prepare("INSERT INTO topic_edges (id, from_topic, to_topic, kind, source, created_at) VALUES (?, ?, ?, 'part_of', ?, ?)")
+        .run(edgeId, id, parentId, source, now);
     return rowToEdge(s.db.prepare("SELECT * FROM topic_edges WHERE id = ?").get(edgeId) as Row);
   });
 }
