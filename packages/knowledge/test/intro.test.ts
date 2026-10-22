@@ -32,6 +32,7 @@ describe("reading a source", () => {
   it("reads each section, keeps statements whose quote is in the source, and counts the rest", async () => {
     const llm = new ScriptedLLM((req: GenerateObjectRequest<unknown>) => {
       expect(req.purpose).toBe("intro");
+      expect(req.system).toMatch(/one fact each, not one line each/);
       if (req.prompt.includes("EDUCATION"))
         return { statements: [{ statement: "I have a BS in math.", quote: "BS in Mathematics, State University (2015-2019)", kind: "education", start: "2015", end: "2019" }] };
       return {

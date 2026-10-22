@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { align, sections, stripContacts } from "../src/index.ts";
+import { align, sections, stripContacts, unwrap } from "../src/index.ts";
 
 describe("stripContacts", () => {
   it("removes emails, phone numbers and street addresses, and counts them", () => {
@@ -34,5 +34,34 @@ describe("sections", () => {
     expect(s.length).toBeGreaterThan(3);
     for (const x of s) expect(x.text.length).toBeLessThanOrEqual(4000);
     expect(s[1]!.text.slice(0, 50)).toBe(long.slice(s[0]!.text.length - 200, s[0]!.text.length - 150));
+  });
+});
+
+describe("unwrap", () => {
+  it("joins a line broken mid-sentence, as PDFs break them, and keeps real line breaks", () => {
+    const pdf = [
+      "Languages: Python, C, SQL — Frameworks: React, Next.js, NestJS,",
+      "Django, Flask, Docker",
+      "• Assisted students via 1:1 tutor sessions on proofs and theory topics; designed study",
+      "guides and exam reviews.",
+      "• Built tools to analyze bias in",
+      "AI-generated images.",
+      "Research Assistant May 2024 – Present",
+      "Chimps Lab, CMU",
+      "I work on motion-",
+      "planning.",
+    ].join("\n");
+    expect(unwrap(pdf).split("\n")).toEqual([
+      "Languages: Python, C, SQL — Frameworks: React, Next.js, NestJS, Django, Flask, Docker",
+      "• Assisted students via 1:1 tutor sessions on proofs and theory topics; designed study guides and exam reviews.",
+      "• Built tools to analyze bias in AI-generated images.",
+      "Research Assistant May 2024 – Present",
+      "Chimps Lab, CMU",
+      "I work on motion-planning.",
+    ]);
+  });
+  it("leaves paragraphs, list items and short lines alone", () => {
+    const text = "I study CS.\n\n- reading\n- climbing\nEDUCATION\nBS in Math";
+    expect(unwrap(text)).toBe(text);
   });
 });

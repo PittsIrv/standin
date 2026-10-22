@@ -35,6 +35,33 @@ export function stripContacts(text: string): { text: string; removed: number } {
   return { text: out, removed };
 }
 
+const BULLET = /^\s*(?:[-*•▪◦·]|\d+[.)])\s/;
+const CONNECTOR = /\b(?:a|an|and|as|at|by|for|from|in|into|of|on|or|the|to|via|with)$/i;
+
+/**
+ * Lines a PDF broke mid-sentence joined back up, so one fact stays on one line: a line ending in a comma, dash, "&"
+ * or a joining word, or followed by one that starts in lower case. Blank lines and list items are never joined.
+ */
+export function unwrap(text: string): string {
+  const out: string[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    const prev = out.at(-1)?.trimEnd();
+    const next = line.trim();
+    if (prev && next && !BULLET.test(line)) {
+      if (/\p{L}-$/u.test(prev)) {
+        out[out.length - 1] = prev + next;
+        continue;
+      }
+      if (/[,–—&/]$/.test(prev) || CONNECTOR.test(prev) || /^\p{Ll}/u.test(next)) {
+        out[out.length - 1] = `${prev} ${next}`;
+        continue;
+      }
+    }
+    out.push(line);
+  }
+  return out.join("\n");
+}
+
 /** Case, whitespace, typography and hyphens (including at line breaks) set aside, for comparing a quote with its source. */
 function normalize(s: string): string {
   return s

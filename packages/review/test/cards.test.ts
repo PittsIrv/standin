@@ -47,6 +47,15 @@ describe("concept cards over HTTP", () => {
     await server.finish();
   });
 
+  it("joins lines a file broke mid-sentence, so the model reads (and the standin keeps) whole sentences", async () => {
+    const { w, server, api } = await served({ intro: true });
+    await api("/api/intro/file", { name: "cv.txt", data: Buffer.from("I built tools to analyze bias in\nAI-generated images. I led a\nteam of four.").toString("base64") });
+    const read = (await api("/api/intro/read", {})).json!;
+    await api("/api/intro/confirm", { statements: read.groups[0].statements });
+    expect(w.store.db.prepare("SELECT text FROM observations WHERE source_kind = 'file'").get()).toEqual({ text: "I built tools to analyze bias in AI-generated images. I led a team of four." });
+    await server.finish();
+  });
+
   it("reads your website, then only the same-site pages you pick", async () => {
     const pages: Record<string, string> = {
       "https://lin.example/": `<html><head><title>Lin</title></head><body><article><p>I build AIs for board games.</p></article><a href="/about">About</a><a href="https://elsewhere.example/">x</a></body></html>`,

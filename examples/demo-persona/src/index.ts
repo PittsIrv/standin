@@ -88,11 +88,28 @@ function intro(prompt: string) {
               : /\b(every|usually|weekends?)\b/i.test(s)
                 ? "routine"
                 : "experience";
-  const statements = text
-    .split(/(?<=[.!?])\s+|\n+/)
-    .map((s) => s.replace(/^[-*•]\s*/, "").trim())
+  // A bullet is one fact, and so is a sentence; title lines with no full stop (a role, then its organization) run together.
+  const facts: string[] = [];
+  let open: string | null = null;
+  const close = () => {
+    if (open !== null) facts.push(open);
+    open = null;
+  };
+  for (const line of text.split("\n").map((l) => l.trim()).filter(Boolean)) {
+    if (/^[-*•]\s/.test(line)) {
+      close();
+      facts.push(line.replace(/^[-*•]\s*/, ""));
+      continue;
+    }
+    for (const sentence of line.split(/(?<=[.!?])\s+/)) {
+      open = open === null ? sentence : `${open}\n${sentence}`;
+      if (/[.!?]$/.test(sentence)) close();
+    }
+  }
+  close();
+  const statements = facts
     .filter((s) => s.length > 3 && !/^\[removed\]/.test(s))
-    .map((s) => ({ statement: s, quote: s, kind: kindOf(s), current: /\b(now|currently|present)\b/i.test(s) }));
+    .map((s) => ({ statement: s.replace(/\s+/g, " "), quote: s, kind: kindOf(s), current: /\b(now|currently|present)\b/i.test(s) }));
   return { statements };
 }
 

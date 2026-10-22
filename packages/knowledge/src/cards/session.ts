@@ -6,7 +6,7 @@ import { cells, loadPriors, outcomeOf, probabilityOf } from "../hypotheses/calib
 import { expandNode } from "../probing/expand.ts";
 import { syncStatedGaps } from "../gaps.ts";
 import { computeLighting } from "../lighting.ts";
-import { stripContacts } from "@standin/intake";
+import { stripContacts, unwrap } from "@standin/intake";
 import { MAX_INTRO_STATEMENTS, needsIntro, readSource, saveIntro, skipIntro, type ConfirmedStatement, type IntroSource, type ReadStatement } from "../intro.ts";
 import { refresh } from "../refresh.ts";
 import { loadSnapshot, type TreeSnapshot } from "../snapshot.ts";
@@ -134,11 +134,11 @@ export class CardSession {
   }
 
   /**
-   * Adds a source to the introduction being built (intro-sources spec §3). It waits in memory, contact details
+   * Adds a source to the introduction being built (intro-sources spec §3), lines broken mid-sentence joined up. It waits in memory, contact details
    * removed, until the person confirms statements from it; nothing is stored before then.
    */
   addSource(kind: IntroSource["kind"], ref: string, text: string): IntroSourceSummary {
-    const { text: clean, removed } = stripContacts(text.trim());
+    const { text: clean, removed } = stripContacts(unwrap(text.trim()));
     const source: IntroSource = { id: `src${++this.sourceCount}`, kind, ref, text: clean };
     this.pending.set(source.id, { source, contactsRemoved: removed, read: null });
     return this.summary(source.id);
