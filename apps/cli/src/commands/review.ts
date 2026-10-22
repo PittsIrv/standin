@@ -22,7 +22,7 @@ function positiveInt(raw: string | undefined, name: string): number | undefined 
   return n;
 }
 
-/** `standin review`: a probing session in a local page. Finish on the page or with Ctrl-C. */
+/** `standin review`: a probing session in a local page, saved as you go. Ctrl-C stops it; the next one resumes. */
 export const reviewCommand: Command = {
   options: { port: { type: "string" }, lan: { type: "boolean" }, "demo-llm": { type: "boolean" } },
   async run(ctx) {
@@ -51,12 +51,12 @@ export const reviewCommand: Command = {
         ctx.io.stdout(renderUnicodeCompact(url));
         ctx.io.stdout("Anyone on your network with this link can see your private data.");
       }
-      ctx.io.stdout("Press Ctrl-C or use Finish on the page to end the session.");
+      ctx.io.stdout("Your answers are saved as you go. Press Ctrl-C to stop; the next review picks up where you left off.");
       const onInterrupt = ctx.io.onInterrupt ?? ((h: () => void) => (process.once("SIGINT", h), () => process.off("SIGINT", h)));
       const stop = onInterrupt(() => void server.finish());
       const report = await server.closed;
       stop();
-      ctx.io.stdout(`Finished: answered ${report.answered} card${report.answered === 1 ? "" : "s"}, settled ${report.settled} guess${report.settled === 1 ? "" : "es"}.`);
+      ctx.io.stdout(`Stopped: answered ${report.answered} card${report.answered === 1 ? "" : "s"}, settled ${report.settled} guess${report.settled === 1 ? "" : "es"}. The next review picks up where you left off.`);
       if (reviewQueue(store, config).length > 0) ctx.io.stdout("Next: standin queue");
       return 0;
     } finally {

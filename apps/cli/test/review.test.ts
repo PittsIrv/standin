@@ -69,7 +69,7 @@ describe("standin review", () => {
     await call(url, "/api/answer", { responseId: card.card.responseId, answer: 0 });
     await call(url, "/api/finish", {});
     expect(await done).toBe(0);
-    expect(h.out.join("\n")).toMatch(/Finished: answered 1 card, settled 1 guess\./);
+    expect(h.out.join("\n")).toMatch(/Stopped: answered 1 card, settled 1 guess\. The next review picks up where you left off\./);
   });
 
   it("finishes the session on Ctrl-C", async () => {
@@ -80,7 +80,7 @@ describe("standin review", () => {
     await h.pageUrl();
     h.interrupt();
     expect(await done).toBe(0);
-    expect(h.out.join("\n")).toContain("Finished:");
+    expect(h.out.join("\n")).toContain("Stopped:");
     const store = openStore({ path: join(h.home, "standin.db") });
     expect(store.listSessions().every((s) => s.endedAt !== null)).toBe(true);
     store.close();
