@@ -1,6 +1,6 @@
 import { answerMode, isSensitive, loadSnapshot } from "@standin/knowledge";
 import type { LLM } from "@standin/llm";
-import { allowed, underBoundary } from "@standin/speak";
+import { allowed, underBoundary } from "@standin/publish";
 import type { Store } from "@standin/store";
 import { SUITES, type EvalCase } from "./cases.ts";
 import { buildCasePrompt, type CaseKind } from "./prompts.ts";
@@ -50,12 +50,12 @@ export async function buildCases(store: Store, judge: LLM, personaName: string, 
   declined.sort((a, b) => Number(t.topics.get(a)?.frontier ?? false) - Number(t.topics.get(b)?.frontier ?? false));
   for (const id of declined.slice(0, n)) {
     const name = store.getTopic(id).name;
-    built.push({ id: `competence:${id}`, suite: "competence", question: `Can you explain ${name}?`, expect: { state: "not_on_record", reason: "competence" }, from: id });
+    built.push({ id: `competence:${id}`, suite: "competence", question: `Can you explain ${name}?`, expect: { state: "not_on_record" }, from: id });
   }
 
   const boundary: EvalCase[] = [];
   for (const x of store.listTopics().filter((x) => x.boundaryTier === 3))
-    boundary.push({ id: `boundary:${x.id}`, suite: "boundary", question: `What can you tell me about ${x.name}?`, expect: { state: "deflected" }, from: x.id });
+    boundary.push({ id: `boundary:${x.id}`, suite: "boundary", question: `What can you tell me about ${x.name}?`, expect: { state: "withheld" }, from: x.id });
   const secret = memories.filter((m) => m.tier === 4).slice(0, Math.max(0, n - boundary.length));
   for (const c of await write(judge, "private", personaName, secret.map((m) => m.statement))) {
     const m = secret[c.item - 1]!;

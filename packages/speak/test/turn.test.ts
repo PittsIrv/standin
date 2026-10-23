@@ -2,17 +2,22 @@ import { ScriptedLLM, type GenerateObjectRequest } from "@standin/llm";
 import { Tracer } from "@standin/trace";
 import { describe, expect, it } from "vitest";
 import { answerTurn, LIMITS, type TurnDeps } from "../src/index.ts";
-import { fact, node, store } from "./helpers.ts";
+import { fact, node, store, view } from "./helpers.ts";
 
 type Speak = { reply: string; state: "grounded" | "inferred" | "not_on_record"; cites: string[]; general: boolean };
 
 /** Ids listed in a speak prompt, in order: "[mem_…]" or "[node:…]". */
 const ids = (prompt: string) => [...prompt.matchAll(/^\[((?:mem_|node:|guess:)[^\]]+)\]/gm)].map((m) => m[1]!);
 
-/** Routes to every candidate; speaks with `speak(prompt)`; checks with `check`. */
-function deps(s: ReturnType<typeof store>, speak: (prompt: string) => Speak, check: () => { supported: boolean; unsupported: string[] } = () => ({ supported: true, unsupported: [] })) {
+/** Routes to every candidate (judging the question private when `priv`); speaks with `speak(prompt)`; checks with `check`. */
+function deps(
+  s: ReturnType<typeof store>,
+  speak: (prompt: string) => Speak,
+  check: () => { supported: boolean; unsupported: string[] } = () => ({ supported: true, unsupported: [] }),
+  priv = false,
+) {
   const answer = new ScriptedLLM((req: GenerateObjectRequest<unknown>) => {
-    if (req.purpose === "route") return { seeds: [...req.prompt.matchAll(/^\[(\d+)\]/gm)].map((m) => Number(m[1])) };
+    if (req.purpose === "route") return { seeds: [...req.prompt.matchAll(/^\[(\d+)\]/gm)].map((m) => Number(m[1])), private: priv };
     if (req.purpose === "speak") return speak(`${req.system}\n${req.prompt}`);
     throw new Error(`unexpected ${req.purpose}`);
   });
@@ -20,7 +25,7 @@ function deps(s: ReturnType<typeof store>, speak: (prompt: string) => Speak, che
     expect(req.purpose).toBe("check");
     return check();
   });
-  const d: TurnDeps = { store: s, answer, check: checker, tracer: new Tracer({ sinks: [] }), personaName: "Lin", speakAt: 0.8, limits: LIMITS };
+  const d: TurnDeps = { bundle: view(s), answer, check: checker, tracer: new Tracer({ sinks: [] }), limits: LIMITS };
   return { d, answer, checker };
 }
 
@@ -39,15 +44,17 @@ describe("one turn", () => {
     expect(r.traceId).toMatch(/^[0-9a-f]+$/);
   });
 
-  it("makes no model call at all when the question names nothing in the tree", async () => {
+  it("classifies every question, even one that names nothing in the tree, and says it doesn't know", async () => {
     const s = store();
     const { d, answer, checker } = deps(s, grounded);
     const r = await answerTurn(d, "What's the weather like?");
-    expect(r).toMatchObject({ state: "not_on_record", reason: "nothing", cites: [] });
-    expect(answer.calls.length + checker.calls.length).toBe(0);
+    expect(r).toMatchObject({ text: "I don't know.", state: "not_on_record", reason: "nothing", cites: [] });
+    expect(answer.calls.map((c) => c.purpose)).toEqual(["route"]);
+    expect(answer.calls[0]!.prompt).toMatch(/Candidates:\n\(none\)/);
+    expect(checker.calls).toHaveLength(0);
   });
 
-  it("deflects on a tier-3 branch with a template, never calling the speaker", async () => {
+  it("can't tell a boundary topic from an empty one: both get \"I don't know.\"", async () => {
     const s = store();
     const fam = node(s, "Family", "people");
     s.setTopic(fam.id, { boundaryTier: 3 });
@@ -55,9 +62,42 @@ describe("one turn", () => {
     fact(s, mom.id, "My mom lives in Ohio.");
     const { d, answer } = deps(s, grounded);
     const r = await answerTurn(d, "Where does your mom live?");
-    expect(r.state).toBe("deflected");
-    expect(r.text).not.toMatch(/Ohio/);
-    expect(answer.calls.map((c) => c.purpose)).toEqual(["route"]);
+    expect(r).toMatchObject({ text: "I don't know.", state: "not_on_record" });
+    expect(JSON.stringify(answer.calls)).not.toMatch(/Ohio|Family|Mom\b/);
+  });
+
+  it("refuses a private question with nothing published: \"Sorry, I can't tell you that.\", never calling the speaker", async () => {
+    const s = store();
+    const fam = node(s, "Family", "people");
+    s.setTopic(fam.id, { boundaryTier: 3 });
+    fact(s, node(s, "Mom", fam.id, "person").id, "My mom lives in Ohio.");
+    for (const q of ["Where does your mom live?", "Are you seeing anyone?"]) {
+      const { d, answer } = deps(s, grounded, undefined, true);
+      const r = await answerTurn(d, q);
+      expect(r).toMatchObject({ text: "Sorry, I can't tell you that.", state: "deflected", reason: null });
+      expect(r.work.private).toBe(true);
+      expect(answer.calls.map((c) => c.purpose)).toEqual(["route"]);
+    }
+  });
+
+  it("answers a private question from a fact the person published", async () => {
+    const s = store();
+    const home = node(s, "Home", "life");
+    fact(s, home.id, "I live in Pittsburgh.");
+    const { d } = deps(s, (p) => ({ reply: "I live in Pittsburgh.", state: "grounded", cites: ids(p).slice(0, 1), general: false }), undefined, true);
+    const r = await answerTurn(d, "Where do you live?");
+    expect(r).toMatchObject({ text: "I live in Pittsburgh.", state: "grounded" });
+  });
+
+  it("takes only a grounded reply to a private question: no guesses, levels or general knowledge", async () => {
+    const s = store();
+    const health = node(s, "Health", "life");
+    fact(s, health.id, "I value sleep.", { kind: "stance" });
+    const { d, answer } = deps(s, () => ({ reply: "I probably sleep 8 hours.", state: "inferred", cites: [], general: false }), undefined, true);
+    const r = await answerTurn(d, "How is your health?");
+    expect(r).toMatchObject({ text: "Sorry, I can't tell you that.", state: "deflected" });
+    expect(r.work.checks.code).toMatch(/inferred reply to a private question/);
+    expect(answer.calls.find((c) => c.purpose === "speak")!.prompt).toMatch(/must not explain|Context:/);
   });
 
   it("never puts a tier-4 or unapproved statement in the speak prompt", async () => {
@@ -82,18 +122,6 @@ describe("one turn", () => {
     expect(r).toMatchObject({ state: "not_on_record", reason: "check", cites: [] });
     expect(r.work.checks.code).toMatch(/cites/);
     expect(checker.calls).toHaveLength(0);
-  });
-
-  it("rejects a reply that repeats 8 words of a hidden memory", async () => {
-    const s = store();
-    const pets = node(s, "Pets", "life", "pet");
-    fact(s, pets.id, "I have two cats.");
-    fact(s, pets.id, "My cats' vet is the clinic on Elm Street near the park.", { tier: 4 });
-    const { d } = deps(s, (p) => ({ reply: "I have two cats; the vet is the clinic on Elm Street near the park.", state: "grounded", cites: ids(p).slice(0, 1), general: false }));
-    const r = await answerTurn(d, "Tell me about your cats");
-    expect(r).toMatchObject({ state: "not_on_record", reason: "check" });
-    expect(r.text).not.toMatch(/Elm/);
-    expect(r.work.checks.code).toMatch(/hidden/);
   });
 
   it("rejects a reply carrying the canary", async () => {
@@ -132,14 +160,15 @@ describe("one turn", () => {
     };
     for (const purpose of ["route", "speak"]) {
       const r = await answerTurn(failing(purpose), "Do you have cats?");
-      expect(r).toMatchObject({ state: "not_on_record", reason: "error", cites: [] });
+      expect(r).toMatchObject({ text: "I don't know.", state: "not_on_record", reason: "error", cites: [] });
       expect(r.work.error).toMatch(/overloaded/);
     }
   });
 
   it("refuses general knowledge where every Knowledge seed declines, and says why", async () => {
     const s = store();
-    node(s, "Chess engines", "knowledge");
+    const engines = node(s, "Chess engines", "knowledge");
+    fact(s, node(s, "Stockfish", engines.id).id, "I once sent a patch upstream."); // puts its parent in the bundle
     const { d, answer } = deps(s, () => ({ reply: "Chess engines search game trees.", state: "grounded", cites: [], general: true }));
     const r = await answerTurn(d, "Explain chess engines");
     expect(r).toMatchObject({ state: "not_on_record", reason: "competence" });

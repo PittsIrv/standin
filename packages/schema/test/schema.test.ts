@@ -144,6 +144,7 @@ describe("config", () => {
       sharing: { outcomes: false },
       answer: { awakenBudget: 20, seeds: 3, candidates: 10, exemplars: 3, exemplarChars: 600 },
       selfQuiz: { every: 10 },
+      publish: { sensitivityBatch: 20 },
       evals: { perSuite: 20, regression: 5 },
     });
   });

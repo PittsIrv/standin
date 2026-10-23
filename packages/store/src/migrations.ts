@@ -423,6 +423,18 @@ const MIGRATIONS: Migration[] = [
   );
   CREATE INDEX quiz_answers_case ON quiz_answers(case_id);
   `,
+  `
+  -- Publishing: the sensitivity check of each bundle item at its current text, and the person's Keep or Hide.
+  CREATE TABLE publish_reviews (
+    item_key TEXT PRIMARY KEY,
+    content_hash TEXT NOT NULL,
+    flagged INTEGER NOT NULL,
+    reason TEXT,
+    checked_at TEXT NOT NULL,
+    decision TEXT CHECK (decision IN ('keep', 'hide')),
+    decided_at TEXT
+  );
+  `,
 ];
 
 /** Applies pending migrations up to `target` (default: all of them). */

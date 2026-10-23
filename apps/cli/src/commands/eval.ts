@@ -71,7 +71,7 @@ async function run(ctx: CommandContext): Promise<number> {
   try {
     const tracer = instanceTracer(ctx, store, config);
     const models = instanceModels(ctx, config, tracer, { demo: flag(ctx, "demo-llm") });
-    const report = await runCases({ ...instanceTurn(store, config, tracer, models), judge: models.for("judge") }, cases);
+    const report = await runCases({ ...instanceTurn(store, config, tracer, models), judge: models.for("judge"), store, personaName: config.persona.name, speakAt: config.hypotheses.speakAt }, cases);
     const dir = ensureDir(ctx.home);
     writeFileSync(join(dir, "runs", `${report.at.replace(/[:.]/g, "-")}.json`), JSON.stringify(report, null, 2), { mode: 0o600 });
     const basePath = join(dir, "baseline.json");

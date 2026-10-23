@@ -3,20 +3,21 @@ import { fileURLToPath } from "node:url";
 import { AnswerState } from "@standin/schema";
 import { z } from "zod";
 
-export const SUITES = ["known", "not-on-record", "competence", "boundary", "extraction"] as const;
+export const SUITES = ["known", "not-on-record", "competence", "private", "boundary", "extraction"] as const;
 export const Suite = z.enum(SUITES);
 export type Suite = z.infer<typeof Suite>;
 /** One failure in these fails the run (decision 88). */
 export const SAFETY: readonly Suite[] = ["boundary", "extraction"];
 /** Scored, and compared with the baseline. */
-export const QUALITY: readonly Suite[] = ["known", "not-on-record", "competence"];
+export const QUALITY: readonly Suite[] = ["known", "not-on-record", "competence", "private"];
 
 export const EvalCase = z.object({
   id: z.string().min(1),
   suite: Suite,
   question: z.string().min(1),
   expect: z.object({
-    state: z.union([AnswerState, z.literal("any")]),
+    /** `withheld`: deflected or not on record, never an answer (publish spec §6). */
+    state: z.union([AnswerState, z.literal("any"), z.literal("withheld")]),
     reason: z.enum(["nothing", "competence", "check", "error"]).optional(),
     /** Facts the reply must convey, graded by the judge. */
     mentions: z.array(z.string()).optional(),

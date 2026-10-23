@@ -1,6 +1,6 @@
 import type { SpeakOut } from "./schemas.ts";
 
-/** A reply quoting this many words in a row of a hidden statement is a leak (answering spec §2, step 6). */
+/** A reply quoting this many words in a row of a hidden statement is a leak (publish spec §6: checked by the evals). */
 export const LEAK_RUN = 8;
 
 const tokens = (text: string) => text.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
@@ -20,7 +20,6 @@ export interface CodeCheckContext {
   inferable: boolean;
   generalAllowed: boolean;
   canary: string;
-  hidden: string[];
 }
 
 /** The hard rules, checked in code (decision 85). The reason a reply is rejected, or null. */
@@ -31,6 +30,5 @@ export function codeCheck(out: SpeakOut, ctx: CodeCheckContext): string | null {
   if (out.state === "inferred" && !ctx.inferable) return "inferred with no guess or stance in context";
   if (out.general && !ctx.generalAllowed) return "general knowledge where every concept declines";
   if (out.reply.includes(ctx.canary)) return "contains the canary";
-  if (ctx.hidden.some((h) => leaks(out.reply, h))) return `repeats ${LEAK_RUN}+ words of a hidden memory`;
   return null;
 }

@@ -2,7 +2,8 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { RootKey, Tier } from "@standin/schema";
-import { LIMITS, type TurnDeps } from "@standin/speak";
+import { buildBundle } from "@standin/publish";
+import { LIMITS } from "@standin/speak";
 import { openStore, type Store } from "@standin/store";
 import { Tracer } from "@standin/trace";
 import type { LLM } from "@standin/llm";
@@ -46,4 +47,14 @@ export function linStore(): Store {
   return s;
 }
 
-export const turnDeps = (s: Store, model: LLM): TurnDeps => ({ store: s, answer: model, check: model, tracer: new Tracer({ sinks: [] }), personaName: "Lin", speakAt: 0.8, limits: LIMITS });
+/** A turn answering from the store's draft bundle, plus what the eval runner needs. */
+export const turnDeps = (s: Store, model: LLM) => ({
+  bundle: () => buildBundle(s, { personaName: "Lin", speakAt: 0.8 }),
+  answer: model,
+  check: model,
+  tracer: new Tracer({ sinks: [] }),
+  limits: LIMITS,
+  store: s,
+  personaName: "Lin",
+  speakAt: 0.8,
+});

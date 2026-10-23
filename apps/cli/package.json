@@ -19,6 +19,7 @@
     "@standin/knowledge": "workspace:*",
     "@standin/llm": "workspace:*",
     "@standin/models": "workspace:*",
+    "@standin/publish": "workspace:*",
     "@standin/review": "workspace:*",
     "@standin/schema": "workspace:*",
     "@standin/speak": "workspace:*",

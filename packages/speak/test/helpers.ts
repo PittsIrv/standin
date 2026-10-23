@@ -2,7 +2,10 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { RootKey, Tier } from "@standin/schema";
+import type { TreeSnapshot } from "@standin/knowledge";
+import { buildBundle } from "@standin/publish";
 import { openStore, type Store } from "@standin/store";
+import { viewOf } from "../src/index.ts";
 
 export const store = () => openStore({ path: join(mkdtempSync(join(tmpdir(), "standin-speak-")), "db") });
 
@@ -28,3 +31,6 @@ export function fact(s: Store, nodeId: string, statement: string, opts: { tier?:
   if (opts.approve !== false) s.approve(m.id);
   return m;
 }
+
+/** The draft bundle of a test store, indexed for answering. */
+export const view = (s: Store, snapshot?: TreeSnapshot) => viewOf(buildBundle(s, { personaName: "Lin", speakAt: 0.8, ...(snapshot ? { snapshot } : {}) }));

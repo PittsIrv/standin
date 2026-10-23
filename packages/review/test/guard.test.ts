@@ -43,7 +43,7 @@ describe("the personal-data guard on the review page", () => {
     const calls: string[] = [];
     const { server, api } = await served({
       extra: (w) => ({
-        turn: { store: w.store, answer: { generateObject: async () => { calls.push("model"); throw new Error("no"); } } as never, check: null as never, tracer: null as never, personaName: "Lin", speakAt: 0.8, limits: null as never },
+        turn: { bundle: null as never, answer: { generateObject: async () => { calls.push("model"); throw new Error("no"); } } as never, check: null as never, tracer: null as never, limits: null as never },
         quiz: { answer: async () => { calls.push("quiz"); throw new Error("no"); }, agreement: () => ({}), left: () => 0 } as never,
       }),
     });

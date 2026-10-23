@@ -1,4 +1,4 @@
-import type { Topic } from "@standin/schema";
+import type { BundleNode } from "@standin/schema";
 import type { Seed } from "./awaken.ts";
 
 /** One thing the speaker may use: a memory, how well a concept is known, or a confident guess. */
@@ -9,13 +9,41 @@ export interface ContextItem {
   kind: "fact" | "stance" | "negative" | "competence" | "lighting" | "guess";
 }
 
-export function buildRoutePrompt(question: string, candidates: { topic: Topic; place: string }[]): { system: string; prompt: string } {
+/**
+ * What a visitor is never told unless the person published it (publish spec §3, decision 104): the categories asked
+ * about, then those the standin never guesses about (world-tree §6.2).
+ */
+export const PRIVATE_CATEGORIES = [
+  "health",
+  "money",
+  "relationships and family",
+  "where they live or are right now",
+  "other people's private lives",
+  "confidential work",
+  "passwords and accounts",
+  "religion",
+  "sexuality",
+  "gender identity",
+  "politics",
+  "ethnicity or race",
+  "immigration status",
+  "criminal history",
+  "trade-union membership",
+];
+
+export function buildRoutePrompt(question: string, candidates: { node: BundleNode; place: string }[]): { system: string; prompt: string } {
   return {
     system: [
       "You route a visitor's question to the nodes of a person's knowledge tree it is about.",
       "Pick 0 to 3 candidates, best first. Pick a node only if the question is really about it; pick none if no candidate fits.",
+      `Also set \`private\`: true if answering would tell the visitor something about the person in one of these categories: ${PRIVATE_CATEGORIES.join("; ")}. Casual wording counts ("seeing anyone?"); a question about the subject in general ("what is diabetes?") does not.`,
     ].join("\n"),
-    prompt: [`Question: ${question}`, "", "Candidates:", ...candidates.map((c, i) => `[${i + 1}] ${c.topic.name} (${c.place})${c.topic.definition ? `: ${c.topic.definition}` : ""}`)].join("\n"),
+    prompt: [
+      `Question: ${question}`,
+      "",
+      "Candidates:",
+      ...(candidates.length ? candidates.map((c, i) => `[${i + 1}] ${c.node.name} (${c.place})${c.node.definition ? `: ${c.node.definition}` : ""}`) : ["(none)"]),
+    ].join("\n"),
   };
 }
 

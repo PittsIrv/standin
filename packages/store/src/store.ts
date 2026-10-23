@@ -21,6 +21,7 @@ import * as probes from "./probes.ts";
 import * as hyp from "./hypotheses.ts";
 import * as qs from "./questions.ts";
 import * as quiz from "./quiz.ts";
+import * as pub from "./publish.ts";
 import type { SpanContent, SpanData, SpanSink } from "@standin/trace";
 import { consolidate, purge, type ConsolidationReport } from "./consolidate.ts";
 import { purgeStored, scanStored, type StoredFinding } from "./scan.ts";
@@ -292,6 +293,9 @@ export class Store {
   keepCurrent(id: string): Memory {
     return mem.keepCurrent(this, id);
   }
+  retier(id: string, tier: Tier, note: string): Memory {
+    return mem.retier(this, id, tier, note);
+  }
   findNeighbors(
     query: { statement: string; entityIds: string[] },
     opts?: { limit?: number; minSimilarity?: number },
@@ -342,6 +346,19 @@ export class Store {
     this.db
       .prepare("INSERT INTO queue_decisions (id, item_id, item_kind, queue_group, position, decision, at) VALUES (?, ?, ?, ?, ?, ?, ?)")
       .run(newId("qdc"), d.itemId, d.itemKind, d.group, d.position, d.decision, this.nowIso());
+  }
+
+  getPublishReview(key: string): pub.PublishReview | null {
+    return pub.getPublishReview(this, key);
+  }
+  listPublishReviews(): pub.PublishReview[] {
+    return pub.listPublishReviews(this);
+  }
+  recordSensitivity(key: string, hash: string, r: { flagged: boolean; reason: string | null }): void {
+    pub.recordSensitivity(this, key, hash, r);
+  }
+  decidePublishReview(key: string, decision: "keep" | "hide"): pub.PublishReview {
+    return pub.decidePublishReview(this, key, decision);
   }
 
   // ---- knowledge tree -----------------------------------------------------

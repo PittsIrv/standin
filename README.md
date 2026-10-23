@@ -16,7 +16,7 @@ ingest (read-only) → L0 observations → compaction → L1 memories → airloc
 
 - **Memories, not chunks.** Atomic, sourced, tiered memories: `fact`, `competence`, `stance`, `negative`.
 - **Knows what you don't know.** Competence-gated knowledge and explicit negative memories. Unknowns are answered "not on record" instead of guessed.
-- **Default-deny airlock.** Raw data stays local. Only approved memories are published.
+- **Default-deny airlock.** Raw data stays local. Only approved memories you've published, in a bundle you can read and roll back, ever reach a visitor.
 - **It never needs your passwords.** Text that looks like a password, API key, card number or ID number is refused before it is stored or sent to a model, and contact details are cut on every way in.
 - **Bitemporal.** Every memory records when it was true and when it was recorded, so you can ask what the standin knew as of any date.
 - **No guessed weights.** The review queue follows plain rules you can read in one sentence, and each memory shows its sources instead of a made-up confidence score. Where a number does change outcomes (duplicate search), it is measured, not guessed.
@@ -35,6 +35,7 @@ pnpm standin memories --as-of 2026-09-01   # what was true then, according to wh
 pnpm standin map refresh --demo-llm        # build the world tree and its first guesses
 pnpm standin review --demo-llm             # open the review page: rate concepts, explore and edit the forest
 pnpm standin ask --demo-llm "What is Kite?" # answer as a visitor would be answered (--work shows how)
+pnpm standin publish --demo-llm            # see what would go public, then publish a version
 pnpm standin eval build --demo-llm         # write private test cases from your store
 pnpm standin eval run --demo-llm           # answer and grade them; fails on any leak
 pnpm standin consolidate                   # expire memories whose validity has ended
@@ -110,7 +111,7 @@ pnpm standin review        # the review page: rate concepts, then look at and ed
 
 ## Concept cards and the review page
 
-`standin review` opens a private page on your machine (`--lan` adds a QR code for your phone). Nothing tests your knowledge: you tell the standin how well you know each concept, one click per card. The page has five tabs: **Questions**, **Add**, **Ask**, **Forest** and **Boundaries**.
+`standin review` opens a private page on your machine (`--lan` adds a QR code for your phone). Nothing tests your knowledge: you tell the standin how well you know each concept, one click per card. The page has six tabs: **Questions**, **Add**, **Ask**, **Forest**, **Boundaries** and **Publish**.
 
 - **Stop whenever you like.** Every answer is saved the moment you give it; close the tab or press Ctrl-C. The next `standin review` picks up where you left off, starting with the card you were looking at. When the questions run out, the page shows you your forest.
 - **It starts with you.** Until the standin knows your background, the page opens on **Add** with your introduction, and you can add more there any time: type a few sentences, add files (PDF, Word, Markdown or text), or add your website and tick which of its pages (or linked PDFs, like a résumé) to read too. Everything is turned into text in code (lines a PDF broke mid-sentence are joined back up), contact details and anything that looks like a secret are removed, and nothing is stored yet: sources you leave without confirming are dropped.
@@ -134,15 +135,14 @@ Every settled guess can become a text-free record: its evidence kind, raw score,
 
 ## Asking your standin, and measuring it
 
-`standin ask "…"` (or the **Ask** tab) answers exactly as a visitor would be answered, on your machine. Each answer runs the same steps:
+`standin ask "…"` (or the **Ask** tab) answers exactly as a visitor would be answered, on your machine, from a draft of what you'd publish now (`--published`: from the published version). Each answer runs the same steps:
 
-1. **Route.** Code shortlists the nodes the question shares the most telling words with, and the `answer` model picks up to 3.
-2. **Gather.** It takes their memories, plus nearby ones that share a word, up to 20.
-3. **Filter, before any model sees anything.** Only approved memories at tier 1–2 get through: nothing from a branch you keep private, and guesses only at 80% or more, hedged.
-4. **Decide the state in code.** A private branch gets a fixed "I keep that private" reply, and nothing on record gets a fixed "ask me directly"; neither calls a model.
-5. **Write the reply.** The model writes it in your voice, with up to 3 short passages of your own writing as style examples, and cites the memories it used.
-6. **Check it twice.** Code checks the reply cites only what it was given, claims a state it can stand on, doesn't contain the hidden marker, and doesn't repeat 8 words of anything filtered out. Then the `check` model confirms every claim about you is in the cited memories.
-7. **Fall back.** If either check fails, the reply becomes "not on record".
+1. **Route and classify.** Code shortlists the nodes the question shares the most telling words with. The `answer` model picks up to 3, and says whether the question is private: about your health, money, relationships and family, where you live, other people, confidential work, accounts, or the categories the standin never guesses about.
+2. **Gather.** It takes their memories, plus nearby ones that share a word, up to 20. The bundle holds only approved memories at tier 1–2, nothing from a branch you keep private, and guesses only at 80% or more, so nothing else can be gathered.
+3. **Decide the state in code.** With nothing to say, a private question gets "Sorry, I can't tell you that." and anything else gets "I don't know." Neither calls the writer, and neither depends on whether anything private exists.
+4. **Write the reply.** The model writes it in your voice, with up to 3 short passages of your own writing as style examples, and cites the memories it used. A private question can only be answered from a fact you published.
+5. **Check it twice.** Code checks the reply cites only what it was given, claims a state it can stand on, and doesn't contain the hidden marker. Then the `check` model confirms every claim about you is in the cited memories.
+6. **Fall back.** If either check fails, the reply becomes one of the two fixed replies.
 
 Every reply is labeled **on record**, **inferred** (hedged), **not on record** or **kept private**. `--work` (or "How it answered") shows what it looked at, what it left out and why, the checks, and the cost.
 
@@ -152,10 +152,23 @@ Every reply is labeled **on record**, **inferred** (hedged), **not on record** o
 - **Not on record:** details you never gave should be declined.
 - **Competence:** concepts you don't know shouldn't be explained.
 - **Boundary:** private branches and tier-4 memories never appear.
+- **Private** (repo suite): private questions get "Sorry, I can't tell you that."
 
 Edit or delete any case; add `"edited": true` to keep your version through rebuilds. Your cases never leave your machine, because a test like "refuses to discuss X" reveals that X exists. The repo ships a demo suite and a generic extraction suite (prompt-injection attempts).
 
-`standin eval run` answers every case and grades it, in code (state, forbidden phrases) and with the `judge` model (are the expected facts there, is anything made up). One leak fails the run. Quality suites fail only if they drop more than 5 points below the baseline saved by the first run (`--baseline` resets it). It also reports how often the `check` model missed a made-up claim, so you can decide with data whether it needs a bigger model.
+`standin eval run` answers every case and grades it, in code (state, forbidden phrases, 8 words in a row of any memory that isn't published) and with the `judge` model (are the expected facts there, is anything made up). One leak fails the run. Quality suites fail only if they drop more than 5 points below the baseline saved by the first run (`--baseline` resets it). It also reports how often the `check` model missed a made-up claim, so you can decide with data whether it needs a bigger model.
+
+## Publishing
+
+Nothing reaches a visitor until you publish it. `standin publish` opens the review page on its **Publish** tab:
+
+- **The bundle.** Publishing builds one JSON file: your approved tier 1–2 memories, the tree nodes they sit on and the path up to each root, your approved writing samples, and how much each concept may be explained. A branch you keep private isn't in it at all, not even its name. Probe results, guesses' reasons and source quotes stay on your machine.
+- **What changes** since the last version, grouped by tree.
+- **The final scan.** Anything that looks like a secret or contact detail stops the publish.
+- **The sensitivity check.** New and changed items go to the `screen` model, which flags anything touching a private category. A flagged item is held back until you choose **Publish it** or **Keep private** (a fact moves to tier 3, a writing sample is withdrawn, a topic becomes a private branch).
+- **Versions.** Each publish is saved as `$STANDIN_HOME/published/NNNN.json`, and every version is kept. **Roll back to this** publishes an old version again as a new one, without anything you've hidden or retracted since.
+
+Publishing saves the version on your computer; serving it to visitors comes with the public server.
 
 ## Choosing models: roles and tiers
 

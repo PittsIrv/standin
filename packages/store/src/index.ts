@@ -7,3 +7,4 @@ export type { ConsolidationReport } from "./consolidate.ts";
 export type { RunSummary, UsageRow } from "./spans.ts";
 export type { NewHypothesis } from "./hypotheses.ts";
 export type { StoredFinding } from "./scan.ts";
+export type { PublishReview } from "./publish.ts";

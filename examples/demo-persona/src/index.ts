@@ -157,6 +157,9 @@ function speak(prompt: string) {
 }
 
 /** A ScriptedLLM that answers with the demo persona's hand-written fixtures. */
+/** The demo router's stand-in for judging a question private (publish spec §3): a fixed word list. */
+const PRIVATE = /\b(salary|income|money|debt|seeing anyone|dating|partner|married|family|mom|dad|parents|health|sick|where do you live|address|password|religio\w*|politic\w*)\b/i;
+
 export function demoLLM(): ScriptedLLM {
   return new ScriptedLLM((req: GenerateObjectRequest<unknown>) => {
     if (req.purpose === "extract") {
@@ -180,9 +183,11 @@ export function demoLLM(): ScriptedLLM {
     if (req.purpose === "anchor")
       return { anchors: [...req.prompt.matchAll(/^\[(\d+)\][^\n]*\n {2}(\d+) /gm)].map((m) => ({ concept: Number(m[1]), subfield: m[2]! })) };
     // Answering: route to the best-ranked candidate, speak from the context items that share a word with the question.
-    if (req.purpose === "route") return { seeds: /^\[1\]/m.test(req.prompt) ? [1] : [] };
+    if (req.purpose === "route") return { seeds: /^\[1\]/m.test(req.prompt) ? [1] : [], private: PRIVATE.test(/^Question: (.*)$/m.exec(req.prompt)?.[1] ?? "") };
     if (req.purpose === "speak") return speak(req.prompt);
     if (req.purpose === "check") return { supported: true, unsupported: [] };
+    if (req.purpose === "sensitivity")
+      return { flags: req.prompt.split("\n").flatMap((l, i) => (PRIVATE.test(l) ? [{ item: i + 1, reason: "may be private" }] : [])) };
     // Evals: plain questions from each item; a reply conveys a fact when it holds the fact's longer words.
     if (req.purpose === "case")
       return {

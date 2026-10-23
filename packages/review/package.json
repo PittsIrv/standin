@@ -13,6 +13,7 @@
     "@standin/evals": "workspace:*",
     "@standin/intake": "workspace:*",
     "@standin/knowledge": "workspace:*",
+    "@standin/publish": "workspace:*",
     "@standin/schema": "workspace:*",
     "@standin/speak": "workspace:*",
     "@standin/store": "workspace:*",
@@ -20,6 +21,7 @@
   },
   "devDependencies": {
     "@standin/demo-persona": "workspace:*",
+    "@standin/llm": "workspace:*",
     "@standin/trace": "workspace:*"
   }
 }

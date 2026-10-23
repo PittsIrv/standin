@@ -1,6 +1,7 @@
 import { demoLLM } from "@standin/demo-persona";
 import { createModels, type Models } from "@standin/models";
-import type { Config } from "@standin/schema";
+import { buildBundle } from "@standin/publish";
+import type { Bundle, Config } from "@standin/schema";
 import type { TurnDeps } from "@standin/speak";
 import type { Store } from "@standin/store";
 import { OtlpHttpSink, Tracer, type SpanContent, type SpanData, type SpanSink } from "@standin/trace";
@@ -42,16 +43,19 @@ export function instanceModels(ctx: CommandContext, config: Config, tracer: Trac
   return createModels({ config, env: ctx.io.env, tracer, ...(demo ? { providerFor: () => demo } : {}) });
 }
 
-/** What one visitor turn needs, from this instance's config and router. */
-export function instanceTurn(store: Store, config: Config, tracer: Tracer, models: Models): TurnDeps {
+/**
+ * What one visitor turn needs, from this instance's config and router. It answers from the draft bundle, rebuilt each
+ * turn (publish spec §1), unless given a published version.
+ */
+export function instanceTurn(store: Store, config: Config, tracer: Tracer, models: Models, published?: Bundle): TurnDeps {
   return {
-    store,
+    bundle: published ?? (() => buildBundle(store, { personaName: config.persona.name, speakAt: config.hypotheses.speakAt })),
     answer: models.for("answer"),
     check: models.for("check"),
     tracer,
-    personaName: config.persona.name,
-    speakAt: config.hypotheses.speakAt,
     limits: { ...config.answer },
+    now: () => store.nowIso(),
+    usage: (traceId) => store.listRuns({ kind: "ask", limit: 5 }).find((r) => r.traceId === traceId) ?? null,
   };
 }
 

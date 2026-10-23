@@ -1,3 +1,4 @@
+import { buildBundle } from "@standin/publish";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -21,7 +22,7 @@ function lin(store: Store) {
 }
 
 function extras(store: Store) {
-  const turn: TurnDeps = { store, answer: demoLLM(), check: demoLLM(), tracer: new Tracer({ sinks: [] }), personaName: "Lin", speakAt: 0.8, limits: LIMITS };
+  const turn: TurnDeps = { bundle: () => buildBundle(store, { personaName: "Lin", speakAt: 0.8 }), answer: demoLLM(), check: demoLLM(), tracer: new Tracer({ sinks: [] }), limits: LIMITS };
   const casesPath = join(mkdtempSync(join(tmpdir(), "standin-quiz-")), "cases.jsonl");
   writeCases(casesPath, [
     { id: "known:a", suite: "known", question: "Do you have cats?", expect: { state: "grounded", mentions: ["two cats"] } },

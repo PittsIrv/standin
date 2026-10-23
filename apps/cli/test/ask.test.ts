@@ -1,6 +1,7 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { buildBundle, saveVersion } from "@standin/publish";
 import { openStore } from "@standin/store";
 import { describe, expect, it } from "vitest";
 import { runCli } from "../src/main.ts";
@@ -21,7 +22,7 @@ function harness() {
       s.close();
     }
   };
-  return { run, withStore };
+  return { run, withStore, home };
 }
 
 /** Lin with two cats on a Pets node under Life. */
@@ -40,6 +41,19 @@ async function lin() {
 }
 
 describe("standin ask", () => {
+  it("--published answers from the published version, not from what was approved since", async () => {
+    const { h } = await lin();
+    expect((await h.run("ask", "--published", "--demo-llm", "Do you have cats?")).err).toMatch(/Nothing is published yet/);
+    // Publish while the standin knows nothing, then approve the cats: only the draft knows them.
+    const home = join(h.home, "published");
+    h.withStore((s) => {
+      const empty = buildBundle(s, { personaName: "Lin", speakAt: 0.8 });
+      saveVersion(home, { ...empty, memories: [] });
+    });
+    expect((await h.run("ask", "--published", "--demo-llm", "Do you have cats?")).out).toMatch(/^I don't know\./);
+    expect((await h.run("ask", "--demo-llm", "Do you have cats?")).out).toMatch(/two cats/);
+  });
+
   it("refuses a question with a secret in it before any model sees it", async () => {
     const { h } = await lin();
     const token = "ghp_" + "aB3kQ9zX7mW2pL5vR8tY4nC6aB3kQ9zX7mW2".slice(0, 36);
