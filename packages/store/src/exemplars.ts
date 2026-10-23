@@ -42,9 +42,10 @@ export function insertExemplar(
   return getExemplar(s, id);
 }
 
+/** A proposed exemplar is approved or rejected; an approved one can still be rejected (hidden at publish). */
 function decide(s: Store, id: string, to: "approved" | "rejected"): Exemplar {
   const e = getExemplar(s, id);
-  if (e.status !== "proposed") throw new InvalidTransitionError(e.id, e.status, to);
+  if (e.status !== "proposed" && !(e.status === "approved" && to === "rejected")) throw new InvalidTransitionError(e.id, e.status, to);
   s.db.prepare("UPDATE exemplars SET status = ?, decided_at = ? WHERE id = ?").run(to, s.nowIso(), id);
   return getExemplar(s, id);
 }

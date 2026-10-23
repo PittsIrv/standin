@@ -308,6 +308,18 @@ export function keepCurrent(s: Store, id: string): Memory {
   });
 }
 
+/** Changes an approved memory's disclosure tier, logged as an event (publish spec §4: Hide). */
+export function retier(s: Store, id: string, tier: Tier, note: string): Memory {
+  return s.transaction(() => {
+    const m = getMemory(s, id);
+    if (m.status !== "approved") throw new InvalidTransitionError(m.id, m.status, "approved");
+    if (m.tier === tier) return m;
+    s.db.prepare("UPDATE memories SET tier = ? WHERE id = ?").run(tier, m.id);
+    writeEvent(s, m.id, "approved", "approved", "person", `tier ${m.tier} → ${tier}: ${note}`);
+    return getMemory(s, m.id);
+  });
+}
+
 export function findNeighbors(
   s: Store,
   query: { statement: string; entityIds: string[] },

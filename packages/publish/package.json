@@ -12,6 +12,7 @@
     "@standin/knowledge": "workspace:*",
     "@standin/llm": "workspace:*",
     "@standin/schema": "workspace:*",
+    "@standin/speak": "workspace:*",
     "@standin/store": "workspace:*",
     "zod": "^4.6.5"
   }

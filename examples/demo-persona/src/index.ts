@@ -186,6 +186,8 @@ export function demoLLM(): ScriptedLLM {
     if (req.purpose === "route") return { seeds: /^\[1\]/m.test(req.prompt) ? [1] : [], private: PRIVATE.test(/^Question: (.*)$/m.exec(req.prompt)?.[1] ?? "") };
     if (req.purpose === "speak") return speak(req.prompt);
     if (req.purpose === "check") return { supported: true, unsupported: [] };
+    if (req.purpose === "sensitivity")
+      return { flags: req.prompt.split("\n").flatMap((l, i) => (PRIVATE.test(l) ? [{ item: i + 1, reason: "may be private" }] : [])) };
     // Evals: plain questions from each item; a reply conveys a fact when it holds the fact's longer words.
     if (req.purpose === "case")
       return {

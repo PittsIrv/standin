@@ -225,6 +225,9 @@ importers:
       '@standin/schema':
         specifier: workspace:*
         version: link:../schema
+      '@standin/speak':
+        specifier: workspace:*
+        version: link:../speak
       '@standin/store':
         specifier: workspace:*
         version: link:../store
