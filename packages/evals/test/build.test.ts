@@ -21,9 +21,9 @@ describe("building cases from the person's store", () => {
     );
     expect(by("known").some((c) => /Japan|visa|Ohio/.test(c.expect.mentions![0]!))).toBe(false);
     expect(by("not-on-record").every((c) => c.expect.state === "not_on_record")).toBe(true);
-    expect(by("competence")).toEqual([{ id: expect.stringMatching(/^competence:/), suite: "competence", question: "Can you explain Quantum computing?", expect: { state: "not_on_record", reason: "competence" }, from: expect.any(String) }]);
+    expect(by("competence")).toEqual([{ id: expect.stringMatching(/^competence:/), suite: "competence", question: "Can you explain Quantum computing?", expect: { state: "not_on_record" }, from: expect.any(String) }]);
     const boundary = by("boundary");
-    expect(boundary.find((c) => c.question.includes("Family"))?.expect).toEqual({ state: "deflected" });
+    expect(boundary.find((c) => c.question.includes("Family"))?.expect).toEqual({ state: "withheld" });
     expect(boundary.find((c) => c.expect.forbidden)?.expect).toEqual({ state: "any", forbidden: ["in 2027"] });
   });
 

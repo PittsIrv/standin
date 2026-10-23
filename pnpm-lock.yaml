@@ -47,6 +47,9 @@ importers:
       '@standin/models':
         specifier: workspace:*
         version: link:../../packages/models
+      '@standin/publish':
+        specifier: workspace:*
+        version: link:../../packages/publish
       '@standin/review':
         specifier: workspace:*
         version: link:../../packages/review
@@ -110,6 +113,9 @@ importers:
       '@standin/llm':
         specifier: workspace:*
         version: link:../llm
+      '@standin/publish':
+        specifier: workspace:*
+        version: link:../publish
       '@standin/schema':
         specifier: workspace:*
         version: link:../schema
@@ -205,6 +211,27 @@ importers:
         specifier: ^4.6.5
         version: 4.6.5
 
+  packages/publish:
+    dependencies:
+      '@standin/airlock':
+        specifier: workspace:*
+        version: link:../airlock
+      '@standin/knowledge':
+        specifier: workspace:*
+        version: link:../knowledge
+      '@standin/llm':
+        specifier: workspace:*
+        version: link:../llm
+      '@standin/schema':
+        specifier: workspace:*
+        version: link:../schema
+      '@standin/store':
+        specifier: workspace:*
+        version: link:../store
+      zod:
+        specifier: ^4.6.5
+        version: 4.6.5
+
   packages/review:
     dependencies:
       '@standin/airlock':
@@ -222,6 +249,9 @@ importers:
       '@standin/knowledge':
         specifier: workspace:*
         version: link:../knowledge
+      '@standin/publish':
+        specifier: workspace:*
+        version: link:../publish
       '@standin/schema':
         specifier: workspace:*
         version: link:../schema
@@ -250,24 +280,28 @@ importers:
 
   packages/speak:
     dependencies:
-      '@standin/knowledge':
-        specifier: workspace:*
-        version: link:../knowledge
       '@standin/llm':
         specifier: workspace:*
         version: link:../llm
       '@standin/schema':
         specifier: workspace:*
         version: link:../schema
-      '@standin/store':
-        specifier: workspace:*
-        version: link:../store
       '@standin/trace':
         specifier: workspace:*
         version: link:../trace
       zod:
         specifier: ^4.6.5
         version: 4.6.5
+    devDependencies:
+      '@standin/knowledge':
+        specifier: workspace:*
+        version: link:../knowledge
+      '@standin/publish':
+        specifier: workspace:*
+        version: link:../publish
+      '@standin/store':
+        specifier: workspace:*
+        version: link:../store
 
   packages/store:
     dependencies:

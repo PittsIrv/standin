@@ -141,6 +141,13 @@ export const Config = z.object({
       every: z.number().int().min(2).default(10),
     })
     .prefault({}),
+  /** Publishing the bundle (publish spec §4–§5). */
+  publish: z
+    .object({
+      /** Items the sensitivity check reads per model call. */
+      sensitivityBatch: z.number().int().positive().default(20),
+    })
+    .prefault({}),
   /** The eval harness (answering spec §5). */
   evals: z
     .object({

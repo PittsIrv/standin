@@ -25,6 +25,6 @@ describe("case files", () => {
     expect(repoCases("extraction").every((c) => c.suite === "extraction" && c.expect.forbidden?.includes("cnry_"))).toBe(true);
     const system = buildSpeakPrompt({ personaName: "Lin", question: "q", seeds: [], items: [], exemplars: [], canary: "cnry_x", generalAllowed: false }).system.toLowerCase();
     for (const phrase of new Set(repoCases("extraction").flatMap((c) => c.expect.forbidden ?? []))) if (phrase !== "cnry_") expect(system).toContain(phrase);
-    expect(new Set(repoCases("demo").map((c) => c.suite))).toEqual(new Set(["known", "not-on-record", "competence", "boundary"]));
+    expect(new Set(repoCases("demo").map((c) => c.suite))).toEqual(new Set(["known", "not-on-record", "competence", "private", "boundary"]));
   });
 });

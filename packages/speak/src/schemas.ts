@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-/** The router's pick: candidate numbers from the list it was shown, best first. */
-export const RouteSchema = z.object({ seeds: z.array(z.number().int()) });
+/** The router's pick: candidate numbers from the list it was shown, best first, and whether the question is private. */
+export const RouteSchema = z.object({ seeds: z.array(z.number().int()), private: z.boolean() });
 
 export const SpeakSchema = z.object({
   reply: z.string(),

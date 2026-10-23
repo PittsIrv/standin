@@ -1,6 +1,4 @@
-import { answerMode, loadSnapshot, type AnswerMode, type TreeSnapshot } from "@standin/knowledge";
-import type { Memory, MemoryKind, RootKey, Tier, Topic } from "@standin/schema";
-import type { Store } from "@standin/store";
+import type { Bundle, BundleAnswer, BundleMemory, BundleNode, MemoryKind, RootKey, Tier } from "@standin/schema";
 
 /** Starting values (answering spec §10). */
 export const LIMITS = { candidates: 10, seeds: 3, awakenBudget: 20, exemplars: 3, exemplarChars: 600 };
@@ -23,21 +21,48 @@ export interface Seed {
   /** Under the Knowledge root: the answering rule decides how much may be said. */
   knowledge: boolean;
   /** The answering rule's mode, for Knowledge seeds only. */
-  mode: AnswerMode | null;
-  /** The node or an ancestor is a tier-3 boundary: the standin deflects. */
-  boundary: boolean;
+  mode: BundleAnswer["mode"] | null;
 }
 
-export type FilterReason = "status" | "tier" | "boundary" | "expired" | "budget";
+/** Why a memory in the bundle wasn't shown to the speaker. Everything else was filtered when the bundle was built. */
+export type FilterReason = "expired" | "budget";
 
 export interface Awakened {
   seeds: Seed[];
   memories: ContextMemory[];
-  /** Guesses at or above `speakAt` about a seed with nothing on record: spoken only hedged. */
-  hypotheses: { nodeId: string; name: string; depth: number; p: number }[];
+  /** Confident guesses about a seed with nothing on record: spoken only hedged. */
+  hypotheses: { nodeId: string; name: string; depth: number }[];
   filtered: { id: string; reason: FilterReason }[];
-  /** Statements kept from the speaker for any reason but the budget: a reply quoting one is a leak. */
-  hidden: string[];
+}
+
+/** A bundle indexed for answering. Build it once per bundle; it never changes. */
+export interface BundleView {
+  bundle: Bundle;
+  nodes: Map<string, BundleNode>;
+  children: Map<string, string[]>;
+  /** Memories living on or naming each node. */
+  memoriesOf: Map<string, BundleMemory[]>;
+  related: Map<string, string[]>;
+}
+
+const push = <K, V>(m: Map<K, V[]>, k: K, v: V) => {
+  const list = m.get(k);
+  if (list) list.push(v);
+  else m.set(k, [v]);
+};
+
+export function viewOf(bundle: Bundle): BundleView {
+  const nodes = new Map(bundle.nodes.map((n) => [n.id, n]));
+  const children = new Map<string, string[]>();
+  for (const n of bundle.nodes) if (n.parent) push(children, n.parent, n.id);
+  const memoriesOf = new Map<string, BundleMemory[]>();
+  for (const m of bundle.memories) for (const id of m.nodes) push(memoriesOf, id, m);
+  const related = new Map<string, string[]>();
+  for (const [a, b] of bundle.related) {
+    push(related, a, b);
+    push(related, b, a);
+  }
+  return { bundle, nodes, children, memoriesOf, related };
 }
 
 // Words that say nothing about what a visitor is asking about.
@@ -56,38 +81,25 @@ export function terms(text: string): string[] {
     .filter((w) => w.length > 1 && !STOP.has(w));
 }
 
-/** What a visitor may be told: approved, tier 1–2, not expired (the branch is checked separately). */
-export const allowed = (m: Memory, now: string) => m.status === "approved" && m.tier <= 2 && (m.validUntil === null || m.validUntil > now);
+const live = (m: BundleMemory, now: string) => m.validUntil === null || m.validUntil > now;
 
-/** The node and its home ancestors, nearest first. */
-function pathUp(store: Store, id: string): string[] {
+/** The node and its ancestors in the bundle, nearest first. */
+function pathUp(v: BundleView, id: string): string[] {
   const path: string[] = [];
-  for (let at: string | null = id; at && !path.includes(at); at = store.homeParent(at)) path.push(at);
+  for (let at: string | null = id; at && !path.includes(at); at = v.nodes.get(at)?.parent ?? null) path.push(at);
   return path;
-}
-
-/** The node or an ancestor is a tier-3 boundary. */
-export const underBoundary = (store: Store, id: string) => pathUp(store, id).some((n) => store.getTopic(n).boundaryTier === 3);
-
-/** Memories homed on a node or linked to it, without repeats. */
-function memoriesOf(store: Store, id: string): Memory[] {
-  const seen = new Map<string, Memory>();
-  for (const m of [...store.nodeMemories(id), ...store.topicMemories(id)]) seen.set(m.id, m);
-  return [...seen.values()];
 }
 
 /**
  * The nodes a question may be about (answering spec §2, step 1): ranked by the words they share with it, rarer words
- * counting more. A word of the node's name or aliases counts double; its definition, examples and the memories a
- * visitor may see count once. Words of hidden memories are never used, so routing can't reveal them.
+ * counting more. A word of the node's name or aliases counts double; its definition, examples and memories count once.
  */
-export function candidates(store: Store, question: string, n = LIMITS.candidates): Topic[] {
-  const now = store.nowIso();
+export function candidates(v: BundleView, question: string, now: string, n = LIMITS.candidates): BundleNode[] {
   const asked = new Set(terms(question));
   if (asked.size === 0) return [];
-  const bags = store.listTopics({ includeRoots: true }).map((t) => {
+  const bags = v.bundle.nodes.map((t) => {
     const name = new Set(terms([t.name, ...t.aliases].join(" ")));
-    const seen = memoriesOf(store, t.id).filter((m) => allowed(m, now));
+    const seen = (v.memoriesOf.get(t.id) ?? []).filter((m) => live(m, now));
     const rest = new Set(terms([t.definition ?? "", ...t.examples, ...seen.map((m) => m.statement)].join(" ")));
     return { t, name, all: new Set([...name, ...rest]) };
   });
@@ -109,53 +121,35 @@ export function candidates(store: Store, question: string, n = LIMITS.candidates
 /**
  * Wakes the part of the tree a question touches (world-tree §6.4; answering spec §2, steps 2–3). From each seed: its
  * ancestors, its children and its related links. The seed's own memories all count; a nearby node's count only when
- * they share a word with the question. Filtering happens here, before any text reaches a model: only approved
- * memories at tier 1–2, unexpired, outside any tier-3 branch, best-matching first, up to the budget.
+ * they share a word with the question. The bundle already holds only what a visitor may be told, so what is left to
+ * filter is expiry and the budget.
  */
-export function awaken(store: Store, question: string, seedIds: string[], opts: { budget: number; speakAt: number; snapshot?: TreeSnapshot }): Awakened {
-  const t = opts.snapshot ?? loadSnapshot(store);
-  const now = store.nowIso();
+export function awaken(v: BundleView, question: string, seedIds: string[], opts: { budget: number; now: string }): Awakened {
   const asked = new Set(terms(question));
-  const related = store.listEdges("related");
   const seeds: Seed[] = [];
   const hypotheses: Awakened["hypotheses"] = [];
   const reached = new Map<string, boolean>(); // node → is a seed
   for (const id of seedIds) {
-    const topic = store.getTopic(id);
-    const knowledge = t.knowledge.has(id);
-    const decision = knowledge ? answerMode(t, id, { speakAt: opts.speakAt }) : null;
-    const boundary = underBoundary(store, id);
-    seeds.push({ id, name: topic.name, root: topic.rootKey ?? store.rootOf(id), knowledge, mode: decision?.mode ?? null, boundary });
-    if (decision?.from?.via === "hypothesis" && decision.mode !== "decline") {
-      const h = t.hypotheses.get(id)!;
-      hypotheses.push({ nodeId: id, name: topic.name, depth: h.depth, p: h.p });
-    }
+    const n = v.nodes.get(id);
+    if (!n) continue;
+    seeds.push({ id, name: n.name, root: n.root, knowledge: n.answer !== null, mode: n.answer?.mode ?? null });
+    if (n.answer?.via === "guess" && n.answer.mode !== "decline" && n.answer.depth !== null) hypotheses.push({ nodeId: id, name: n.name, depth: n.answer.depth });
     reached.set(id, true);
-    const near = [
-      ...pathUp(store, id).slice(1),
-      ...[...t.parentOf].filter(([, parent]) => parent === id).map(([child]) => child),
-      ...related.flatMap((e) => (e.from === id ? [e.to] : e.to === id ? [e.from] : [])),
-    ];
-    for (const n of near) if (!reached.has(n)) reached.set(n, false);
+    for (const near of [...pathUp(v, id).slice(1), ...(v.children.get(id) ?? []), ...(v.related.get(id) ?? [])]) if (!reached.has(near)) reached.set(near, false);
   }
 
   const filtered: Awakened["filtered"] = [];
-  const hidden: string[] = [];
   const kept: { m: ContextMemory; score: number; order: number }[] = [];
   const done = new Set<string>();
   for (const [nodeId, isSeed] of reached) {
-    const blocked = underBoundary(store, nodeId);
-    const nodeName = store.getTopic(nodeId).name;
-    for (const m of memoriesOf(store, nodeId)) {
+    const nodeName = v.nodes.get(nodeId)!.name;
+    for (const m of v.memoriesOf.get(nodeId) ?? []) {
       if (done.has(m.id)) continue;
       done.add(m.id);
       const shared = terms(m.statement).filter((w) => asked.has(w)).length;
       if (!isSeed && shared === 0) continue;
-      const reason: FilterReason | null =
-        m.status !== "approved" ? "status" : m.tier > 2 ? "tier" : blocked ? "boundary" : m.validUntil !== null && m.validUntil <= now ? "expired" : null;
-      if (reason) {
-        filtered.push({ id: m.id, reason });
-        hidden.push(m.statement);
+      if (!live(m, opts.now)) {
+        filtered.push({ id: m.id, reason: "expired" });
         continue;
       }
       kept.push({ m: { id: m.id, statement: m.statement, kind: m.kind, tier: m.tier, nodeId, nodeName }, score: shared, order: kept.length });
@@ -163,5 +157,5 @@ export function awaken(store: Store, question: string, seedIds: string[], opts: 
   }
   kept.sort((a, b) => b.score - a.score || a.order - b.order);
   for (const k of kept.slice(opts.budget)) filtered.push({ id: k.m.id, reason: "budget" });
-  return { seeds, memories: kept.slice(0, opts.budget).map((k) => k.m), hypotheses, filtered, hidden };
+  return { seeds, memories: kept.slice(0, opts.budget).map((k) => k.m), hypotheses, filtered };
 }

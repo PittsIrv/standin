@@ -10,6 +10,7 @@
   "dependencies": {
     "@standin/knowledge": "workspace:*",
     "@standin/llm": "workspace:*",
+    "@standin/publish": "workspace:*",
     "@standin/schema": "workspace:*",
     "@standin/speak": "workspace:*",
     "@standin/store": "workspace:*",

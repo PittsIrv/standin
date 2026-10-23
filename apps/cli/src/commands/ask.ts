@@ -14,7 +14,8 @@ export function workLines(r: Reply): string[] {
   const model = w.checks.model === null ? "not run" : typeof w.checks.model === "string" ? w.checks.model : w.checks.model.supported ? "supported" : `unsupported: ${w.checks.model.unsupported.join("; ")}`;
   return [
     `Candidates: ${w.candidates.join(", ") || "none"}`,
-    `Seeds: ${w.seeds.map((s) => `${s.name} (${s.root ?? "unplaced"}${s.mode ? `, ${s.mode}` : ""}${s.boundary ? ", boundary" : ""})`).join(", ") || "none"}`,
+    `Private question: ${w.private ? "yes" : "no"}`,
+    `Seeds: ${w.seeds.map((s) => `${s.name} (${s.root ?? "unplaced"}${s.mode ? `, ${s.mode}` : ""})`).join(", ") || "none"}`,
     "Context:",
     ...(w.context.length ? w.context.map((c) => `  [${c.id}] (${c.kind}, ${c.node}) ${c.text}`) : ["  (nothing)"]),
     `Filtered: ${w.filtered.map((f) => `${f.id} ${f.reason}`).join(", ") || "nothing"}`,
