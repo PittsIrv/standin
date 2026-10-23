@@ -21,6 +21,7 @@
   },
   "devDependencies": {
     "@standin/demo-persona": "workspace:*",
+    "@standin/llm": "workspace:*",
     "@standin/trace": "workspace:*"
   }
 }

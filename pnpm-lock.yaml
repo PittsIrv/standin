@@ -271,6 +271,9 @@ importers:
       '@standin/demo-persona':
         specifier: workspace:*
         version: link:../../examples/demo-persona
+      '@standin/llm':
+        specifier: workspace:*
+        version: link:../llm
       '@standin/trace':
         specifier: workspace:*
         version: link:../trace

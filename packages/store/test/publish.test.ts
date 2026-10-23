@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { NotFoundError } from "../src/index.ts";
 import { seedMemory, tempStore } from "./helpers.ts";
 
 describe("publish reviews (publish spec §4–§5)", () => {
@@ -13,6 +14,7 @@ describe("publish reviews (publish spec §4–§5)", () => {
     store.recordSensitivity("memory:m1", "h2", { flagged: false, reason: null });
     expect(store.getPublishReview("memory:m1")).toMatchObject({ contentHash: "h2", flagged: false, decision: null });
     expect(store.listPublishReviews()).toHaveLength(1);
+    expect(() => store.decidePublishReview("memory:unchecked", "keep")).toThrow(NotFoundError);
   });
 
   it("re-tiers an approved memory and logs it", () => {

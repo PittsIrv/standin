@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Bundle } from "@standin/schema";
+import { NotFoundError } from "@standin/store";
 
 /** A saved version, as the Publish tab lists it. */
 export interface VersionInfo {
@@ -22,7 +23,7 @@ function writeAtomic(path: string, text: string) {
 
 export function readVersion(dir: string, n: number): Bundle {
   const path = file(dir, n);
-  if (!existsSync(path)) throw new Error(`version ${n} doesn't exist`);
+  if (!existsSync(path)) throw new NotFoundError("version", String(n));
   return Bundle.parse(JSON.parse(readFileSync(path, "utf8")));
 }
 

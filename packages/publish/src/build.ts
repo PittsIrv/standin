@@ -27,7 +27,7 @@ export interface BuildOptions {
 /**
  * The draft bundle (publish spec §2): everything a visitor's turn may use, and nothing else. Memories are approved,
  * tier 1–2, unexpired and off every boundary; a node is included if it carries one of them, a level of its own or a
- * confident guess, and so is its path to the root. Nothing on or under a boundary is included, not even its name.
+ * confident guess it can speak to, and so is its path to the root. Nothing on or under a boundary is included, not even its name.
  * Answering modes are worked out here, so probes, gaps and guess reasons never leave the store. Pure: no model calls,
  * no files.
  */
@@ -58,7 +58,8 @@ export function buildBundle(store: Store, opts: BuildOptions): Bundle {
     if (blocked(id)) continue;
     const a = answerMode(t, id, { speakAt: opts.speakAt });
     answers.set(id, a);
-    if (a.from?.nodeId === id && !(a.from.via === "hypothesis" && a.mode === "decline")) carries.add(id);
+    // Something to say of its own. A concept known only as not known adds nothing a visitor can tell apart.
+    if (a.from?.nodeId === id && a.mode !== "decline") carries.add(id);
   }
 
   const included = new Set<string>();

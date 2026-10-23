@@ -1,8 +1,10 @@
 import { clean } from "@standin/airlock";
+import { readCurrent } from "@standin/publish";
 import { answerTurn, type Reply } from "@standin/speak";
 import { CliError } from "../errors.ts";
 import { loadInstance } from "../home.ts";
 import { fmtMs, fmtUsd, instanceModels, instanceTracer, instanceTurn } from "../runtime.ts";
+import { publishedDir } from "./review.ts";
 import { flag, json, type Command } from "./shared.ts";
 
 /** "[grounded]", "[not on record: competence]", … */
@@ -26,18 +28,23 @@ export function workLines(r: Reply): string[] {
   ];
 }
 
-/** `standin ask "<question>"`: one question, answered as a visitor would be (answering spec §4). */
+/**
+ * `standin ask "<question>"`: one question, answered as a visitor would be (answering spec §4): from a draft of what
+ * would be published now, or with `--published` from the current published version (publish spec §7).
+ */
 export const askCommand: Command = {
-  options: { work: { type: "boolean" }, "demo-llm": { type: "boolean" }, ...json },
+  options: { work: { type: "boolean" }, published: { type: "boolean" }, "demo-llm": { type: "boolean" }, ...json },
   async run(ctx) {
     const typed = ctx.positionals.join(" ").trim();
-    if (!typed) throw new CliError('usage: standin ask "<question>" [--work] [--json]');
+    if (!typed) throw new CliError('usage: standin ask "<question>" [--work] [--published] [--json]');
     const question = clean(typed, "refuse").text; // it goes to a model and the trace
     const { store, config } = loadInstance(ctx.home, ctx.io.clock);
     try {
       const tracer = instanceTracer(ctx, store, config);
       const models = instanceModels(ctx, config, tracer, { demo: flag(ctx, "demo-llm") });
-      const r = await answerTurn(instanceTurn(store, config, tracer, models), question);
+      const published = flag(ctx, "published") ? readCurrent(publishedDir(ctx.home)) : undefined;
+      if (published === null) throw new CliError("Nothing is published yet. Run standin publish first.");
+      const r = await answerTurn(instanceTurn(store, config, tracer, models, published), question);
       if (flag(ctx, "json")) {
         ctx.io.stdout(JSON.stringify(r, null, 2));
         return 0;

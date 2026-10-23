@@ -1,6 +1,6 @@
 # Local Answering and Evals
 
-**Status:** implemented (decisions 84–92). **Builds on** architecture §6 (tiers, answer states), §8 (runtime extras), §9 (voice) and §10 (evals); world-tree §6.3 (speaking) and §6.4 (awakening); the knowledge-map answering rule.
+**Status:** implemented (decisions 84–92). Answering now reads the published bundle, and private questions and the fixed replies changed: see publish spec §3 (decisions 101–104), which revises §2 steps 1, 3, 4 and 6 and §3 here. **Builds on** architecture §6 (tiers, answer states), §8 (runtime extras), §9 (voice) and §10 (evals); world-tree §6.3 (speaking) and §6.4 (awakening); the knowledge-map answering rule.
 
 The standin learns about the person but cannot yet answer anyone. This builds the answering side **on the person's own machine**, and the harness that measures it, before anything is deployed. The public runtime (Worker, rate limits, budget ledger) comes later and reuses this code unchanged.
 

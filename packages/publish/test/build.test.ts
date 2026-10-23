@@ -71,6 +71,15 @@ describe("building the bundle (publish spec §2)", () => {
     expect(json).not.toMatch(/private journal|private notes|hyp_1|0\.9/);
   });
 
+  it("leaves out a concept known only as not known: the reply is \"I don't know.\" either way", () => {
+    const s = store();
+    const cs = node(s, "Computer science", "knowledge");
+    const quantum = node(s, "Quantum computing", cs.id);
+    const t = loadSnapshot(s);
+    t.stated.set(quantum.id, 0);
+    expect(buildBundle(s, { ...opts, snapshot: t }).nodes.map((n) => n.name)).not.toContain("Quantum computing");
+  });
+
   it("holds approved exemplars only", () => {
     const s = store();
     const o = s.addObservation({ sourceKind: "manual", sourceRef: "t", authorRole: "self", text: "x", occurredAt: "2026-09-01T00:00:00.000Z" });

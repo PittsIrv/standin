@@ -46,9 +46,12 @@ Commands:
   map [--json] [--private] [--all]               your world tree: six roots, what's lit, at what depth, and why; calibration
                                                  (--private adds the presented score; --all shows frontier nodes)
   review [--port P] [--lan] [--demo-llm]          rate concepts, review proposals and edit your world tree in a local page
+  publish [--port P] [--demo-llm]                see what would go public, then publish a version or roll back
                                                  (--lan: reachable from your phone, with a QR code; Ctrl-C stops)
-  ask "<question>" [--work] [--demo-llm]         answer as a visitor would be answered: the reply, its state and citations
-                                                 (--work: what it looked at, filtered and checked, and the cost)
+  ask "<question>" [--work] [--published] [--demo-llm]
+                                                 answer as a visitor would be answered: the reply, its state and citations
+                                                 (--work: what it looked at, filtered and checked, and the cost;
+                                                 --published: from the published version, not what you'd publish now)
   questions [--sheet]                            open questions about your life (--sheet: an answer sheet for interview import)
   outcomes export [--out F]                      text-free records of settled guesses, to a local file (needs sharing.outcomes)
   outcomes priors <file> | --clear               load (or clear) default reliabilities, capped per cell

@@ -13,7 +13,7 @@ import { questionsCommand } from "./questions.ts";
 import { purgeCommand } from "./purge.ts";
 import { scanCommand } from "./scan.ts";
 import { queueCommand } from "./queue.ts";
-import { reviewCommand } from "./review.ts";
+import { publishCommand, reviewCommand } from "./review.ts";
 import { tellCommand } from "./tell.ts";
 import { traceCommand, tracesCommand } from "./traces.ts";
 import { usageCommand } from "./usage.ts";
@@ -36,6 +36,7 @@ export const commands: Record<string, Command> = {
   memories: memoriesCommand,
   map: mapCommand,
   review: reviewCommand,
+  publish: publishCommand,
   ask: askCommand,
   questions: questionsCommand,
   outcomes: outcomesCommand,

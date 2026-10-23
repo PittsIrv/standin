@@ -1,4 +1,5 @@
 import { networkInterfaces } from "node:os";
+import { join } from "node:path";
 import { reviewQueue } from "@standin/compaction";
 import { QuizDeck } from "@standin/evals";
 import { CardSession } from "@standin/knowledge";
@@ -24,8 +25,12 @@ function positiveInt(raw: string | undefined, name: string): number | undefined 
   return n;
 }
 
-/** `standin review`: a probing session in a local page, saved as you go. Ctrl-C stops it; the next one resumes. */
-export const reviewCommand: Command = {
+/** Where published versions are saved (publish spec §4). */
+export const publishedDir = (home: string) => join(home, "published");
+
+/** `standin review` and `standin publish`: the review page, opened on `tab`. */
+function reviewPage(tab: "session" | "publish"): Command {
+  return {
   options: { port: { type: "string" }, lan: { type: "boolean" }, "demo-llm": { type: "boolean" } },
   async run(ctx) {
     const port = positiveInt(str(ctx, "port"), "--port");
@@ -49,8 +54,16 @@ export const reviewCommand: Command = {
       for (const w of session.warnings.splice(0)) ctx.io.stdout(`warning: ${w}`);
       const turn = instanceTurn(store, config, tracer, models);
       const quiz = new QuizDeck({ store, casesPath: casesPath(ctx.home), turn, every: config.selfQuiz.every });
-      const server = await startReviewServer({ session, store, config, host: lan ? "0.0.0.0" : "127.0.0.1", port, speakAt: config.hypotheses.speakAt, turn, quiz });
-      const url = publicHost ? server.url.replace("//0.0.0.0:", `//${publicHost}:`) : server.url;
+      const publish = {
+        store,
+        dir: publishedDir(ctx.home),
+        screen: models.for("screen"),
+        personaName: config.persona.name,
+        speakAt: config.hypotheses.speakAt,
+        batch: config.publish.sensitivityBatch,
+      };
+      const server = await startReviewServer({ session, store, config, host: lan ? "0.0.0.0" : "127.0.0.1", port, speakAt: config.hypotheses.speakAt, turn, quiz, publish });
+      const url = `${publicHost ? server.url.replace("//0.0.0.0:", `//${publicHost}:`) : server.url}${tab === "publish" ? "#publish" : ""}`;
       ctx.io.stdout(`Review page: ${url}`);
       if (publicHost) {
         ctx.io.stdout(renderUnicodeCompact(url));
@@ -68,4 +81,10 @@ export const reviewCommand: Command = {
       store.close();
     }
   },
-};
+  };
+}
+
+/** `standin review`: a probing session in a local page, saved as you go. Ctrl-C stops it; the next one resumes. */
+export const reviewCommand = reviewPage("session");
+/** `standin publish`: the same page, on the Publish tab (publish spec §4). */
+export const publishCommand = reviewPage("publish");

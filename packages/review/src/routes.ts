@@ -3,6 +3,7 @@ import { queuePlace, reviewQueue } from "@standin/compaction";
 import { loadSnapshot, MAX_INTRO_STATEMENTS, nodeDetail, treeNodes, type FinishReport } from "@standin/knowledge";
 import { fetchPage, fileToText, IntakeError, LIMITS } from "@standin/intake";
 import { EntityKind, FactKind, QuizRating, ROOTS } from "@standin/schema";
+import { decideHeld, listVersions, preparePublish, prepareRollback, publish, rollback } from "@standin/publish";
 import { answerTurn } from "@standin/speak";
 import { NameTakenError } from "@standin/store";
 import { z } from "zod";
@@ -214,6 +215,37 @@ export function registerRoutes(o: ReviewServerOptions, route: Route, _finish: ()
     const b = z.object({ memoryId: Id, nodeId: Id }).parse(body);
     store.getTopic(b.nodeId);
     return store.setHome(b.memoryId, b.nodeId);
+  });
+
+  // ---- publishing (publish spec §4) ---------------------------------------------------
+  const pub = () => {
+    if (!o.publish) throw new UnavailableError("Publishing isn't available in this session.");
+    return o.publish;
+  };
+  const counts = (b: { memories: unknown[]; nodes: unknown[]; exemplars: unknown[] }) => ({ memories: b.memories.length, nodes: b.nodes.length, exemplars: b.exemplars.length });
+  route("GET", "/api/publish", async () => {
+    const d = pub();
+    const p = await preparePublish(d);
+    return { current: p.current, counts: counts(p.bundle), changes: p.changes, findings: p.findings, held: p.held, versions: listVersions(d.dir) };
+  });
+  const ItemKey = z.string().regex(/^(memory|node|exemplar):[\w-]{1,64}$/);
+  route("POST", "/api/publish/decide", ({ body }) => {
+    const b = z.object({ key: ItemKey, decision: z.enum(["keep", "hide"]) }).parse(body);
+    decideHeld(store, b.key, b.decision);
+  });
+  route("POST", "/api/publish", async () => {
+    const saved = await publish(pub());
+    return { version: saved.version, counts: counts(saved) };
+  });
+  const Version = z.coerce.number().int().positive();
+  route("GET", "/api/publish/rollback/:id", ({ id }) => {
+    const p = prepareRollback(pub(), Version.parse(id));
+    return { current: p.current, counts: counts(p.bundle), changes: p.changes, findings: p.findings };
+  });
+  route("POST", "/api/publish/rollback", ({ body }) => {
+    const b = z.object({ version: Version }).parse(body);
+    const saved = rollback(pub(), b.version);
+    return { version: saved.version, counts: counts(saved) };
   });
 
   // ---- boundaries ("wouldn't say"), with undo ------------------------------------

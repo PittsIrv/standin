@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { QuizDeck } from "@standin/evals";
 import type { CardSession, FinishReport } from "@standin/knowledge";
+import { PublishBlockedError, type PublishDeps } from "@standin/publish";
 import type { TurnDeps } from "@standin/speak";
 import type { Config } from "@standin/schema";
 import { AlreadyRatedError, CycleError, InvalidTransitionError, NameTakenError, NotFoundError, RootEditError, type Store } from "@standin/store";
@@ -24,6 +25,8 @@ export interface ReviewServerOptions {
   turn?: TurnDeps;
   /** The self-quiz deck; without it, no quiz cards. */
   quiz?: QuizDeck;
+  /** Publishing, for the Publish tab; without it, publishing is unavailable. */
+  publish?: PublishDeps;
   /** How websites are fetched for the introduction (tests inject a fake network). */
   fetchOptions?: FetchOptions;
 }
@@ -101,7 +104,7 @@ function statusFor(err: unknown): number {
   if (err instanceof IntakeError) return 422;
   if (err instanceof ZodError) return 400;
   if (err instanceof NotFoundError) return 404;
-  if (err instanceof UnavailableError) return 409;
+  if (err instanceof UnavailableError || err instanceof PublishBlockedError) return 409;
   if (err instanceof AlreadyRatedError || err instanceof InvalidTransitionError || err instanceof NameTakenError || err instanceof CycleError || err instanceof RootEditError)
     return 409;
   return 500;

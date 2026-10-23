@@ -109,6 +109,30 @@ details.work li { margin: 2px 0; overflow-wrap: anywhere; }
 .yours { font: 400 18px/1.45 var(--read); margin: 6px 0 18px; padding-left: 14px; border-left: 2px solid var(--line); border-radius: 0; }
 .label-small { font-size: 13px; color: var(--muted); margin: 18px 0 4px; }
 
+/* Publish */
+#publish { flex: 1; overflow: auto; padding: 32px 16px; }
+#publish h3 { font-size: 15px; font-weight: 600; margin: 26px 0 6px; }
+.pub-status { font: 400 21px/1.45 var(--read); margin: 0 0 4px; }
+.pub-go { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 18px 0 4px; }
+.tag { font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); flex: none; }
+.tag.added { border-color: var(--life); color: var(--life); }
+.tag.changed { border-color: var(--lit); color: var(--lit-ink); }
+.tag.removed { border-color: var(--danger); color: var(--danger); }
+details.changes summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
+details.changes summary .small { font-weight: 400; color: var(--muted); margin-left: 6px; }
+.changes ul, ul.held, ul.versions, .stop ul { list-style: none; padding: 0; margin: 0; }
+.changes li { display: flex; gap: 10px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.changes .what { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.changes .small, ul.held .small, ul.versions .small { color: var(--muted); font-size: 13px; }
+.stop { border: 1px solid var(--danger); border-radius: 12px; padding: 4px 16px 12px; margin: 18px 0; }
+.stop h3 { color: var(--danger); }
+.stop li { padding: 4px 0; overflow-wrap: anywhere; }
+ul.held li, ul.versions > li { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 12px 0; border-bottom: 1px solid var(--line); }
+ul.held .what { flex: 1 1 16rem; min-width: 0; overflow-wrap: anywhere; }
+ul.held .what p { margin: 0; }
+.pair { display: flex; gap: 8px; flex-wrap: wrap; }
+.preview { flex-basis: 100%; padding: 4px 0 8px 14px; border-left: 2px solid var(--line); }
+
 /* Forest */
 #forestTab { flex: 1; display: flex; min-width: 0; position: relative; }
 #canvas { flex: 1; position: relative; overflow: hidden; touch-action: none; }
@@ -186,6 +210,7 @@ details.work li { margin: 2px 0; overflow-wrap: anywhere; }
     <button role="tab" data-tab="ask" aria-selected="false">Ask</button>
     <button role="tab" data-tab="forest" aria-selected="false">Forest</button>
     <button role="tab" data-tab="boundaries" aria-selected="false">Boundaries</button>
+    <button role="tab" data-tab="publish" aria-selected="false">Publish</button>
   </nav>
   <span class="progress" id="progress"></span>
 </header>
@@ -213,6 +238,7 @@ details.work li { margin: 2px 0; overflow-wrap: anywhere; }
     <div id="ghost"></div>
   </section>
   <section id="boundaries" class="list" role="tabpanel" hidden><div></div></section>
+  <section id="publish" role="tabpanel" hidden></section>
 </main>
 <script>
 "use strict";
@@ -316,16 +342,20 @@ let tab = "session";
 function show(name) {
   tab = name;
   for (const b of document.querySelectorAll("nav button")) b.setAttribute("aria-selected", String(b.dataset.tab === name));
+  // On a phone the tabs scroll sideways: keep the chosen one in view.
+  document.querySelector(`nav [data-tab="${name}"]`).scrollIntoView({ block: "nearest", inline: "nearest" });
   $("#session").hidden = name !== "session";
   $("#add").hidden = name !== "add";
   $("#ask").hidden = name !== "ask";
   $("#forestTab").hidden = name !== "forest";
   $("#boundaries").hidden = name !== "boundaries";
+  $("#publish").hidden = name !== "publish";
   if (name === "session") loadCard();
   if (name === "add") renderIntro();
   if (name === "ask") renderAsk();
   if (name === "forest") loadForest(true);
   if (name === "boundaries") loadBoundaries();
+  if (name === "publish") loadPublish();
 }
 for (const b of document.querySelectorAll("nav button")) b.onclick = () => show(b.dataset.tab);
 
@@ -474,7 +504,7 @@ function renderCard() {
 let quizStatus = null;
 const asked = [];
 const STATE_NAME = { grounded: "On record", inferred: "Inferred, hedged", not_on_record: "Not on record", deflected: "Kept private" };
-const LEFT_OUT = { status: "not approved yet", tier: "private (tier 3 or 4)", boundary: "in a branch you keep private", expired: "out of date", budget: "over the limit" };
+const LEFT_OUT = { expired: "out of date", budget: "over the limit" };
 
 /** A reply the way a visitor sees it: the text, its state, what it rests on; then how it decided, folded away. */
 function replyView(r) {
@@ -482,10 +512,11 @@ function replyView(r) {
   const left = {};
   for (const f of w.filtered) left[f.reason] = (left[f.reason] || 0) + 1;
   const model = w.checks.model === null ? "not needed" : typeof w.checks.model === "string" ? w.checks.model : w.checks.model.supported ? "every claim is in the cited facts" : `unsupported: ${w.checks.model.unsupported.join("; ")}`;
-  const why = r.reason === "competence" ? " (not a topic you know well)" : r.reason === "check" ? " (a check stopped the reply)" : r.reason === "error" ? ` (a model call failed: ${w.error})` : "";
+  const why = r.state === "deflected" ? " (a private question, with nothing published about it)" : r.reason === "competence" ? " (not a topic you know well)" : r.reason === "check" ? " (a check stopped the reply)" : r.reason === "error" ? ` (a model call failed: ${w.error})` : "";
   return `<div class="reply"><p>${esc(r.text)}</p>
     <div class="meta"><span class="badge ${r.state}">${STATE_NAME[r.state]}</span>${r.cites.map((c) => `<span class="chip">${esc(c.statement)} <i>${esc(c.node)}</i></span>`).join("")}</div></div>
     <details class="work"><summary>How it answered${esc(why)}</summary><ul>
+      <li>Private question: ${w.private ? "yes, so only published facts could answer it" : "no"}</li>
       <li>Looked in: ${w.seeds.length ? w.seeds.map((s) => esc(s.name)).join(", ") : "nothing in your tree matched"}</li>
       <li>Could use: ${w.context.length ? w.context.map((c) => esc(c.text)).join(" · ") : "nothing"}</li>
       <li>Left out: ${Object.keys(left).length ? Object.entries(left).map(([k, n]) => `${n} ${LEFT_OUT[k]}`).join(", ") : "nothing"}</li>
@@ -498,7 +529,7 @@ function replyView(r) {
 function renderAsk() {
   const hint = quizStatus && quizStatus.left === 0 && quizStatus.rated === 0 ? `<p class="note">Self-quiz cards need test questions first: run <code>standin eval build</code> in your terminal.</p>` : "";
   $("#ask").innerHTML = `<div class="card">
-    <p class="note">Ask what a visitor might. You see exactly what they would get: only approved facts you share, never anything private.</p>
+    <p class="note">Ask what a visitor might. You see what they would get if you published now: only approved facts you share, never anything private.</p>
     <form class="ask-row" id="askForm"><input id="askText" maxlength="500" placeholder="What do you work on?" aria-label="A visitor's question" autocomplete="off"><button class="primary" id="askGo">Ask</button></form>
     <div class="error" id="askError"></div>${hint}
     <div id="exchanges">${asked.map((x) => `<div class="exchange"><p class="asked">${esc(x.q)}</p>${replyView(x.r)}</div>`).join("")}</div>
@@ -1241,13 +1272,125 @@ function statusLine(n) {
   return `You know it: ${level(n.depth)} (${n.basis})${n.boundary ? " · boundary" : ""}`;
 }
 
+// ---- publishing ----------------------------------------------------------------
+const CHANGE_WORD = { added: "New", changed: "Changed", removed: "Removed" };
+const KIND_WORD = { memory: "fact", node: "topic", exemplar: "writing sample" };
+const TREE_NAME = { knowledge: "Knowledge", work: "Work", background: "Background", people: "People", views: "Views", life: "Life" };
+const when = (iso) => new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+const countsText = (c) => `${plural(c.memories, "fact")}, ${plural(c.nodes, "topic")}, ${plural(c.exemplars, "writing sample")}`;
+
+/** What changes, grouped by tree; long groups start folded. */
+function changeList(changes) {
+  if (!changes.length) return `<p class="note">Nothing has changed since the last publish.</p>`;
+  const groups = new Map();
+  for (const c of changes) {
+    const g = c.kind === "exemplar" ? "Writing samples" : TREE_NAME[c.root] ?? "Not placed yet";
+    groups.set(g, [...(groups.get(g) ?? []), c]);
+  }
+  return [...groups]
+    .map(([g, list]) => `<details class="changes"${list.length <= 25 ? " open" : ""}><summary>${esc(g)}<span class="small">${list.length}</span></summary><ul>${list
+      .map((c) => `<li><span class="tag ${c.change}">${CHANGE_WORD[c.change]}</span><span class="what">${esc(c.label)}${c.was ? ` <span class="small">(was “${esc(c.was)}”)</span>` : ""}</span><span class="small">${KIND_WORD[c.kind]}</span></li>`)
+      .join("")}</ul></details>`)
+    .join("");
+}
+
+/** The final scan's findings, masked: anything here stops the publish. */
+function stopList(findings, what) {
+  if (!findings.length) return "";
+  return `<div class="stop" role="alert"><h3>The final scan stopped ${what}</h3><p class="note">These can't go public, and your standin never needs them. Run <code>standin scan</code> to see and remove them, then come back.</p><ul>${findings
+    .map((f) => `<li>A ${esc(f.label)} in ${esc(f.where.replace(/^memory /, "fact ").replace(/^exemplar /, "writing sample ").replace(/^node /, "topic "))}: “${esc(f.context)}”</li>`)
+    .join("")}</ul></div>`;
+}
+
+async function loadPublish() {
+  const root = $("#publish");
+  root.innerHTML = `<div class="card"><p class="note">Checking what would go public…</p></div>`;
+  let p;
+  try {
+    p = await api("/api/publish");
+  } catch (e) {
+    root.innerHTML = `<div class="card"><p class="error">${esc(e.message)}</p><button id="pubRetry">Try again</button></div>`;
+    $("#pubRetry").onclick = loadPublish;
+    return;
+  }
+  const next = (p.versions[0]?.version ?? 0) + 1;
+  const blocked = p.findings.length > 0;
+  root.innerHTML = `<div class="card">
+    <p class="pub-status">${p.current ? `Version ${p.current.version} is current, published ${esc(when(p.current.createdAt))}.` : "Nothing has been published yet."}</p>
+    <p class="note">Publishing saves a version on this computer. Only a published version will be shown to visitors once your standin is online; nothing else ever leaves.</p>
+    ${stopList(p.findings, "this publish")}
+    ${p.held.length ? `<h3>Held back: ${p.held.length}</h3><p class="note">A check flagged these as possibly private. They stay out until you decide.</p><ul class="held">${p.held
+      .map((h) => `<li><div class="what"><p>${esc(h.label)}</p><p class="small">${KIND_WORD[h.kind]}: ${esc(h.reason)}</p></div><div class="pair"><button data-keep="${esc(h.key)}">Publish it</button><button data-hide="${esc(h.key)}">Keep private</button></div></li>`)
+      .join("")}</ul>` : ""}
+    <h3>What changes: ${p.changes.length}</h3>
+    ${changeList(p.changes)}
+    <div class="pub-go"><button class="primary" id="pubGo"${blocked || !p.changes.length ? " disabled" : ""}>Publish version ${next}</button><span class="small">${countsText(p.counts)}${p.held.length ? `; ${plural(p.held.length, "item")} held back` : ""}</span></div>
+    <div class="error" id="pubError"></div>
+    ${p.versions.length ? `<h3>Versions</h3><ul class="versions">${p.versions
+      .map((v) => `<li><span>Version ${v.version} <span class="small">${esc(when(v.createdAt))}, ${countsText(v)}</span></span>${p.current && v.version === p.current.version ? `<span class="small">current</span>` : `<button data-back="${v.version}">Roll back to this</button>`}</li>`)
+      .join("")}</ul>` : ""}
+  </div>`;
+  const decide = async (key, decision) => {
+    try {
+      await api("/api/publish/decide", { key, decision });
+      loadPublish();
+    } catch (e) {
+      $("#pubError").textContent = e.message;
+    }
+  };
+  for (const b of root.querySelectorAll("[data-keep]")) b.onclick = () => decide(b.dataset.keep, "keep");
+  for (const b of root.querySelectorAll("[data-hide]")) b.onclick = () => decide(b.dataset.hide, "hide");
+  $("#pubGo").onclick = async () => {
+    $("#pubGo").disabled = true;
+    try {
+      const r = await api("/api/publish", {});
+      banner(`Published version ${r.version}: ${countsText(r.counts)}.`);
+      loadPublish();
+    } catch (e) {
+      $("#pubError").textContent = e.message;
+      $("#pubGo").disabled = false;
+    }
+  };
+  for (const b of root.querySelectorAll("[data-back]")) b.onclick = () => previewRollback(b.closest("li"), Number(b.dataset.back), next);
+}
+
+/** Shows what rolling back would publish, under its version, with a confirm. */
+async function previewRollback(li, version, next) {
+  for (const old of document.querySelectorAll(".preview")) old.remove();
+  const box = document.createElement("div");
+  box.className = "preview";
+  box.innerHTML = `<p class="note">Checking version ${version}…</p>`;
+  li.append(box);
+  try {
+    const r = await api(`/api/publish/rollback/${version}`);
+    box.innerHTML = `<p class="note">This publishes version ${version} again as version ${next}, without anything you've hidden, retracted or kept private since.</p>
+      ${stopList(r.findings, "this rollback")}${changeList(r.changes)}
+      <div class="pub-go"><button class="primary" id="backGo"${r.findings.length ? " disabled" : ""}>Roll back to version ${version}</button><button id="backCancel">Cancel</button></div><div class="error" id="backError"></div>`;
+    $("#backCancel").onclick = () => box.remove();
+    $("#backGo").onclick = async () => {
+      $("#backGo").disabled = true;
+      try {
+        const saved = await api("/api/publish/rollback", { version });
+        banner(`Rolled back: version ${saved.version} is current.`);
+        loadPublish();
+      } catch (e) {
+        $("#backError").textContent = e.message;
+        $("#backGo").disabled = false;
+      }
+    };
+  } catch (e) {
+    box.innerHTML = `<p class="error">${esc(e.message)}</p>`;
+  }
+}
+
 // ---- boundaries -----------------------------------------------------------
 async function loadBoundaries() {
   const box = $("#boundaries > div");
   try {
     const { boundaries } = await api("/api/boundaries");
     box.innerHTML = boundaries.length
-      ? `<p class="note">The standin deflects questions on these branches. Undo any you'd rather allow.</p><ul>${boundaries.map((b) => `<li><span>${esc(b.topic)}</span><button data-undo="${esc(b.nodeId)}">Undo</button></li>`).join("")}</ul>`
+      ? `<p class="note">These branches are never published, not even their names. Undo any you'd rather allow.</p><ul>${boundaries.map((b) => `<li><span>${esc(b.topic)}</span><button data-undo="${esc(b.nodeId)}">Undo</button></li>`).join("")}</ul>`
       : `<p class="empty">No boundaries. Rating a question “Wouldn't say” adds one.</p>`;
     for (const b of box.querySelectorAll("[data-undo]")) b.onclick = async () => { await api("/api/boundaries/undo", { nodeId: b.getAttribute("data-undo") }); loadBoundaries(); };
   } catch (e) {
@@ -1255,7 +1398,9 @@ async function loadBoundaries() {
   }
 }
 
-loadCard();
+// `standin publish` opens the page on the Publish tab.
+const firstTab = location.hash.slice(1);
+show([...document.querySelectorAll("nav button")].some((b) => b.dataset.tab === firstTab) ? firstTab : "session");
 </script>
 </body>
 </html>

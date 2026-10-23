@@ -1,3 +1,4 @@
+import { NotFoundError } from "./errors.ts";
 import type { Store } from "./store.ts";
 
 /** One bundle item's sensitivity check at its current text, and the person's decision (publish spec §4). */
@@ -42,6 +43,6 @@ export function recordSensitivity(s: Store, key: string, hash: string, r: { flag
 
 export function decidePublishReview(s: Store, key: string, decision: "keep" | "hide"): PublishReview {
   const r = s.db.prepare("UPDATE publish_reviews SET decision = ?, decided_at = ? WHERE item_key = ?").run(decision, s.nowIso(), key);
-  if (r.changes === 0) throw new Error(`no sensitivity check recorded for ${key}`);
+  if (r.changes === 0) throw new NotFoundError("checked item", key);
   return getPublishReview(s, key)!;
 }
